@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login — Everbloom</title>
   <link rel="stylesheet" href="css/style.css">
+  <script src="js/env.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     body { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: var(--cream); }
@@ -25,6 +26,15 @@
       .auth-split { grid-template-columns: 1fr; }
       .auth-art { display: none; }
       .auth-card { padding: 40px 24px; }
+    }
+  </style>
+
+  <style>
+    @media (max-width: 768px) {
+      .auth-split { grid-template-columns: 1fr !important; }
+      .auth-art { display: none !important; }
+      .auth-card { padding: 40px 24px !important; min-height: 100vh; align-items: flex-start; padding-top: 60px !important; }
+      .auth-form { max-width: 100% !important; }
     }
   </style>
 </head>

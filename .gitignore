@@ -1,0 +1,13 @@
+# NEVER commit real credentials
+js/env.js
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Node (if using build tools)
+node_modules/

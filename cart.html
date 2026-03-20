@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cart — Everbloom</title>
   <link rel="stylesheet" href="css/style.css">
+  <script src="js/env.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -16,7 +17,22 @@
     <div id="auth-links" style="display:flex;gap:10px"><a href="login.html" class="btn btn-secondary btn-sm">Login</a><a href="signup.html" class="btn btn-primary btn-sm">Sign Up</a></div>
     <div id="user-menu" style="display:none;align-items:center;gap:12px"><span style="font-size:13px;color:var(--text-secondary)">Hi, <span class="user-name"></span></span><button onclick="signOut()" class="btn btn-secondary btn-sm">Logout</button></div>
   </div>
+    <button class="nav-hamburger" onclick="toggleMobileNav()" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
 </nav>
+<div id="nav-overlay" onclick="toggleMobileNav()"></div>
+<div class="mobile-nav" id="mobile-nav">
+  <button class="mobile-nav-close" onclick="toggleMobileNav()">×</button>
+  <a href="/index.html" onclick="toggleMobileNav()">Home</a>
+  <a href="/shop.html" onclick="toggleMobileNav()">Shop</a>
+  <a href="/orders.html" onclick="toggleMobileNav()">My Orders</a>
+  <a href="/cart.html" onclick="toggleMobileNav()">🛒 Cart</a>
+  <div class="mobile-nav-actions" id="mobile-auth-nav">
+    <a href="/login.html" class="btn btn-secondary btn-full" id="m-login-btn">Login</a>
+    <a href="/signup.html" class="btn btn-primary btn-full" id="m-signup-btn">Sign Up</a>
+  </div>
+</div>
 
 <div class="page-header"><h1>Your Cart</h1></div>
 

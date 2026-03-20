@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Product — Everbloom</title>
   <link rel="stylesheet" href="css/style.css">
+  <script src="js/env.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     .product-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 72px; padding: 60px 0; align-items: start; }
@@ -33,7 +34,22 @@
     <div id="auth-links" style="display:flex;gap:10px"><a href="login.html" class="btn btn-secondary btn-sm">Login</a><a href="signup.html" class="btn btn-primary btn-sm">Sign Up</a></div>
     <div id="user-menu" style="display:none;align-items:center;gap:12px"><a href="orders.html" style="font-size:13px;color:var(--text-secondary)">Hi, <span class="user-name"></span></a><a href="admin/index.html" class="admin-link btn btn-sm" style="display:none;background:var(--brown-accent);color:white;padding:6px 14px;border-radius:4px;font-size:11px;letter-spacing:1px">Admin</a><button onclick="signOut()" class="btn btn-secondary btn-sm">Logout</button></div>
   </div>
+    <button class="nav-hamburger" onclick="toggleMobileNav()" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
 </nav>
+<div id="nav-overlay" onclick="toggleMobileNav()"></div>
+<div class="mobile-nav" id="mobile-nav">
+  <button class="mobile-nav-close" onclick="toggleMobileNav()">×</button>
+  <a href="/index.html" onclick="toggleMobileNav()">Home</a>
+  <a href="/shop.html" onclick="toggleMobileNav()">Shop</a>
+  <a href="/orders.html" onclick="toggleMobileNav()">My Orders</a>
+  <a href="/cart.html" onclick="toggleMobileNav()">🛒 Cart</a>
+  <div class="mobile-nav-actions" id="mobile-auth-nav">
+    <a href="/login.html" class="btn btn-secondary btn-full" id="m-login-btn">Login</a>
+    <a href="/signup.html" class="btn btn-primary btn-full" id="m-signup-btn">Sign Up</a>
+  </div>
+</div>
 
 <!-- Breadcrumb -->
 <div style="background:var(--warm-white);border-bottom:1px solid var(--border);padding:12px 40px">

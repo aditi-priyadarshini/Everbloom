@@ -6,6 +6,7 @@
   <title>Products — Everbloom Admin</title>
   <link rel="stylesheet" href="../css/style.css">
   <link rel="stylesheet" href="../css/admin.css">
+  <script src="../js/env.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -394,6 +395,19 @@ async function deleteProduct(id, title) {
 }
 
 init();
+</script>
+
+<script>
+// Admin mobile sidebar
+document.addEventListener('DOMContentLoaded', () => {
+  const topbar = document.querySelector('.admin-topbar');
+  if (topbar) {
+    topbar.addEventListener('click', (e) => {
+      if (e.target.closest('button') || e.target.closest('a') || e.target.closest('select')) return;
+      document.querySelector('.admin-sidebar')?.classList.toggle('open');
+    });
+  }
+});
 </script>
 </body>
 </html>

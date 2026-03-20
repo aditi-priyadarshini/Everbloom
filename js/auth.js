@@ -106,3 +106,24 @@ document.addEventListener('click', (e) => {
 });
 
 document.addEventListener('DOMContentLoaded', initNavAuth);
+
+// ── Mobile nav auth state ─────────────────
+async function updateMobileNavAuth() {
+  const user = await getCurrentUser();
+  const loginBtn = document.getElementById('m-login-btn');
+  const signupBtn = document.getElementById('m-signup-btn');
+  const mobileAuth = document.getElementById('mobile-auth-nav');
+  if (!mobileAuth) return;
+
+  if (user) {
+    const profile = await getCurrentProfile();
+    mobileAuth.innerHTML = `
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:8px">Hi, ${profile?.full_name?.split(' ')[0] || 'there'} 👋</p>
+      ${profile?.role === 'admin' ? `<a href="/admin/index.html" class="btn btn-accent btn-full" style="margin-bottom:8px">Admin Panel</a>` : ''}
+      <a href="/orders.html" class="btn btn-secondary btn-full" style="margin-bottom:8px">My Orders</a>
+      <button onclick="signOut()" class="btn btn-full" style="border:1px solid var(--border)">Logout</button>
+    `;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', updateMobileNavAuth);

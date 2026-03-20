@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sign Up — Everbloom</title>
   <link rel="stylesheet" href="css/style.css">
+  <script src="js/env.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     .auth-split { display: grid; grid-template-columns: 1fr 1fr; min-height: 100vh; width: 100%; }
@@ -13,6 +14,15 @@
     .auth-card { padding: 60px; display: flex; align-items: center; justify-content: center; overflow-y: auto; }
     .auth-form { width: 100%; max-width: 440px; }
     @media (max-width: 768px) { .auth-split { grid-template-columns: 1fr; } .auth-art { display: none; } .auth-card { padding: 40px 24px; } }
+  </style>
+
+  <style>
+    @media (max-width: 768px) {
+      .auth-split { grid-template-columns: 1fr !important; }
+      .auth-art { display: none !important; }
+      .auth-card { padding: 40px 24px !important; min-height: 100vh; align-items: flex-start; padding-top: 60px !important; }
+      .auth-form { max-width: 100% !important; }
+    }
   </style>
 </head>
 <body>

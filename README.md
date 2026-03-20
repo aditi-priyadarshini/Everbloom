@@ -192,3 +192,48 @@ This is a static site — deploy anywhere for free:
 ---
 
 *Built with love for handcrafted art. 🌸*
+
+---
+
+## 🔒 Security — Environment Variables
+
+All sensitive config lives in **`js/env.js`**. 
+
+### Never commit real credentials to Git!
+
+Add this to `.gitignore`:
+```
+js/env.js
+```
+
+Copy `js/env.js.example` → `js/env.js` and fill in your values.
+
+### Deploying to Netlify / Vercel
+
+Use their environment variable dashboard and a build script to inject values:
+
+```bash
+# netlify.toml or vercel.json build command:
+node -e "
+const fs = require('fs');
+const env = \`window.ENV = {
+  SUPABASE_URL: '${SUPABASE_URL}',
+  SUPABASE_ANON_KEY: '${SUPABASE_ANON_KEY}',
+  SITE_URL: '${SITE_URL}',
+  UPI_ID: '${UPI_ID}',
+  QR_CODE_IMAGE: 'assets/qr-code.png',
+};\`;
+fs.writeFileSync('js/env.js', env);
+"
+```
+
+Set `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SITE_URL`, `UPI_ID` as environment variables in your hosting dashboard.
+
+### What's in env.js (never expose these):
+| Variable | Where to find it |
+|---|---|
+| `SUPABASE_URL` | Supabase → Settings → API → Project URL |
+| `SUPABASE_ANON_KEY` | Supabase → Settings → API → anon public key |
+| `SITE_URL` | Your live domain e.g. `https://everbloom.store` |
+| `UPI_ID` | Your UPI handle e.g. `name@okicici` |
+
