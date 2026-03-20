@@ -1,106 +1,137 @@
-# 🌸 Everbloom — Setup Guide
+# 🌸 Everbloom
 
-A complete handcrafted art & craft e-commerce store with live order tracking, email notifications, and QR-based UPI payment.
+> A complete handcrafted art & craft e-commerce store — live order tracking, email notifications at every step, and QR-based UPI payment. No payment gateway required.
 
 ---
 
-## 🚀 Quick Start (5 Steps)
+## ✨ Features
 
-### Step 1 — Create Supabase Project
+- **Customer-facing store** — Home, Shop with filters, Product detail, Cart, Checkout
+- **Live order tracking** — 9-step timeline with real-time Supabase updates
+- **Email notifications** — Branded email sent at every status change via Resend
+- **QR / UPI payment** — Customer scans QR, uploads screenshot, admin verifies
+- **In-app notifications** — Bell icon with unread count
+- **Admin panel** — Dashboard, product CRUD, order management with one-click status updates
+- **Fully mobile responsive** — Hamburger nav, touch-friendly layouts
+- **Secure config** — All credentials in `js/env.js`, never hardcoded
 
-1. Go to [supabase.com](https://supabase.com) → New Project
-2. Choose a name (e.g. `everbloom`), set a strong database password, select your region
-3. Wait ~2 minutes for the project to be ready
+---
+
+## 🏗️ Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | HTML + CSS + Vanilla JS (no framework) |
+| Database | Supabase PostgreSQL |
+| Auth | Supabase Auth |
+| File Storage | Supabase Storage |
+| Realtime | Supabase Realtime |
+| Email | Resend (via Supabase Edge Function) |
+| Scheduled Jobs | pg_cron (auto-delete delivered orders after 30 days) |
+
+Everything runs on **free tiers** — designed for ~50 orders/month.
+
+---
+
+## 🚀 Setup Guide
+
+### Step 1 — Create a Supabase Project
+
+1. Go to [supabase.com](https://supabase.com) → **New Project**
+2. Name it `everbloom`, set a strong DB password, choose your region
+3. Wait ~2 minutes for provisioning
 
 ---
 
 ### Step 2 — Set Up the Database
 
-In your Supabase project → **SQL Editor**:
+In Supabase → **SQL Editor**, run these two files in order:
 
-1. Paste and run `supabase/schema.sql` (creates all tables + triggers)
-2. Paste and run `supabase/rls.sql` (sets up Row Level Security)
+1. `supabase/schema.sql` — creates all tables, triggers, pg_cron cleanup job
+2. `supabase/rls.sql` — sets up Row Level Security policies
 
 ---
 
 ### Step 3 — Create Storage Buckets
 
-Go to **Storage** in your Supabase dashboard and create:
+In Supabase → **Storage** → New Bucket:
 
-| Bucket Name | Public |
-|---|---|
-| `product-images` | ✅ Yes |
-| `payment-proofs` | ❌ No (private) |
-| `qr-code` | ✅ Yes |
+| Bucket Name | Public? | Used for |
+|---|---|---|
+| `product-images` | ✅ Yes | Product photos (admin uploads) |
+| `payment-proofs` | ❌ No | Customer payment screenshots |
 
 ---
 
-### Step 4 — Connect the Frontend
+### Step 4 — Configure Environment Variables
 
-Open `js/supabase.js` and replace these two values:
+Copy the example config file:
+
+```bash
+cp js/env.js.example js/env.js
+```
+
+Open `js/env.js` and fill in your values:
 
 ```javascript
-const SUPABASE_URL = 'YOUR_SUPABASE_URL';        // Project Settings → API → Project URL
-const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY'; // Project Settings → API → anon public key
+window.ENV = {
+  SUPABASE_URL:      'https://xxxx.supabase.co',   // Settings → API → Project URL
+  SUPABASE_ANON_KEY: 'eyJhbGci...',               // Settings → API → anon public key
+  SITE_URL:          'https://yourstore.com',       // Your live domain (or localhost)
+  UPI_ID:            'yourname@upi',               // Your UPI handle
+  QR_CODE_IMAGE:     'assets/qr-code.png',         // Path to your UPI QR image
+};
 ```
+
+> ⚠️ **`js/env.js` is listed in `.gitignore` — never commit it with real credentials.**
 
 ---
 
 ### Step 5 — Set Up Email (Resend)
 
-1. Sign up at [resend.com](https://resend.com) (free — 3,000 emails/month)
-2. Get your API key from the dashboard
+1. Sign up at [resend.com](https://resend.com) — free tier gives 3,000 emails/month
+2. Create an API key in the dashboard
 3. Verify your sending domain (or use `@resend.dev` for testing)
 
-Deploy the Edge Function:
+Install the Supabase CLI and deploy the Edge Function:
+
 ```bash
-# Install Supabase CLI first
 npm install -g supabase
 
-# Login and link to your project
+# Log in and link to your project
 supabase login
-supabase link --project-ref YOUR_PROJECT_REF
+supabase link --project-ref YOUR_PROJECT_REF   # found in Project Settings → General
 
-# Set secrets
+# Set secrets (these stay server-side, never in frontend code)
 supabase secrets set RESEND_API_KEY=re_xxxxxxxxxxxx
 supabase secrets set SITE_URL=https://yourstore.com
 
-# Deploy
+# Deploy the function
 supabase functions deploy order-notifications
 ```
 
 ---
 
-## 👤 Creating the First Admin User
+### Step 6 — Add Your UPI QR Code
 
-1. Sign up normally on the website (creates a customer account)
-2. In Supabase **SQL Editor**, run:
-
-```sql
-UPDATE profiles 
-SET role = 'admin' 
-WHERE email = 'your-admin@email.com';
-```
-
-3. Log out and log back in — you'll be redirected to the Admin Panel
+1. Open your UPI app (GPay, PhonePe, Paytm) → **Receive Money** → **Share QR**
+2. Save the QR image as `assets/qr-code.png` in the project folder
+3. Make sure `QR_CODE_IMAGE` in `js/env.js` points to this path
 
 ---
 
-## 💳 Setting Up UPI Payment
+### Step 7 — Create the First Admin User
 
-In `checkout.html`, replace the QR code placeholder:
+1. Sign up on the website normally (this creates a customer account)
+2. In Supabase → **SQL Editor**, promote yourself to admin:
 
-```html
-<!-- Replace the emoji placeholder div with: -->
-<img src="YOUR_UPI_QR_CODE.png" style="width:200px;height:200px;border-radius:12px">
+```sql
+UPDATE profiles
+SET role = 'admin'
+WHERE email = 'your-email@example.com';
 ```
 
-Also update the UPI ID:
-```html
-<strong id="upi-id">yourname@upi</strong>
-```
-
-To generate a UPI QR code, use any UPI app (GPay, PhonePe, Paytm) → Receive Money → Share QR.
+3. Log out and log back in — you'll be redirected to the Admin Panel at `/admin/`
 
 ---
 
@@ -108,132 +139,168 @@ To generate a UPI QR code, use any UPI app (GPay, PhonePe, Paytm) → Receive Mo
 
 ```
 everbloom/
-├── index.html          ← Home page
-├── shop.html           ← Product listing with filters
-├── product.html        ← Product detail + add to cart
-├── cart.html           ← Shopping cart
-├── checkout.html       ← Address + QR payment
-├── orders.html         ← Customer order history
-├── track.html          ← Live order tracking (9 steps)
-├── login.html          ← Login
-├── signup.html         ← Sign up
+│
+├── index.html            ← Home page
+├── shop.html             ← Product listing with sidebar filters
+├── product.html          ← Product detail + image gallery + add to cart
+├── cart.html             ← Shopping cart
+├── checkout.html         ← Delivery address + QR payment + screenshot upload
+├── orders.html           ← Customer order history
+├── track.html            ← Live 9-step order tracking timeline
+├── login.html            ← Login
+├── signup.html           ← Sign up
 │
 ├── admin/
-│   ├── index.html      ← Dashboard with stats
-│   ├── products.html   ← Product CRUD + image upload
-│   └── orders.html     ← Order management + status updates
+│   ├── index.html        ← Dashboard (stats, recent orders)
+│   ├── products.html     ← Product CRUD + drag-and-drop image upload
+│   └── orders.html       ← Order management — update status, send emails
 │
 ├── css/
-│   ├── style.css       ← Global styles + Everbloom theme
-│   └── admin.css       ← Admin panel styles
+│   ├── style.css         ← Global styles, Everbloom design system, mobile
+│   └── admin.css         ← Admin panel layout + components
 │
 ├── js/
-│   ├── supabase.js     ← Client init + cart + helpers
-│   └── auth.js         ← Nav auth + notifications
+│   ├── env.js            ← ⚠️ Your credentials (DO NOT COMMIT)
+│   ├── env.js.example    ← Safe template — commit this instead
+│   ├── supabase.js       ← Supabase client, cart, helpers, formatters
+│   └── auth.js           ← Nav auth state, notification bell
 │
-└── supabase/
-    ├── schema.sql      ← Full database schema
-    ├── rls.sql         ← Row Level Security policies
-    └── functions/
-        └── order-notifications/
-            └── index.ts ← Email Edge Function (Resend)
+├── assets/
+│   └── qr-code.png       ← Your UPI QR code image (add this yourself)
+│
+├── supabase/
+│   ├── schema.sql        ← Full DB schema: tables, triggers, pg_cron
+│   ├── rls.sql           ← Row Level Security policies
+│   └── functions/
+│       └── order-notifications/
+│           └── index.ts  ← Deno Edge Function → Resend email
+│
+├── .gitignore            ← Excludes js/env.js
+└── README.md             ← This file
 ```
 
 ---
 
-## 🔄 Order Status Flow
+## 🔄 Order Lifecycle
 
 ```
-🛒 placed → 💳 payment_confirmed → 🎨 accepted
-→ 🪵 material_sourced → ✂️ crafting → 🔍 quality_check
-→ 📦 packed → 🚚 shipped → 🌸 delivered
+🛒  placed
+ ↓  Customer places order, sees QR code for payment
+✅  payment_confirmed       → Email: "Payment received"
+ ↓  Admin verifies payment screenshot
+🎨  accepted                → Email: "Artist accepted your order"
+ ↓
+🪵  material_sourced        → Email: "Materials being gathered"
+ ↓
+✂️  crafting                → Email: "Your piece is being handcrafted"
+ ↓
+🔍  quality_check           → Email: "Almost ready!"
+ ↓
+📦  packed                  → Email: "Packed and ready to ship"
+ ↓
+🚚  shipped                 → Email: "Your order is on the way"
+ ↓
+🌸  delivered               → Email: "Enjoy your Everbloom piece!"
+ ↓
+🗑️  auto-deleted 30 days after delivery (pg_cron)
 ```
 
-At **every step**, the customer receives:
-- In-app notification (bell icon)
-- Beautiful branded email via Resend
+Every transition also creates an **in-app notification** visible in the customer's bell icon.
+
+---
+
+## 🔒 Security
+
+### Environment Variables
+
+All sensitive config lives in `js/env.js` which is loaded as the very first script on every page. It is excluded from Git via `.gitignore`.
+
+| Variable | Where to find it | Sensitivity |
+|---|---|---|
+| `SUPABASE_URL` | Supabase → Settings → API → Project URL | Low (public) |
+| `SUPABASE_ANON_KEY` | Supabase → Settings → API → anon key | Medium — protected by RLS |
+| `SITE_URL` | Your domain | Low |
+| `UPI_ID` | Your UPI app | Low |
+
+The `SUPABASE_ANON_KEY` is safe to expose in frontend code **as long as Row Level Security is enabled** on all tables (which `rls.sql` does). It cannot bypass RLS policies.
+
+The `RESEND_API_KEY` is **never in frontend code** — it lives only as a Supabase Edge Function secret (server-side).
+
+### Deploying to Netlify or Vercel
+
+Set environment variables in your hosting dashboard, then use a build script to inject them into `js/env.js` before deployment.
+
+Create `inject-env.js` in the project root (safe to commit — contains no secrets):
+
+```javascript
+const fs = require('fs');
+fs.writeFileSync('js/env.js', `window.ENV = {
+  SUPABASE_URL: '${process.env.SUPABASE_URL}',
+  SUPABASE_ANON_KEY: '${process.env.SUPABASE_ANON_KEY}',
+  SITE_URL: '${process.env.SITE_URL}',
+  UPI_ID: '${process.env.UPI_ID}',
+  QR_CODE_IMAGE: 'assets/qr-code.png',
+};`);
+console.log('✓ env.js generated');
+```
+
+Then set your build command to `node inject-env.js` in the Netlify/Vercel dashboard, and add all four variables (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SITE_URL`, `UPI_ID`) as environment variables there.
+
+### Row Level Security Summary
+
+| Table | Customer | Admin |
+|---|---|---|
+| `products` | Read active only | Full CRUD |
+| `orders` | Own orders only | All orders |
+| `order_tracking` | Own orders only | All + update |
+| `notifications` | Own only | All |
+| `profiles` | Own profile | All |
 
 ---
 
 ## 🌐 Deployment
 
-This is a static site — deploy anywhere for free:
+This is a **static site** — no server needed. Deploy anywhere for free:
 
-- **[Netlify](https://netlify.com)**: Drag & drop the `everbloom/` folder
-- **[Vercel](https://vercel.com)**: `vercel --prod`
-- **[GitHub Pages](https://pages.github.com)**: Push to a repo, enable Pages
-- **[Cloudflare Pages](https://pages.cloudflare.com)**: Connect your repo
+| Platform | How |
+|---|---|
+| [Netlify](https://netlify.com) | Drag & drop the `everbloom/` folder, or connect GitHub |
+| [Vercel](https://vercel.com) | `vercel --prod` from the project folder |
+| [GitHub Pages](https://pages.github.com) | Push to repo → Settings → Pages → Deploy from branch |
+| [Cloudflare Pages](https://pages.cloudflare.com) | Connect GitHub repo, build output set to `/` |
+
+For all platforms: use the `inject-env.js` build script and set the four env vars in the dashboard.
 
 ---
 
-## 📊 Free Tier Limits
+## 📊 Free Tier Capacity
 
-| Service | Limit | Covers |
+| Service | Free Limit | At 50 orders/month |
 |---|---|---|
-| Supabase DB | 500 MB | Thousands of orders |
-| Supabase Storage | 1 GB | ~10,000 product images |
-| Supabase Edge Functions | 500K calls/mo | 55K order emails |
-| Resend | 3,000 emails/mo | ~333 orders (9 emails each) |
-
-**Perfectly sized for 50 orders/month with room to grow!**
-
----
-
-## 🎨 Brand Colors
-
-| Name | Hex |
-|---|---|
-| Cream (bg) | `#FAF6F1` |
-| Brown Dark | `#2C1810` |
-| Brown Accent | `#8B5E3C` |
-| Brown Light | `#C4A882` |
-| Sage Green | `#8A9E7B` |
+| Supabase DB | 500 MB | Handles thousands of orders |
+| Supabase Storage | 1 GB | ~5,000 product images |
+| Supabase Edge Functions | 500,000 calls/mo | Handles all email triggers easily |
+| Supabase Realtime | 200 concurrent connections | Fine for a small store |
+| Resend | 3,000 emails/mo | Covers ~333 orders × 9 emails each |
 
 ---
 
-*Built with love for handcrafted art. 🌸*
+## 🎨 Design System
+
+**Fonts** — Cormorant Garamond (display) + Jost (body) via Google Fonts
+
+**Color tokens** (defined as CSS variables in `css/style.css`)
+
+| Token | Hex | Used for |
+|---|---|---|
+| `--cream` | `#FAF6F1` | Page background |
+| `--brown-dark` | `#2C1810` | Headers, hero, footer |
+| `--brown-mid` | `#5C4033` | Body text |
+| `--brown-accent` | `#8B5E3C` | Buttons, links, highlights |
+| `--brown-light` | `#C4A882` | Muted text on dark backgrounds |
+| `--sage` | `#8A9E7B` | Success states, sale badges |
+| `--sand` | `#E8DDD4` | Borders, subtle backgrounds |
 
 ---
 
-## 🔒 Security — Environment Variables
-
-All sensitive config lives in **`js/env.js`**. 
-
-### Never commit real credentials to Git!
-
-Add this to `.gitignore`:
-```
-js/env.js
-```
-
-Copy `js/env.js.example` → `js/env.js` and fill in your values.
-
-### Deploying to Netlify / Vercel
-
-Use their environment variable dashboard and a build script to inject values:
-
-```bash
-# netlify.toml or vercel.json build command:
-node -e "
-const fs = require('fs');
-const env = \`window.ENV = {
-  SUPABASE_URL: '${SUPABASE_URL}',
-  SUPABASE_ANON_KEY: '${SUPABASE_ANON_KEY}',
-  SITE_URL: '${SITE_URL}',
-  UPI_ID: '${UPI_ID}',
-  QR_CODE_IMAGE: 'assets/qr-code.png',
-};\`;
-fs.writeFileSync('js/env.js', env);
-"
-```
-
-Set `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SITE_URL`, `UPI_ID` as environment variables in your hosting dashboard.
-
-### What's in env.js (never expose these):
-| Variable | Where to find it |
-|---|---|
-| `SUPABASE_URL` | Supabase → Settings → API → Project URL |
-| `SUPABASE_ANON_KEY` | Supabase → Settings → API → anon public key |
-| `SITE_URL` | Your live domain e.g. `https://everbloom.store` |
-| `UPI_ID` | Your UPI handle e.g. `name@okicici` |
-
+*Built with 🌸 for handcrafted art lovers.*
