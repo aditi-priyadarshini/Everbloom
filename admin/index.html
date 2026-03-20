@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard — Everbloom</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/admin.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="admin-layout">
+  <!-- Sidebar -->
+  <aside class="admin-sidebar">
+    <div class="admin-sidebar-logo">
+      <h2>🌸 Everbloom</h2>
+      <span>Admin Panel</span>
+    </div>
+    <nav class="admin-nav">
+      <div class="admin-nav-section">Overview</div>
+      <a href="index.html" class="admin-nav-link active"><span class="icon">📊</span> Dashboard</a>
+      <div class="admin-nav-section">Catalog</div>
+      <a href="products.html" class="admin-nav-link"><span class="icon">🎨</span> Products</a>
+      <a href="categories.html" class="admin-nav-link"><span class="icon">📂</span> Categories</a>
+      <div class="admin-nav-section">Orders</div>
+      <a href="orders.html" class="admin-nav-link"><span class="icon">📦</span> All Orders</a>
+      <div class="admin-nav-section">Account</div>
+      <a href="../index.html" class="admin-nav-link"><span class="icon">🏪</span> View Store</a>
+      <a onclick="signOut()" class="admin-nav-link" style="cursor:pointer"><span class="icon">🚪</span> Sign Out</a>
+    </nav>
+  </aside>
+
+  <!-- Main -->
+  <main class="admin-main">
+    <div class="admin-topbar">
+      <h1 class="admin-page-title">Dashboard</h1>
+      <div style="display:flex;align-items:center;gap:16px">
+        <span id="admin-name" style="font-size:13px;color:var(--text-muted)"></span>
+        <a href="orders.html" class="btn btn-accent btn-sm">View Orders</a>
+      </div>
+    </div>
+
+    <div class="admin-content">
+      <!-- Stats -->
+      <div class="admin-stats" id="stats">
+        <div class="stat-card"><div class="stat-card-icon">📦</div><div class="stat-card-label">Total Orders</div><div class="stat-card-value" id="stat-orders">—</div><div class="stat-card-sub">all time</div></div>
+        <div class="stat-card"><div class="stat-card-icon">⏳</div><div class="stat-card-label">Pending Payment</div><div class="stat-card-value" id="stat-pending">—</div><div class="stat-card-sub">need confirmation</div></div>
+        <div class="stat-card"><div class="stat-card-icon">🎨</div><div class="stat-card-label">In Progress</div><div class="stat-card-value" id="stat-progress">—</div><div class="stat-card-sub">being crafted</div></div>
+        <div class="stat-card"><div class="stat-card-icon">💰</div><div class="stat-card-label">Total Revenue</div><div class="stat-card-value" id="stat-revenue">—</div><div class="stat-card-sub">confirmed orders</div></div>
+      </div>
+      <div class="admin-stats" style="margin-top:-12px">
+        <div class="stat-card"><div class="stat-card-icon">🛍️</div><div class="stat-card-label">Products</div><div class="stat-card-value" id="stat-products">—</div><div class="stat-card-sub">active listings</div></div>
+        <div class="stat-card"><div class="stat-card-icon">👥</div><div class="stat-card-label">Customers</div><div class="stat-card-value" id="stat-customers">—</div><div class="stat-card-sub">registered</div></div>
+        <div class="stat-card"><div class="stat-card-icon">🚚</div><div class="stat-card-label">Shipped</div><div class="stat-card-value" id="stat-shipped">—</div><div class="stat-card-sub">this month</div></div>
+        <div class="stat-card"><div class="stat-card-icon">🌸</div><div class="stat-card-label">Delivered</div><div class="stat-card-value" id="stat-delivered">—</div><div class="stat-card-sub">completed</div></div>
+      </div>
+
+      <!-- Recent Orders -->
+      <div class="admin-table-wrap" style="margin-top:8px">
+        <div class="admin-table-header">
+          <h3 style="font-family:var(--font-display);font-size:20px">Recent Orders</h3>
+          <a href="orders.html" class="btn btn-secondary btn-sm">View All</a>
+        </div>
+        <div id="recent-orders">
+          <div class="loader"><div class="spinner"></div></div>
+        </div>
+      </div>
+
+      <!-- Quick actions -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:20px">
+        <a href="products.html?action=new" style="background:white;border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;text-align:center;transition:all var(--transition);text-decoration:none" onmouseover="this.style.boxShadow='var(--shadow-md)'" onmouseout="this.style.boxShadow=''">
+          <div style="font-size:32px;margin-bottom:8px">➕</div>
+          <div style="font-size:13px;font-weight:500;color:var(--text-primary)">Add Product</div>
+        </a>
+        <a href="orders.html?filter=pending" style="background:white;border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;text-align:center;transition:all var(--transition);text-decoration:none" onmouseover="this.style.boxShadow='var(--shadow-md)'" onmouseout="this.style.boxShadow=''">
+          <div style="font-size:32px;margin-bottom:8px">💳</div>
+          <div style="font-size:13px;font-weight:500;color:var(--text-primary)">Confirm Payments</div>
+        </a>
+        <a href="orders.html" style="background:white;border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;text-align:center;transition:all var(--transition);text-decoration:none" onmouseover="this.style.boxShadow='var(--shadow-md)'" onmouseout="this.style.boxShadow=''">
+          <div style="font-size:32px;margin-bottom:8px">📋</div>
+          <div style="font-size:13px;font-weight:500;color:var(--text-primary)">Manage Orders</div>
+        </a>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="../js/supabase.js"></script>
+<script>
+async function loadDashboard() {
+  const profile = await requireAdmin();
+  if (!profile) return;
+  document.getElementById('admin-name').textContent = profile.full_name;
+
+  // Load stats in parallel
+  const [orders, products, customers] = await Promise.all([
+    supabase.from('orders').select('id, status, payment_status, total_amount, created_at'),
+    supabase.from('products').select('id', { count: 'exact', head: true }).eq('is_active', true),
+    supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'customer'),
+  ]);
+
+  const allOrders = orders.data || [];
+  const pending = allOrders.filter(o => o.payment_status === 'pending' && o.status !== 'cancelled');
+  const inProgress = allOrders.filter(o => ['accepted','material_sourced','crafting','quality_check'].includes(o.status));
+  const shipped = allOrders.filter(o => o.status === 'shipped');
+  const delivered = allOrders.filter(o => o.status === 'delivered');
+  const revenue = allOrders
+    .filter(o => o.payment_status === 'confirmed')
+    .reduce((sum, o) => sum + parseFloat(o.total_amount), 0);
+
+  document.getElementById('stat-orders').textContent = allOrders.length;
+  document.getElementById('stat-pending').textContent = pending.length;
+  document.getElementById('stat-progress').textContent = inProgress.length;
+  document.getElementById('stat-revenue').textContent = formatPrice(revenue);
+  document.getElementById('stat-products').textContent = products.count || 0;
+  document.getElementById('stat-customers').textContent = customers.count || 0;
+  document.getElementById('stat-shipped').textContent = shipped.length;
+  document.getElementById('stat-delivered').textContent = delivered.length;
+
+  // Recent orders
+  const { data: recent } = await supabase
+    .from('orders')
+    .select('*, profiles(full_name, email)')
+    .order('created_at', { ascending: false })
+    .limit(8);
+
+  document.getElementById('recent-orders').innerHTML = `
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Order ID</th>
+          <th>Customer</th>
+          <th>Total</th>
+          <th>Payment</th>
+          <th>Status</th>
+          <th>Date</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${(recent || []).map(o => `
+          <tr>
+            <td><strong style="font-family:var(--font-body)">#${o.id.substring(0,8).toUpperCase()}</strong></td>
+            <td>
+              <div>${o.profiles?.full_name || 'Unknown'}</div>
+              <div style="font-size:11px;color:var(--text-muted)">${o.profiles?.email || ''}</div>
+            </td>
+            <td><strong>${formatPrice(o.total_amount)}</strong></td>
+            <td><span class="status-badge status-${o.payment_status}">${o.payment_status}</span></td>
+            <td><span class="status-badge status-${o.status}">${o.status.replace('_',' ')}</span></td>
+            <td>${formatDate(o.created_at)}</td>
+            <td><a href="orders.html?id=${o.id}" class="btn btn-sm btn-secondary">Manage</a></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+loadDashboard();
+</script>
+</body>
+</html>

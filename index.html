@@ -1,1 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Everbloom — Handcrafted Art & Craft</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
 
+<!-- NAVIGATION -->
+<nav class="nav">
+  <a href="index.html" class="nav-logo">🌸 Everbloom</a>
+  <ul class="nav-links">
+    <li><a href="index.html">Home</a></li>
+    <li><a href="shop.html">Shop</a></li>
+    <li><a href="shop.html?category=diy-kits">DIY Kits</a></li>
+    <li><a href="orders.html">My Orders</a></li>
+  </ul>
+  <div class="nav-actions">
+    <!-- Notifications (logged in) -->
+    <div style="position:relative" id="notif-wrap">
+      <button class="nav-icon-btn" id="notif-btn" onclick="toggleNotifDropdown()">
+        🔔
+        <span class="badge" id="notif-badge" style="display:none">0</span>
+      </button>
+      <div class="notif-dropdown" id="notif-dropdown">
+        <div class="notif-header">
+          <span style="font-size:14px;font-weight:500">Notifications</span>
+          <button onclick="markAllRead()" style="font-size:12px;color:var(--brown-accent);cursor:pointer;background:none;border:none">Mark all read</button>
+        </div>
+        <div id="notif-list"></div>
+      </div>
+    </div>
+
+    <!-- Cart -->
+    <a href="cart.html" class="nav-icon-btn">
+      🛒
+      <span class="badge" id="cart-badge" style="display:none">0</span>
+    </a>
+
+    <!-- Auth Links -->
+    <div id="auth-links" style="display:flex;gap:10px">
+      <a href="login.html" class="btn btn-secondary btn-sm">Login</a>
+      <a href="signup.html" class="btn btn-primary btn-sm">Sign Up</a>
+    </div>
+
+    <!-- User Menu (hidden by default) -->
+    <div id="user-menu" style="display:none;align-items:center;gap:12px">
+      <a href="orders.html" style="font-size:13px;color:var(--text-secondary)">Hi, <span class="user-name"></span></a>
+      <a href="admin/index.html" class="admin-link btn btn-sm" style="display:none;background:var(--brown-accent);color:white;padding:6px 14px;border-radius:4px;font-size:11px;letter-spacing:1px">Admin</a>
+      <button onclick="signOut()" class="btn btn-secondary btn-sm">Logout</button>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section style="background:var(--brown-dark);min-height:90vh;display:flex;align-items:center;position:relative;overflow:hidden">
+  <div style="position:absolute;inset:0;opacity:0.04">
+    <svg width="100%" height="100%"><pattern id="p" width="80" height="80" patternUnits="userSpaceOnUse"><circle cx="40" cy="40" r="1.5" fill="#C4A882"/><circle cx="0" cy="0" r="1.5" fill="#C4A882"/><circle cx="80" cy="0" r="1.5" fill="#C4A882"/><circle cx="0" cy="80" r="1.5" fill="#C4A882"/><circle cx="80" cy="80" r="1.5" fill="#C4A882"/></pattern><rect width="100%" height="100%" fill="url(#p)"/></svg>
+  </div>
+
+  <!-- Decorative circles -->
+  <div style="position:absolute;right:-100px;top:-100px;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(139,94,60,0.15),transparent 70%)"></div>
+  <div style="position:absolute;left:-80px;bottom:-80px;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle,rgba(196,168,130,0.1),transparent 70%)"></div>
+
+  <div class="container" style="position:relative;z-index:2;display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:center">
+    <div style="animation:fadeUp 0.8s ease">
+      <p style="font-size:11px;letter-spacing:4px;text-transform:uppercase;color:var(--brown-light);margin-bottom:24px">✦ Handcrafted with soul</p>
+      <h1 style="font-family:var(--font-display);font-size:72px;color:var(--cream);line-height:1.05;font-weight:300;margin-bottom:24px">
+        Art that<br><em style="font-style:italic;color:var(--brown-light)">blooms</em><br>forever
+      </h1>
+      <p style="color:rgba(196,168,130,0.8);font-size:16px;line-height:1.8;margin-bottom:40px;max-width:420px">
+        Each piece from Everbloom is lovingly handcrafted by our artisans — unique, meaningful, and made just for you.
+      </p>
+      <div style="display:flex;gap:16px;flex-wrap:wrap">
+        <a href="shop.html" class="btn btn-accent btn-lg">Explore Collection</a>
+        <a href="shop.html?category=diy-kits" class="btn btn-lg" style="border:1px solid rgba(196,168,130,0.3);color:var(--brown-light)">DIY Kits</a>
+      </div>
+      <div style="display:flex;gap:40px;margin-top:56px;padding-top:32px;border-top:1px solid rgba(196,168,130,0.15)">
+        <div>
+          <div style="font-family:var(--font-display);font-size:32px;color:var(--cream)">100%</div>
+          <div style="font-size:12px;color:var(--brown-light);letter-spacing:1px">Handmade</div>
+        </div>
+        <div>
+          <div style="font-family:var(--font-display);font-size:32px;color:var(--cream)">Live</div>
+          <div style="font-size:12px;color:var(--brown-light);letter-spacing:1px">Order Tracking</div>
+        </div>
+        <div>
+          <div style="font-family:var(--font-display);font-size:32px;color:var(--cream)">∞</div>
+          <div style="font-size:12px;color:var(--brown-light);letter-spacing:1px">Custom Pieces</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hero product showcase -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;animation:fadeUp 0.8s ease 0.2s both" id="hero-products">
+      <!-- Loaded dynamically -->
+      <div style="aspect-ratio:3/4;background:rgba(196,168,130,0.1);border-radius:12px;border:1px solid rgba(196,168,130,0.15);display:flex;align-items:center;justify-content:center;color:rgba(196,168,130,0.3);font-size:48px">🎨</div>
+      <div style="aspect-ratio:3/4;background:rgba(196,168,130,0.1);border-radius:12px;border:1px solid rgba(196,168,130,0.15);display:flex;align-items:center;justify-content:center;color:rgba(196,168,130,0.3);font-size:48px;margin-top:40px">🏺</div>
+    </div>
+  </div>
+</section>
+
+<!-- CATEGORIES -->
+<section class="section" style="background:var(--warm-white)">
+  <div class="container">
+    <div class="section-header">
+      <p class="section-tag">Browse</p>
+      <h2 class="section-title">Shop by Category</h2>
+    </div>
+    <div id="categories-grid" style="display:grid;grid-template-columns:repeat(6,1fr);gap:16px">
+      <div class="loader"><div class="spinner"></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURED PRODUCTS -->
+<section class="section">
+  <div class="container">
+    <div class="section-header">
+      <p class="section-tag">Curated</p>
+      <h2 class="section-title">Featured Pieces</h2>
+      <p class="section-subtitle">Each piece tells a unique story, crafted with intention and love</p>
+    </div>
+    <div class="grid-4" id="featured-products">
+      <div class="loader"><div class="spinner"></div></div>
+    </div>
+    <div style="text-align:center;margin-top:48px">
+      <a href="shop.html" class="btn btn-secondary btn-lg">View All Pieces</a>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="section" style="background:var(--brown-dark)">
+  <div class="container">
+    <div class="section-header">
+      <p class="section-tag" style="color:var(--brown-light)">The Process</p>
+      <h2 class="section-title" style="color:var(--cream)">Your Order Journey</h2>
+      <p class="section-subtitle" style="color:rgba(196,168,130,0.7)">Watch your piece come to life in real-time</p>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:2px;background:rgba(196,168,130,0.1);border-radius:16px;overflow:hidden">
+      <div style="background:rgba(44,24,16,0.6);padding:40px;text-align:center">
+        <div style="font-size:40px;margin-bottom:16px">🛒</div>
+        <h3 style="font-family:var(--font-display);font-size:22px;color:var(--cream);margin-bottom:8px">Place Order</h3>
+        <p style="font-size:14px;color:var(--brown-light);line-height:1.7">Choose your piece, add to cart, and complete checkout with our QR-based payment</p>
+      </div>
+      <div style="background:rgba(44,24,16,0.6);padding:40px;text-align:center">
+        <div style="font-size:40px;margin-bottom:16px">🎨</div>
+        <h3 style="font-family:var(--font-display);font-size:22px;color:var(--cream);margin-bottom:8px">Artist Crafts</h3>
+        <p style="font-size:14px;color:var(--brown-light);line-height:1.7">Our artist accepts and handcrafts your piece with care — you get email updates at every step</p>
+      </div>
+      <div style="background:rgba(44,24,16,0.6);padding:40px;text-align:center">
+        <div style="font-size:40px;margin-bottom:16px">🌸</div>
+        <h3 style="font-family:var(--font-display);font-size:22px;color:var(--cream);margin-bottom:8px">Delivered to You</h3>
+        <p style="font-size:14px;color:var(--brown-light);line-height:1.7">Track live from crafting to your doorstep. Your Everbloom piece arrives, ready to cherish</p>
+      </div>
+    </div>
+
+    <!-- Tracking steps visual -->
+    <div style="margin-top:48px;display:flex;align-items:center;gap:0;overflow-x:auto;padding-bottom:8px">
+      <div id="tracking-preview" style="display:flex;align-items:center;width:100%"></div>
+    </div>
+  </div>
+</section>
+
+<!-- NEW ARRIVALS -->
+<section class="section">
+  <div class="container">
+    <div class="section-header">
+      <p class="section-tag">Fresh</p>
+      <h2 class="section-title">New Arrivals</h2>
+    </div>
+    <div class="grid-4" id="new-products">
+      <div class="loader"><div class="spinner"></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div>
+        <div class="footer-brand-name">🌸 Everbloom</div>
+        <p class="footer-brand-desc">Handcrafted art and craft pieces made with love by our artisans. Every piece is unique, every order is a journey.</p>
+      </div>
+      <div>
+        <h4 class="footer-heading">Shop</h4>
+        <ul class="footer-links">
+          <li><a href="shop.html">All Products</a></li>
+          <li><a href="shop.html?category=paintings">Paintings</a></li>
+          <li><a href="shop.html?category=pottery">Pottery</a></li>
+          <li><a href="shop.html?category=jewelry">Jewelry</a></li>
+          <li><a href="shop.html?category=diy-kits">DIY Kits</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4 class="footer-heading">Account</h4>
+        <ul class="footer-links">
+          <li><a href="login.html">Login</a></li>
+          <li><a href="signup.html">Sign Up</a></li>
+          <li><a href="orders.html">My Orders</a></li>
+          <li><a href="cart.html">Cart</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4 class="footer-heading">Help</h4>
+        <ul class="footer-links">
+          <li><a href="#">How to Order</a></li>
+          <li><a href="#">Payment Guide</a></li>
+          <li><a href="#">Track Order</a></li>
+          <li><a href="#">Contact Us</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2024 Everbloom. All rights reserved.</span>
+      <span>Made with 🌸 for art lovers</span>
+    </div>
+  </div>
+</footer>
+
+<script src="js/supabase.js"></script>
+<script src="js/auth.js"></script>
+<script>
+// Load categories
+async function loadCategories() {
+  const { data } = await supabase.from('categories').select('*').order('name');
+  const grid = document.getElementById('categories-grid');
+  if (!data || data.length === 0) { grid.innerHTML = ''; return; }
+  grid.innerHTML = data.map(cat => `
+    <a href="shop.html?category=${cat.slug}" style="
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      padding:28px 16px;background:white;border:1px solid var(--border);
+      border-radius:12px;gap:10px;transition:all 0.3s;cursor:pointer;text-align:center;
+      text-decoration:none;color:inherit;
+    " onmouseover="this.style.transform='translateY(-4px)';this.style.boxShadow='0 12px 32px rgba(44,24,16,0.1)'"
+       onmouseout="this.style.transform='';this.style.boxShadow=''">
+      <span style="font-size:36px">${cat.icon || '🎨'}</span>
+      <span style="font-size:12px;font-weight:500;letter-spacing:1px;text-transform:uppercase;color:var(--text-secondary)">${cat.name}</span>
+    </a>
+  `).join('');
+}
+
+// Load featured products
+async function loadFeatured() {
+  const { data } = await supabase
+    .from('products')
+    .select('*, categories(name)')
+    .eq('is_active', true)
+    .eq('is_featured', true)
+    .limit(4);
+  renderProductGrid('featured-products', data);
+}
+
+// Load new arrivals
+async function loadNew() {
+  const { data } = await supabase
+    .from('products')
+    .select('*, categories(name)')
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
+    .limit(4);
+  renderProductGrid('new-products', data);
+}
+
+function renderProductGrid(containerId, products) {
+  const container = document.getElementById(containerId);
+  if (!products || products.length === 0) {
+    container.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-state-icon">🌸</div><h3>Coming soon</h3><p>Check back soon for beautiful handcrafted pieces</p></div>`;
+    return;
+  }
+  container.innerHTML = products.map(p => `
+    <div class="product-card" onclick="location.href='product.html?id=${p.id}'">
+      <div class="product-card-img">
+        ${p.images?.[0]
+          ? `<img src="${p.images[0]}" alt="${p.title}">`
+          : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:48px;color:var(--brown-light)">🎨</div>`
+        }
+        ${p.discount_percent > 0 ? `<span class="product-card-badge badge-sale">${p.discount_percent}% Off</span>` : ''}
+        ${p.is_featured ? `<span class="product-card-badge badge-featured" style="top:auto;bottom:12px">Featured</span>` : ''}
+      </div>
+      <div class="product-card-body">
+        <div class="product-card-category">${p.categories?.name || 'Art'}</div>
+        <div class="product-card-title">${p.title}</div>
+        <div class="product-card-price">
+          <span class="price-final">${formatPrice(p.final_price)}</span>
+          ${p.discount_percent > 0 ? `<span class="price-original">${formatPrice(p.price)}</span><span class="price-discount">-${p.discount_percent}%</span>` : ''}
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px">
+          <button class="btn btn-primary btn-sm" style="flex:1" onclick="event.stopPropagation();quickAddToCart('${p.id}')">Add to Cart</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Tracking steps preview
+function renderTrackingPreview() {
+  const statuses = ['placed','payment_confirmed','accepted','material_sourced','crafting','quality_check','packed','shipped','delivered'];
+  const labels = ['Placed','Paid','Accepted','Materials','Crafting','QC','Packed','Shipped','Delivered'];
+  const icons = ['🛒','✅','🎨','🪵','✂️','🔍','📦','🚚','🌸'];
+  const container = document.getElementById('tracking-preview');
+  container.innerHTML = statuses.map((s, i) => `
+    <div style="display:flex;align-items:center;flex:1;min-width:80px">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;opacity:${0.4 + i*0.07}">
+        <div style="font-size:22px">${icons[i]}</div>
+        <div style="font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--brown-light);text-align:center;line-height:1.2">${labels[i]}</div>
+      </div>
+      ${i < statuses.length-1 ? `<div style="height:1px;background:rgba(196,168,130,0.2);flex:1;min-width:16px"></div>` : ''}
+    </div>
+  `).join('');
+}
+
+// Quick add to cart
+async function quickAddToCart(productId) {
+  const { data } = await supabase.from('products').select('*').eq('id', productId).single();
+  if (data) Cart.add(data);
+}
+
+loadCategories();
+loadFeatured();
+loadNew();
+renderTrackingPreview();
+</script>
+
+<style>
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+</style>
+</body>
+</html>

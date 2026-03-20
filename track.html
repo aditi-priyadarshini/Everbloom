@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Track Order — Everbloom</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    .tracking-page { max-width: 780px; margin: 0 auto; padding: 48px 20px 80px; }
+    .timeline { position: relative; padding: 20px 0; }
+    .timeline-line { position: absolute; left: 28px; top: 0; bottom: 0; width: 2px; background: var(--border); z-index: 0; }
+    .timeline-line-fill { position: absolute; left: 28px; top: 0; width: 2px; background: var(--brown-accent); z-index: 1; transition: height 1s ease; }
+    .tl-step { display: flex; gap: 24px; position: relative; z-index: 2; margin-bottom: 0; }
+    .tl-dot-wrap { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+    .tl-dot {
+      width: 56px; height: 56px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      transition: all 0.4s ease;
+      border: 2px solid var(--border);
+      background: white;
+      box-shadow: var(--shadow-sm);
+    }
+    .tl-dot.completed { background: var(--brown-accent); border-color: var(--brown-accent); }
+    .tl-dot.current { background: var(--brown-dark); border-color: var(--brown-dark); box-shadow: 0 0 0 6px rgba(44,24,16,0.1); }
+    .tl-dot.pending { background: var(--sand); border-color: var(--border); opacity: 0.5; }
+    .tl-connector { width: 2px; flex: 1; min-height: 24px; background: var(--border); }
+    .tl-connector.filled { background: var(--brown-accent); }
+    .tl-content { padding: 12px 0 28px; flex: 1; }
+    .tl-label { font-size: 12px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 2px; }
+    .tl-title { font-family: var(--font-display); font-size: 22px; color: var(--text-primary); margin-bottom: 4px; }
+    .tl-time { font-size: 12px; color: var(--text-muted); }
+    .tl-note { margin-top: 8px; padding: 10px 14px; background: rgba(139,94,60,0.06); border-left: 3px solid var(--brown-accent); border-radius: 0 var(--radius) var(--radius) 0; font-size:13px; color: var(--text-secondary); }
+  </style>
+</head>
+<body>
+<nav class="nav">
+  <a href="index.html" class="nav-logo">🌸 Everbloom</a>
+  <ul class="nav-links"><li><a href="index.html">Home</a></li><li><a href="shop.html">Shop</a></li><li><a href="orders.html">My Orders</a></li></ul>
+  <div class="nav-actions">
+    <div style="position:relative"><button class="nav-icon-btn" id="notif-btn" onclick="toggleNotifDropdown()">🔔<span class="badge" id="notif-badge" style="display:none">0</span></button><div class="notif-dropdown" id="notif-dropdown"><div class="notif-header"><span style="font-size:14px;font-weight:500">Notifications</span><button onclick="markAllRead()" style="font-size:12px;color:var(--brown-accent);cursor:pointer;background:none;border:none">Mark all read</button></div><div id="notif-list"></div></div></div>
+    <a href="cart.html" class="nav-icon-btn">🛒<span class="badge" id="cart-badge" style="display:none">0</span></a>
+    <div id="user-menu" style="display:none;align-items:center;gap:12px"><span style="font-size:13px;color:var(--text-secondary)">Hi, <span class="user-name"></span></span><button onclick="signOut()" class="btn btn-secondary btn-sm">Logout</button></div>
+  </div>
+</nav>
+
+<div class="page-header"><h1>Track Your Order</h1><p>Live updates, every step of the way</p></div>
+
+<div class="tracking-page">
+  <div id="track-content">
+    <div class="loader"><div class="spinner"></div></div>
+  </div>
+</div>
+
+<script src="js/supabase.js"></script>
+<script src="js/auth.js"></script>
+<script>
+const STEPS = [
+  { key: 'placed', label: 'Order Placed', icon: '🛒', desc: 'Your order has been received' },
+  { key: 'payment_confirmed', label: 'Payment Confirmed', icon: '✅', desc: 'Payment verified by our team' },
+  { key: 'accepted', label: 'Accepted by Artist', icon: '🎨', desc: 'Our artist has accepted your order' },
+  { key: 'material_sourced', label: 'Raw Material Sourced', icon: '🪵', desc: 'Materials gathered for your piece' },
+  { key: 'crafting', label: 'Crafting in Progress', icon: '✂️', desc: 'Your piece is being handcrafted' },
+  { key: 'quality_check', label: 'Quality Check', icon: '🔍', desc: 'Final quality inspection' },
+  { key: 'packed', label: 'Packed & Ready', icon: '📦', desc: 'Your order is packed' },
+  { key: 'shipped', label: 'Shipped', icon: '🚚', desc: 'On its way to you!' },
+  { key: 'delivered', label: 'Delivered 🌸', icon: '🌸', desc: 'Enjoy your Everbloom piece!' },
+];
+
+async function loadTracking() {
+  const params = new URLSearchParams(window.location.search);
+  const orderId = params.get('id');
+
+  if (!orderId) {
+    document.getElementById('track-content').innerHTML = `
+      <div class="empty-state"><div class="empty-state-icon">🔍</div><h3>No order specified</h3><p>Please enter a valid order ID</p><a href="orders.html" class="btn btn-primary">My Orders</a></div>
+    `;
+    return;
+  }
+
+  const user = await getCurrentUser();
+
+  // Load order
+  const { data: order } = await supabase
+    .from('orders')
+    .select('*, profiles(full_name, email)')
+    .eq('id', orderId)
+    .single();
+
+  if (!order) {
+    document.getElementById('track-content').innerHTML = `<div class="empty-state"><div class="empty-state-icon">❌</div><h3>Order not found</h3><a href="orders.html" class="btn btn-primary">My Orders</a></div>`;
+    return;
+  }
+
+  // Load tracking history
+  const { data: tracking } = await supabase
+    .from('order_tracking')
+    .select('*')
+    .eq('order_id', orderId)
+    .order('updated_at', { ascending: true });
+
+  // Load order items
+  const { data: items } = await supabase
+    .from('order_items')
+    .select('*, products(title, images)')
+    .eq('order_id', orderId);
+
+  const trackingMap = {};
+  tracking?.forEach(t => { trackingMap[t.status] = t; });
+
+  const currentIndex = STEPS.findIndex(s => s.key === order.status);
+  const filledPct = currentIndex >= 0 ? ((currentIndex) / (STEPS.length - 1)) * 100 : 0;
+
+  document.getElementById('track-content').innerHTML = `
+    <!-- Order Header -->
+    <div style="background:white;border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px 28px;margin-bottom:28px;display:flex;flex-wrap:wrap;gap:20px;justify-content:space-between;align-items:center">
+      <div>
+        <p style="font-size:11px;color:var(--text-muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px">Order ID</p>
+        <p style="font-size:18px;font-weight:600;color:var(--text-primary)">#${orderId.substring(0, 8).toUpperCase()}</p>
+        <p style="font-size:13px;color:var(--text-muted);margin-top:2px">${formatDate(order.created_at)}</p>
+      </div>
+      <div>
+        <p style="font-size:11px;color:var(--text-muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px">Total</p>
+        <p style="font-family:var(--font-display);font-size:24px;color:var(--brown-dark)">${formatPrice(order.total_amount)}</p>
+      </div>
+      <div>
+        <p style="font-size:11px;color:var(--text-muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">Status</p>
+        <span class="status-badge status-${order.status}">${STEPS.find(s => s.key === order.status)?.label || order.status}</span>
+      </div>
+      <div>
+        <p style="font-size:11px;color:var(--text-muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px">Payment</p>
+        <span class="status-badge status-${order.payment_status}">${order.payment_status}</span>
+      </div>
+    </div>
+
+    ${order.status === 'placed' && order.payment_status === 'pending' ? `
+      <div style="background:rgba(196,154,60,0.1);border:1px solid rgba(196,154,60,0.3);border-radius:var(--radius-lg);padding:16px 20px;margin-bottom:24px;display:flex;gap:12px;align-items:flex-start">
+        <span style="font-size:20px">⚠️</span>
+        <div>
+          <p style="font-size:14px;font-weight:500;color:var(--brown-dark);margin-bottom:2px">Payment Pending</p>
+          <p style="font-size:13px;color:var(--text-muted)">Please upload your payment screenshot in checkout. <a href="checkout.html" style="color:var(--brown-accent)">Go to checkout →</a></p>
+        </div>
+      </div>
+    ` : ''}
+
+    <!-- Timeline -->
+    <div style="background:white;border:1px solid var(--border);border-radius:var(--radius-lg);padding:28px;margin-bottom:28px">
+      <h3 style="font-family:var(--font-display);font-size:24px;margin-bottom:28px">Order Journey</h3>
+      <div class="timeline">
+        ${STEPS.map((step, i) => {
+          const isDone = i < currentIndex;
+          const isCurrent = i === currentIndex;
+          const trackedEntry = trackingMap[step.key];
+          return `
+            <div class="tl-step">
+              <div class="tl-dot-wrap">
+                <div class="tl-dot ${isDone ? 'completed' : isCurrent ? 'current' : 'pending'}">
+                  ${isDone ? '✓' : step.icon}
+                </div>
+                ${i < STEPS.length - 1 ? `<div class="tl-connector ${i < currentIndex ? 'filled' : ''}"></div>` : ''}
+              </div>
+              <div class="tl-content">
+                <div class="tl-label">${isDone ? 'Completed' : isCurrent ? 'Current Step' : 'Upcoming'}</div>
+                <div class="tl-title" style="color:${isCurrent ? 'var(--brown-dark)' : isDone ? 'var(--brown-mid)' : 'var(--text-muted)'}">${step.label}</div>
+                <div style="font-size:13px;color:var(--text-muted)">${step.desc}</div>
+                ${trackedEntry ? `
+                  <div class="tl-time">${formatDateTime(trackedEntry.updated_at)}</div>
+                  ${trackedEntry.note ? `<div class="tl-note">${trackedEntry.note}</div>` : ''}
+                ` : ''}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+
+    <!-- Items -->
+    <div style="background:white;border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;margin-bottom:28px">
+      <h3 style="font-family:var(--font-display);font-size:20px;margin-bottom:16px">Items in this Order</h3>
+      ${items?.map(item => `
+        <div style="display:flex;gap:16px;padding:12px 0;border-bottom:1px solid var(--sand);align-items:center">
+          <div style="width:56px;height:56px;border-radius:var(--radius);overflow:hidden;background:var(--sand);flex-shrink:0">
+            ${item.products?.images?.[0] ? `<img src="${item.products.images[0]}" style="width:100%;height:100%;object-fit:cover">` : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:20px">🎨</div>'}
+          </div>
+          <div style="flex:1">
+            <p style="font-size:14px;font-weight:500">${item.products?.title || 'Product'}</p>
+            <p style="font-size:12px;color:var(--text-muted)">Qty: ${item.quantity} × ${formatPrice(item.unit_price)}</p>
+          </div>
+          <span style="font-size:14px;font-weight:500">${formatPrice(item.quantity * item.unit_price)}</span>
+        </div>
+      `).join('') || ''}
+    </div>
+
+    <!-- Delivery Address -->
+    <div style="background:white;border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px">
+      <h3 style="font-family:var(--font-display);font-size:20px;margin-bottom:12px">Delivery Address</h3>
+      <p style="font-size:14px;color:var(--text-secondary);line-height:1.8">
+        ${order.address_snapshot?.name}<br>
+        ${order.address_snapshot?.street}<br>
+        ${order.address_snapshot?.city}, ${order.address_snapshot?.state} — ${order.address_snapshot?.pin}<br>
+        📞 ${order.address_snapshot?.phone}
+      </p>
+    </div>
+  `;
+
+  // Subscribe to real-time updates
+  supabase
+    .channel(`order-${orderId}`)
+    .on('postgres_changes', {
+      event: 'UPDATE',
+      schema: 'public',
+      table: 'orders',
+      filter: `id=eq.${orderId}`
+    }, (payload) => {
+      showToast('Order status updated! Refreshing...', 'success');
+      setTimeout(loadTracking, 1000);
+    })
+    .subscribe();
+}
+
+loadTracking();
+</script>
+</body>
+</html>

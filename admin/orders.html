@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Orders — Everbloom Admin</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/admin.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="admin-layout">
+  <aside class="admin-sidebar">
+    <div class="admin-sidebar-logo"><h2>🌸 Everbloom</h2><span>Admin Panel</span></div>
+    <nav class="admin-nav">
+      <div class="admin-nav-section">Overview</div>
+      <a href="index.html" class="admin-nav-link"><span class="icon">📊</span> Dashboard</a>
+      <div class="admin-nav-section">Catalog</div>
+      <a href="products.html" class="admin-nav-link"><span class="icon">🎨</span> Products</a>
+      <div class="admin-nav-section">Orders</div>
+      <a href="orders.html" class="admin-nav-link active"><span class="icon">📦</span> All Orders</a>
+      <div class="admin-nav-section">Account</div>
+      <a href="../index.html" class="admin-nav-link"><span class="icon">🏪</span> View Store</a>
+      <a onclick="signOut()" class="admin-nav-link" style="cursor:pointer"><span class="icon">🚪</span> Sign Out</a>
+    </nav>
+  </aside>
+
+  <main class="admin-main">
+    <div class="admin-topbar">
+      <h1 class="admin-page-title">Orders</h1>
+      <div style="display:flex;gap:10px;align-items:center">
+        <span id="order-count" style="font-size:13px;color:var(--text-muted)"></span>
+      </div>
+    </div>
+
+    <div class="admin-content">
+      <!-- Filter tabs -->
+      <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap" id="filter-tabs">
+        <button class="filter-tab active" onclick="setFilter('all')" data-filter="all">All Orders</button>
+        <button class="filter-tab" onclick="setFilter('pending')" data-filter="pending">💳 Pending Payment</button>
+        <button class="filter-tab" onclick="setFilter('payment_confirmed')" data-filter="payment_confirmed">✅ Payment Confirmed</button>
+        <button class="filter-tab" onclick="setFilter('crafting')" data-filter="crafting">🎨 In Progress</button>
+        <button class="filter-tab" onclick="setFilter('shipped')" data-filter="shipped">🚚 Shipped</button>
+        <button class="filter-tab" onclick="setFilter('delivered')" data-filter="delivered">🌸 Delivered</button>
+        <button class="filter-tab" onclick="setFilter('cancelled')" data-filter="cancelled">❌ Cancelled</button>
+      </div>
+
+      <div class="admin-table-wrap">
+        <div class="admin-table-header">
+          <div class="admin-search">
+            <span class="admin-search-icon">🔍</span>
+            <input type="text" class="form-input" placeholder="Search by order ID or customer..." oninput="searchOrders(this.value)" id="order-search">
+          </div>
+          <select class="form-select" style="max-width:180px" onchange="sortOrders(this.value)">
+            <option value="newest">Newest First</option>
+            <option value="oldest">Oldest First</option>
+            <option value="amount_high">Amount: High→Low</option>
+            <option value="amount_low">Amount: Low→High</option>
+          </select>
+        </div>
+        <div id="orders-table">
+          <div class="loader"><div class="spinner"></div></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ORDER DETAIL MODAL -->
+<div class="modal-overlay" id="order-modal">
+  <div class="modal" style="max-width:800px">
+    <div class="modal-header">
+      <div>
+        <h2 class="modal-title" id="modal-order-id">Order #</h2>
+        <p style="font-size:12px;color:var(--text-muted);margin-top:2px" id="modal-order-date"></p>
+      </div>
+      <button onclick="closeOrderModal()" style="font-size:24px;color:var(--text-muted);background:none;border:none;cursor:pointer;line-height:1">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+
+        <!-- Left: Order info -->
+        <div>
+          <!-- Customer -->
+          <div style="margin-bottom:20px;padding:16px;background:var(--cream);border-radius:var(--radius-lg)">
+            <p style="font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px">Customer</p>
+            <p style="font-size:15px;font-weight:500" id="modal-customer-name"></p>
+            <p style="font-size:13px;color:var(--text-muted)" id="modal-customer-email"></p>
+            <p style="font-size:13px;color:var(--text-muted)" id="modal-customer-phone"></p>
+          </div>
+
+          <!-- Delivery Address -->
+          <div style="margin-bottom:20px;padding:16px;background:var(--cream);border-radius:var(--radius-lg)">
+            <p style="font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px">Delivery Address</p>
+            <p style="font-size:14px;color:var(--text-secondary);line-height:1.7" id="modal-address"></p>
+          </div>
+
+          <!-- Order Items -->
+          <div style="margin-bottom:20px">
+            <p style="font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px">Items Ordered</p>
+            <div id="modal-items"></div>
+            <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:12px;display:flex;justify-content:space-between;align-items:center">
+              <span style="font-weight:500">Total</span>
+              <span style="font-family:var(--font-display);font-size:22px;color:var(--brown-dark)" id="modal-total"></span>
+            </div>
+          </div>
+
+          <!-- Payment Proof -->
+          <div id="modal-payment-section">
+            <p style="font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px">Payment Screenshot</p>
+            <div id="modal-payment-proof"></div>
+          </div>
+        </div>
+
+        <!-- Right: Status & Tracking -->
+        <div>
+          <!-- Current status -->
+          <div style="padding:16px;background:var(--cream);border-radius:var(--radius-lg);margin-bottom:20px">
+            <p style="font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px">Current Status</p>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+              <span id="modal-status-badge"></span>
+              <span id="modal-payment-badge"></span>
+            </div>
+          </div>
+
+          <!-- Update Status -->
+          <div style="padding:16px;background:white;border:1px solid var(--border);border-radius:var(--radius-lg);margin-bottom:20px">
+            <p style="font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:12px">Update Order Status</p>
+            <select id="new-status" class="form-select" style="margin-bottom:12px">
+              <option value="">Select new status...</option>
+              <option value="payment_confirmed">✅ Confirm Payment</option>
+              <option value="accepted">🎨 Accept Order (Artist)</option>
+              <option value="material_sourced">🪵 Raw Material Sourced</option>
+              <option value="crafting">✂️ Crafting in Progress</option>
+              <option value="quality_check">🔍 Quality Check</option>
+              <option value="packed">📦 Packed & Ready</option>
+              <option value="shipped">🚚 Shipped</option>
+              <option value="delivered">🌸 Delivered</option>
+              <option value="cancelled">❌ Cancel Order</option>
+            </select>
+            <div class="form-group">
+              <label class="form-label">Note to Customer (optional)</label>
+              <textarea id="status-note" class="form-textarea" placeholder="e.g. Your order has been shipped via India Post. Tracking: 1234567890" style="min-height:80px"></textarea>
+            </div>
+            <button class="btn btn-primary btn-full" onclick="updateOrderStatus()" id="update-status-btn">
+              Update Status & Send Email
+            </button>
+          </div>
+
+          <!-- Tracking History -->
+          <div>
+            <p style="font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:12px">Tracking History</p>
+            <div id="modal-tracking" class="tracking-timeline"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.filter-tab {
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  border: 1px solid var(--border);
+  background: white;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition);
+  font-family: var(--font-body);
+}
+.filter-tab:hover { border-color: var(--brown-accent); color: var(--brown-accent); }
+.filter-tab.active { background: var(--brown-dark); color: white; border-color: var(--brown-dark); }
+</style>
+
+<script src="../js/supabase.js"></script>
+<script>
+let allOrders = [];
+let filteredOrders = [];
+let currentFilter = 'all';
+let currentOrderId = null;
+
+const STATUS_LABELS = {
+  placed: 'Order Placed',
+  payment_confirmed: 'Payment Confirmed',
+  accepted: 'Accepted by Artist',
+  material_sourced: 'Material Sourced',
+  crafting: 'Crafting',
+  quality_check: 'Quality Check',
+  packed: 'Packed',
+  shipped: 'Shipped',
+  delivered: 'Delivered',
+  cancelled: 'Cancelled',
+};
+
+async function init() {
+  await requireAdmin();
+  await loadOrders();
+
+  // Pre-open order from URL param
+  const params = new URLSearchParams(window.location.search);
+  const orderId = params.get('id');
+  if (orderId) openOrderModal(orderId);
+
+  const filterParam = params.get('filter');
+  if (filterParam === 'pending') setFilter('pending');
+}
+
+async function loadOrders() {
+  const { data } = await supabase
+    .from('orders')
+    .select('*, profiles(full_name, email, phone), order_items(quantity, unit_price, product_snapshot, products(title, images))')
+    .order('created_at', { ascending: false });
+
+  allOrders = data || [];
+  applyFilter();
+}
+
+function setFilter(filter) {
+  currentFilter = filter;
+  document.querySelectorAll('.filter-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.filter === filter);
+  });
+  applyFilter();
+}
+
+function applyFilter() {
+  let orders = [...allOrders];
+  if (currentFilter === 'pending') {
+    orders = orders.filter(o => o.payment_status === 'pending' && o.status !== 'cancelled');
+  } else if (currentFilter === 'crafting') {
+    orders = orders.filter(o => ['accepted','material_sourced','crafting','quality_check','packed'].includes(o.status));
+  } else if (currentFilter !== 'all') {
+    orders = orders.filter(o => o.status === currentFilter);
+  }
+
+  const q = document.getElementById('order-search').value;
+  if (q) {
+    orders = orders.filter(o =>
+      o.id.includes(q) ||
+      o.profiles?.full_name?.toLowerCase().includes(q.toLowerCase()) ||
+      o.profiles?.email?.toLowerCase().includes(q.toLowerCase())
+    );
+  }
+
+  filteredOrders = orders;
+  document.getElementById('order-count').textContent = `${orders.length} order${orders.length !== 1 ? 's' : ''}`;
+  renderOrdersTable(orders);
+}
+
+function searchOrders(q) { applyFilter(); }
+
+function sortOrders(sortBy) {
+  const sorted = [...filteredOrders];
+  if (sortBy === 'oldest') sorted.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  else if (sortBy === 'amount_high') sorted.sort((a, b) => b.total_amount - a.total_amount);
+  else if (sortBy === 'amount_low') sorted.sort((a, b) => a.total_amount - b.total_amount);
+  else sorted.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  renderOrdersTable(sorted);
+}
+
+function renderOrdersTable(orders) {
+  if (orders.length === 0) {
+    document.getElementById('orders-table').innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">📭</div>
+        <h3>No orders found</h3>
+        <p>Try adjusting your filters</p>
+      </div>`;
+    return;
+  }
+
+  document.getElementById('orders-table').innerHTML = `
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Order</th>
+          <th>Customer</th>
+          <th>Items</th>
+          <th>Total</th>
+          <th>Payment</th>
+          <th>Status</th>
+          <th>Date</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${orders.map(o => {
+          const totalItems = o.order_items?.reduce((s, i) => s + i.quantity, 0) || 0;
+          const firstImg = o.order_items?.[0]?.products?.images?.[0];
+          return `
+          <tr style="cursor:pointer" onclick="openOrderModal('${o.id}')">
+            <td>
+              <strong style="font-size:13px">#${o.id.substring(0,8).toUpperCase()}</strong>
+            </td>
+            <td>
+              <div style="font-weight:500">${o.profiles?.full_name || '—'}</div>
+              <div style="font-size:11px;color:var(--text-muted)">${o.profiles?.email || ''}</div>
+            </td>
+            <td>
+              <div style="display:flex;align-items:center;gap:8px">
+                <div style="width:36px;height:36px;border-radius:var(--radius);overflow:hidden;background:var(--sand);flex-shrink:0">
+                  ${firstImg ? `<img src="${firstImg}" style="width:100%;height:100%;object-fit:cover">` : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:14px">🎨</div>'}
+                </div>
+                <span style="font-size:13px;color:var(--text-muted)">${totalItems} item${totalItems !== 1 ? 's' : ''}</span>
+              </div>
+            </td>
+            <td><strong>${formatPrice(o.total_amount)}</strong></td>
+            <td>
+              <span class="status-badge status-${o.payment_status}">${o.payment_status}</span>
+              ${o.payment_proof_url ? '<div style="font-size:10px;color:var(--sage);margin-top:2px">📸 Screenshot uploaded</div>' : ''}
+            </td>
+            <td><span class="status-badge status-${o.status}">${STATUS_LABELS[o.status] || o.status}</span></td>
+            <td>
+              <div style="font-size:13px">${formatDate(o.created_at)}</div>
+              <div style="font-size:11px;color:var(--text-muted)">${new Date(o.created_at).toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit'})}</div>
+            </td>
+            <td>
+              <button class="btn btn-sm btn-accent" onclick="event.stopPropagation();openOrderModal('${o.id}')">
+                Manage →
+              </button>
+            </td>
+          </tr>
+        `}).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+async function openOrderModal(orderId) {
+  currentOrderId = orderId;
+  document.getElementById('order-modal').classList.add('open');
+
+  // Find order in cache or fetch
+  let order = allOrders.find(o => o.id === orderId);
+  if (!order) {
+    const { data } = await supabase
+      .from('orders')
+      .select('*, profiles(full_name, email, phone), order_items(quantity, unit_price, product_snapshot, products(title, images))')
+      .eq('id', orderId)
+      .single();
+    order = data;
+  }
+
+  if (!order) return;
+
+  // Fill in header
+  document.getElementById('modal-order-id').textContent = `Order #${orderId.substring(0,8).toUpperCase()}`;
+  document.getElementById('modal-order-date').textContent = formatDateTime(order.created_at);
+
+  // Customer
+  document.getElementById('modal-customer-name').textContent = order.profiles?.full_name || 'Unknown';
+  document.getElementById('modal-customer-email').textContent = order.profiles?.email || '';
+  document.getElementById('modal-customer-phone').textContent = order.address_snapshot?.phone || order.profiles?.phone || '';
+
+  // Address
+  const addr = order.address_snapshot || {};
+  document.getElementById('modal-address').innerHTML = `
+    ${addr.name || ''}<br>
+    ${addr.street || ''}<br>
+    ${addr.city || ''}, ${addr.state || ''} — ${addr.pin || ''}
+  `;
+
+  // Items
+  document.getElementById('modal-items').innerHTML = (order.order_items || []).map(item => `
+    <div style="display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--sand);align-items:center">
+      <div style="width:44px;height:44px;border-radius:var(--radius);overflow:hidden;background:var(--sand);flex-shrink:0">
+        ${item.products?.images?.[0]
+          ? `<img src="${item.products.images[0]}" style="width:100%;height:100%;object-fit:cover">`
+          : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:16px">🎨</div>'}
+      </div>
+      <div style="flex:1">
+        <p style="font-size:13px;font-weight:500">${item.products?.title || item.product_snapshot?.title || 'Product'}</p>
+        <p style="font-size:12px;color:var(--text-muted)">Qty: ${item.quantity} × ${formatPrice(item.unit_price)}</p>
+      </div>
+      <span style="font-size:13px;font-weight:600">${formatPrice(item.quantity * item.unit_price)}</span>
+    </div>
+  `).join('');
+  document.getElementById('modal-total').textContent = formatPrice(order.total_amount);
+
+  // Payment proof
+  if (order.payment_proof_url) {
+    document.getElementById('modal-payment-proof').innerHTML = `
+      <a href="${order.payment_proof_url}" target="_blank">
+        <img src="${order.payment_proof_url}" style="max-width:100%;max-height:200px;border-radius:var(--radius);border:1px solid var(--border);cursor:zoom-in">
+      </a>
+      <p style="font-size:11px;color:var(--text-muted);margin-top:4px">Click to view full size</p>
+    `;
+  } else {
+    document.getElementById('modal-payment-proof').innerHTML = `
+      <p style="font-size:13px;color:var(--text-muted);font-style:italic">No payment screenshot uploaded yet</p>
+    `;
+  }
+
+  // Status badges
+  document.getElementById('modal-status-badge').outerHTML = `<span id="modal-status-badge" class="status-badge status-${order.status}">${STATUS_LABELS[order.status] || order.status}</span>`;
+  document.getElementById('modal-payment-badge').outerHTML = `<span id="modal-payment-badge" class="status-badge status-${order.payment_status}">${order.payment_status}</span>`;
+
+  // Pre-select next logical status
+  const statusFlow = ['placed','payment_confirmed','accepted','material_sourced','crafting','quality_check','packed','shipped','delivered'];
+  const currentIdx = statusFlow.indexOf(order.status);
+  if (currentIdx >= 0 && currentIdx < statusFlow.length - 1) {
+    document.getElementById('new-status').value = statusFlow[currentIdx + 1];
+  } else {
+    document.getElementById('new-status').value = '';
+  }
+  document.getElementById('status-note').value = '';
+
+  // Load tracking history
+  await loadTrackingHistory(orderId);
+}
+
+async function loadTrackingHistory(orderId) {
+  const { data } = await supabase
+    .from('order_tracking')
+    .select('*')
+    .eq('order_id', orderId)
+    .order('updated_at', { ascending: false });
+
+  const container = document.getElementById('modal-tracking');
+  if (!data || data.length === 0) {
+    container.innerHTML = '<p style="font-size:13px;color:var(--text-muted)">No tracking history yet</p>';
+    return;
+  }
+
+  container.innerHTML = data.map(entry => `
+    <div class="tracking-step completed" style="margin-bottom:16px">
+      <div class="tracking-step-dot"></div>
+      <div class="tracking-step-title">${STATUS_LABELS[entry.status] || entry.status}</div>
+      <div class="tracking-step-time">${formatDateTime(entry.updated_at)}</div>
+      ${entry.note ? `<div class="tracking-step-note">${entry.note}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+async function updateOrderStatus() {
+  const newStatus = document.getElementById('new-status').value;
+  const note = document.getElementById('status-note').value.trim();
+
+  if (!newStatus) { showToast('Please select a status', 'error'); return; }
+  if (!currentOrderId) return;
+
+  const btn = document.getElementById('update-status-btn');
+  btn.disabled = true;
+  btn.textContent = 'Updating...';
+
+  try {
+    // Get current order for email data
+    const order = allOrders.find(o => o.id === currentOrderId);
+
+    // Build update payload
+    const updateData = { status: newStatus };
+    // Also update payment_status if confirming payment
+    if (newStatus === 'payment_confirmed') {
+      updateData.payment_status = 'confirmed';
+    }
+    if (newStatus === 'cancelled') {
+      updateData.payment_status = 'rejected';
+    }
+
+    // Update order
+    const { error: orderErr } = await supabase
+      .from('orders')
+      .update(updateData)
+      .eq('id', currentOrderId);
+    if (orderErr) throw orderErr;
+
+    // Insert tracking entry
+    const adminProfile = await getCurrentProfile();
+    const { error: trackErr } = await supabase
+      .from('order_tracking')
+      .insert({
+        order_id: currentOrderId,
+        status: newStatus,
+        note: note || null,
+        updated_by: adminProfile?.id,
+      });
+    if (trackErr) throw trackErr;
+
+    // Send email notification
+    if (order?.profiles?.email) {
+      await sendOrderEmail(
+        currentOrderId,
+        order.profiles.email,
+        order.profiles.full_name,
+        order.total_amount,
+        newStatus,
+        note
+      );
+    }
+
+    // Create notification for customer
+    if (order?.customer_id) {
+      await supabase.from('notifications').insert({
+        user_id: order.customer_id,
+        order_id: currentOrderId,
+        title: `Order Update: ${STATUS_LABELS[newStatus]}`,
+        message: note || `Your order status has been updated to: ${STATUS_LABELS[newStatus]}`,
+      });
+    }
+
+    showToast(`✅ Order updated to "${STATUS_LABELS[newStatus]}" — email sent!`, 'success');
+
+    // Refresh
+    await loadOrders();
+    await openOrderModal(currentOrderId);
+
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Update Status & Send Email';
+}
+
+function closeOrderModal() {
+  document.getElementById('order-modal').classList.remove('open');
+  currentOrderId = null;
+}
+
+// Close on backdrop click
+document.getElementById('order-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeOrderModal();
+});
+
+init();
+</script>
+</body>
+</html>

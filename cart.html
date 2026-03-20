@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cart — Everbloom</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<nav class="nav">
+  <a href="index.html" class="nav-logo">🌸 Everbloom</a>
+  <ul class="nav-links"><li><a href="index.html">Home</a></li><li><a href="shop.html">Shop</a></li></ul>
+  <div class="nav-actions">
+    <a href="cart.html" class="nav-icon-btn">🛒<span class="badge" id="cart-badge" style="display:none">0</span></a>
+    <div id="auth-links" style="display:flex;gap:10px"><a href="login.html" class="btn btn-secondary btn-sm">Login</a><a href="signup.html" class="btn btn-primary btn-sm">Sign Up</a></div>
+    <div id="user-menu" style="display:none;align-items:center;gap:12px"><span style="font-size:13px;color:var(--text-secondary)">Hi, <span class="user-name"></span></span><button onclick="signOut()" class="btn btn-secondary btn-sm">Logout</button></div>
+  </div>
+</nav>
+
+<div class="page-header"><h1>Your Cart</h1></div>
+
+<div class="container" style="padding-top:48px;padding-bottom:80px">
+  <div id="cart-empty" style="display:none" class="empty-state">
+    <div class="empty-state-icon">🛒</div>
+    <h3>Your cart is empty</h3>
+    <p>Discover our handcrafted pieces and add something beautiful</p>
+    <a href="shop.html" class="btn btn-primary btn-lg">Browse Shop</a>
+  </div>
+
+  <div id="cart-content" style="display:none;display:grid;grid-template-columns:1fr 360px;gap:40px;align-items:start">
+    <!-- Items -->
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+        <h2 style="font-family:var(--font-display);font-size:24px">Cart Items</h2>
+        <button onclick="clearCartConfirm()" style="font-size:13px;color:var(--error);background:none;border:none;cursor:pointer">Clear cart</button>
+      </div>
+      <div id="cart-items"></div>
+    </div>
+
+    <!-- Summary -->
+    <div style="background:white;border:1px solid var(--border);border-radius:var(--radius-lg);padding:28px;position:sticky;top:90px">
+      <h3 style="font-family:var(--font-display);font-size:22px;margin-bottom:20px">Order Summary</h3>
+      <div id="cart-summary-lines"></div>
+      <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:8px;display:flex;justify-content:space-between;align-items:baseline">
+        <span style="font-size:15px;font-weight:500">Total</span>
+        <span style="font-family:var(--font-display);font-size:28px;color:var(--brown-dark)" id="cart-total"></span>
+      </div>
+      <a href="checkout.html" class="btn btn-primary btn-full btn-lg" style="margin-top:20px">Proceed to Checkout</a>
+      <a href="shop.html" class="btn btn-secondary btn-full" style="margin-top:10px">Continue Shopping</a>
+      <div style="margin-top:20px;padding:14px;background:var(--cream);border-radius:var(--radius);display:flex;gap:10px;align-items:flex-start">
+        <span style="font-size:18px">📱</span>
+        <div>
+          <p style="font-size:12px;font-weight:500;color:var(--text-primary);margin-bottom:2px">QR Code Payment</p>
+          <p style="font-size:12px;color:var(--text-muted)">Pay easily via UPI QR code at checkout</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/supabase.js"></script>
+<script src="js/auth.js"></script>
+<script>
+function renderCart() {
+  const items = Cart.get();
+  if (items.length === 0) {
+    document.getElementById('cart-empty').style.display = 'block';
+    document.getElementById('cart-content').style.display = 'none';
+    return;
+  }
+  document.getElementById('cart-empty').style.display = 'none';
+  document.getElementById('cart-content').style.display = 'grid';
+
+  document.getElementById('cart-items').innerHTML = items.map(item => `
+    <div style="display:flex;gap:20px;padding:20px 0;border-bottom:1px solid var(--border);align-items:center" id="item-${item.id}">
+      <div style="width:88px;height:88px;border-radius:var(--radius);overflow:hidden;background:var(--sand);flex-shrink:0">
+        ${item.image
+          ? `<img src="${item.image}" alt="${item.title}" style="width:100%;height:100%;object-fit:cover">`
+          : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:28px">🎨</div>`
+        }
+      </div>
+      <div style="flex:1">
+        <h4 style="font-family:var(--font-display);font-size:18px;margin-bottom:4px">${item.title}</h4>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:10px">${formatPrice(item.price)} each</p>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div class="qty-control" style="border:1px solid var(--border);border-radius:4px;overflow:hidden;display:flex">
+            <button onclick="updateCartItem('${item.id}', ${item.qty - 1})" style="width:32px;height:36px;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--text-secondary);cursor:pointer;background:none;border:none">−</button>
+            <span style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:14px;border-left:1px solid var(--border);border-right:1px solid var(--border)">${item.qty}</span>
+            <button onclick="updateCartItem('${item.id}', ${item.qty + 1})" style="width:32px;height:36px;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--text-secondary);cursor:pointer;background:none;border:none">+</button>
+          </div>
+          <button onclick="removeItem('${item.id}')" style="font-size:12px;color:var(--error);background:none;border:none;cursor:pointer;letter-spacing:0.5px">Remove</button>
+        </div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <p style="font-size:17px;font-weight:600;color:var(--brown-dark)">${formatPrice(item.price * item.qty)}</p>
+      </div>
+    </div>
+  `).join('');
+
+  // Summary
+  const total = Cart.total();
+  document.getElementById('cart-summary-lines').innerHTML = items.map(item => `
+    <div style="display:flex;justify-content:space-between;margin-bottom:10px">
+      <span style="font-size:13px;color:var(--text-secondary)">${item.title} × ${item.qty}</span>
+      <span style="font-size:13px;color:var(--text-primary)">${formatPrice(item.price * item.qty)}</span>
+    </div>
+  `).join('');
+  document.getElementById('cart-total').textContent = formatPrice(total);
+}
+
+function updateCartItem(id, qty) {
+  Cart.updateQty(id, qty);
+  renderCart();
+}
+
+function removeItem(id) {
+  Cart.remove(id);
+  renderCart();
+}
+
+function clearCartConfirm() {
+  if (confirm('Remove all items from cart?')) {
+    Cart.clear();
+    renderCart();
+  }
+}
+
+renderCart();
+</script>
+</body>
+</html>

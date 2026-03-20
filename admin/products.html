@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Products — Everbloom Admin</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/admin.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="admin-layout">
+  <aside class="admin-sidebar">
+    <div class="admin-sidebar-logo"><h2>🌸 Everbloom</h2><span>Admin Panel</span></div>
+    <nav class="admin-nav">
+      <div class="admin-nav-section">Overview</div>
+      <a href="index.html" class="admin-nav-link"><span class="icon">📊</span> Dashboard</a>
+      <div class="admin-nav-section">Catalog</div>
+      <a href="products.html" class="admin-nav-link active"><span class="icon">🎨</span> Products</a>
+      <div class="admin-nav-section">Orders</div>
+      <a href="orders.html" class="admin-nav-link"><span class="icon">📦</span> All Orders</a>
+      <div class="admin-nav-section">Account</div>
+      <a href="../index.html" class="admin-nav-link"><span class="icon">🏪</span> View Store</a>
+      <a onclick="signOut()" class="admin-nav-link" style="cursor:pointer"><span class="icon">🚪</span> Sign Out</a>
+    </nav>
+  </aside>
+
+  <main class="admin-main">
+    <div class="admin-topbar">
+      <h1 class="admin-page-title">Products</h1>
+      <button class="btn btn-primary" onclick="openProductModal()">+ Add New Product</button>
+    </div>
+
+    <div class="admin-content">
+      <div class="admin-table-wrap">
+        <div class="admin-table-header">
+          <div class="admin-search">
+            <span class="admin-search-icon">🔍</span>
+            <input type="text" class="form-input" placeholder="Search products..." oninput="filterProducts(this.value)" id="product-search">
+          </div>
+          <select class="form-select" style="max-width:160px" onchange="filterByCategory(this.value)" id="cat-filter">
+            <option value="">All Categories</option>
+          </select>
+        </div>
+        <div id="products-table">
+          <div class="loader"><div class="spinner"></div></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- PRODUCT MODAL -->
+<div class="modal-overlay" id="product-modal">
+  <div class="modal" style="max-width:740px">
+    <div class="modal-header">
+      <h2 class="modal-title" id="modal-title">Add New Product</h2>
+      <button onclick="closeProductModal()" style="font-size:22px;color:var(--text-muted);background:none;border:none;cursor:pointer;line-height:1">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="edit-product-id">
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+        <div class="form-group" style="grid-column:1/-1">
+          <label class="form-label">Product Title *</label>
+          <input type="text" id="p-title" class="form-input" placeholder="e.g. Handpainted Madhubani Canvas">
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label class="form-label">Description</label>
+          <textarea id="p-desc" class="form-textarea" placeholder="Describe this piece — materials, inspiration, dimensions..."></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Category *</label>
+          <select id="p-category" class="form-select">
+            <option value="">Select category</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Stock Quantity *</label>
+          <input type="number" id="p-stock" class="form-input" placeholder="0" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Base Price (₹) *</label>
+          <input type="number" id="p-price" class="form-input" placeholder="0.00" min="0" step="0.01" oninput="updateFinalPrice()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Discount (%)</label>
+          <input type="number" id="p-discount" class="form-input" placeholder="0" min="0" max="100" oninput="updateFinalPrice()">
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label class="form-label">Final Price (calculated)</label>
+          <div style="padding:12px 16px;background:var(--cream);border:1px solid var(--border);border-radius:var(--radius);font-size:15px;color:var(--brown-dark);font-weight:500" id="p-final-price">₹0.00</div>
+        </div>
+      </div>
+
+      <!-- Tags -->
+      <div class="form-group">
+        <label class="form-label">Tags (comma separated)</label>
+        <input type="text" id="p-tags" class="form-input" placeholder="handmade, traditional, unique">
+      </div>
+
+      <!-- Options -->
+      <div style="display:flex;gap:24px;margin-bottom:20px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px">
+          <input type="checkbox" id="p-featured" style="accent-color:var(--brown-accent);width:15px;height:15px"> Featured Product
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px">
+          <input type="checkbox" id="p-active" checked style="accent-color:var(--brown-accent);width:15px;height:15px"> Active (visible in shop)
+        </label>
+      </div>
+
+      <!-- Image Upload -->
+      <div class="form-group">
+        <label class="form-label">Product Images (up to 6)</label>
+        <div class="img-upload-area" id="upload-area" onclick="document.getElementById('img-upload').click()"
+          ondragover="event.preventDefault();this.classList.add('dragover')"
+          ondragleave="this.classList.remove('dragover')"
+          ondrop="handleDrop(event)">
+          <div id="upload-prompt">
+            <div style="font-size:40px;margin-bottom:12px">🖼️</div>
+            <p style="font-size:14px;color:var(--text-secondary);margin-bottom:4px">Click to upload or drag & drop images here</p>
+            <p style="font-size:12px;color:var(--text-muted)">JPG, PNG, WebP — max 5MB each</p>
+          </div>
+          <input type="file" id="img-upload" accept="image/*" multiple style="display:none" onchange="handleImageUpload(this.files)">
+        </div>
+        <div class="img-preview-grid" id="img-preview-grid"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeProductModal()">Cancel</button>
+      <button class="btn btn-primary" id="save-product-btn" onclick="saveProduct()">Save Product</button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/supabase.js"></script>
+<script>
+let allProducts = [];
+let allCategories = [];
+let uploadedImages = []; // { file, url, isNew }
+let existingImages = []; // URLs already in DB
+
+async function init() {
+  await requireAdmin();
+  await loadCategories();
+  await loadProducts();
+
+  // Check if ?action=new
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('action') === 'new') openProductModal();
+}
+
+async function loadCategories() {
+  const { data } = await supabase.from('categories').select('*').order('name');
+  allCategories = data || [];
+
+  const select = document.getElementById('p-category');
+  const filter = document.getElementById('cat-filter');
+  allCategories.forEach(c => {
+    select.innerHTML += `<option value="${c.id}">${c.icon} ${c.name}</option>`;
+    filter.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+  });
+}
+
+async function loadProducts() {
+  const { data } = await supabase
+    .from('products')
+    .select('*, categories(name)')
+    .order('created_at', { ascending: false });
+  allProducts = data || [];
+  renderTable(allProducts);
+}
+
+function renderTable(products) {
+  document.getElementById('products-table').innerHTML = `
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Image</th>
+          <th>Product</th>
+          <th>Category</th>
+          <th>Price</th>
+          <th>Discount</th>
+          <th>Final Price</th>
+          <th>Stock</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${products.map(p => `
+          <tr>
+            <td>
+              <div style="width:48px;height:48px;border-radius:var(--radius);overflow:hidden;background:var(--sand)">
+                ${p.images?.[0] ? `<img src="${p.images[0]}" style="width:100%;height:100%;object-fit:cover">` : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:20px">🎨</div>'}
+              </div>
+            </td>
+            <td>
+              <div style="font-weight:500;color:var(--text-primary)">${p.title}</div>
+              <div style="font-size:11px;color:var(--text-muted)">ID: ${p.id.substring(0,8)}</div>
+            </td>
+            <td>${p.categories?.name || '—'}</td>
+            <td>${formatPrice(p.price)}</td>
+            <td>${p.discount_percent > 0 ? `<span style="color:var(--sage);font-weight:500">${p.discount_percent}%</span>` : '—'}</td>
+            <td><strong>${formatPrice(p.final_price)}</strong></td>
+            <td>
+              <span style="color:${p.stock_qty > 0 ? 'var(--success)' : 'var(--error)'}">
+                ${p.stock_qty > 0 ? `${p.stock_qty} left` : 'Out of stock'}
+              </span>
+            </td>
+            <td>
+              <span class="status-badge ${p.is_active ? 'status-delivered' : 'status-cancelled'}">
+                ${p.is_active ? 'Active' : 'Hidden'}
+              </span>
+            </td>
+            <td>
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-sm btn-secondary" onclick="editProduct('${p.id}')">Edit</button>
+                <button class="btn btn-sm" style="background:rgba(192,97,74,0.1);color:var(--error);border:1px solid rgba(192,97,74,0.2)" onclick="deleteProduct('${p.id}', '${p.title.replace(/'/g,"\\'")}')">Delete</button>
+              </div>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+    ${products.length === 0 ? '<div class="empty-state"><div class="empty-state-icon">🎨</div><h3>No products yet</h3><p>Add your first handcrafted product</p><button class="btn btn-primary" onclick="openProductModal()">+ Add Product</button></div>' : ''}
+  `;
+}
+
+function filterProducts(q) {
+  const filtered = allProducts.filter(p =>
+    p.title.toLowerCase().includes(q.toLowerCase()) ||
+    p.description?.toLowerCase().includes(q.toLowerCase())
+  );
+  const catId = document.getElementById('cat-filter').value;
+  renderTable(catId ? filtered.filter(p => p.category_id === catId) : filtered);
+}
+
+function filterByCategory(catId) {
+  const q = document.getElementById('product-search').value;
+  let filtered = allProducts;
+  if (q) filtered = filtered.filter(p => p.title.toLowerCase().includes(q.toLowerCase()));
+  if (catId) filtered = filtered.filter(p => p.category_id === catId);
+  renderTable(filtered);
+}
+
+function updateFinalPrice() {
+  const price = parseFloat(document.getElementById('p-price').value) || 0;
+  const disc = parseFloat(document.getElementById('p-discount').value) || 0;
+  const final = price - (price * disc / 100);
+  document.getElementById('p-final-price').textContent = formatPrice(final);
+}
+
+function openProductModal(product = null) {
+  document.getElementById('product-modal').classList.add('open');
+  document.getElementById('modal-title').textContent = product ? 'Edit Product' : 'Add New Product';
+  document.getElementById('edit-product-id').value = product?.id || '';
+  document.getElementById('p-title').value = product?.title || '';
+  document.getElementById('p-desc').value = product?.description || '';
+  document.getElementById('p-category').value = product?.category_id || '';
+  document.getElementById('p-stock').value = product?.stock_qty || '';
+  document.getElementById('p-price').value = product?.price || '';
+  document.getElementById('p-discount').value = product?.discount_percent || '0';
+  document.getElementById('p-tags').value = product?.tags?.join(', ') || '';
+  document.getElementById('p-featured').checked = product?.is_featured || false;
+  document.getElementById('p-active').checked = product?.is_active !== false;
+  uploadedImages = [];
+  existingImages = product?.images || [];
+  updateFinalPrice();
+  renderImagePreviews();
+}
+
+function closeProductModal() {
+  document.getElementById('product-modal').classList.remove('open');
+}
+
+function renderImagePreviews() {
+  const grid = document.getElementById('img-preview-grid');
+  const allImgs = [
+    ...existingImages.map(url => ({ url, isNew: false })),
+    ...uploadedImages.filter(i => i.isNew).map(i => ({ url: i.previewUrl, isNew: true, file: i.file }))
+  ];
+  grid.innerHTML = allImgs.map((img, idx) => `
+    <div class="img-preview-item">
+      <img src="${img.url}" alt="Product image ${idx+1}">
+      <div class="img-preview-remove" onclick="removeImage(${idx}, ${img.isNew})">×</div>
+      ${idx === 0 ? '<div style="position:absolute;bottom:4px;left:4px;background:var(--brown-accent);color:white;font-size:9px;padding:2px 6px;border-radius:2px;letter-spacing:1px">MAIN</div>' : ''}
+    </div>
+  `).join('');
+}
+
+function removeImage(idx, isNew) {
+  const existingCount = existingImages.length;
+  if (!isNew && idx < existingCount) {
+    existingImages.splice(idx, 1);
+  } else {
+    const newIdx = idx - existingCount;
+    uploadedImages.splice(newIdx, 1);
+  }
+  renderImagePreviews();
+}
+
+async function handleImageUpload(files) {
+  const maxImages = 6 - existingImages.length;
+  const filesToAdd = Array.from(files).slice(0, maxImages);
+  for (const file of filesToAdd) {
+    if (file.size > 5 * 1024 * 1024) { showToast(`${file.name} is too large (max 5MB)`, 'error'); continue; }
+    uploadedImages.push({ file, previewUrl: URL.createObjectURL(file), isNew: true });
+  }
+  renderImagePreviews();
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('upload-area').classList.remove('dragover');
+  handleImageUpload(e.dataTransfer.files);
+}
+
+async function saveProduct() {
+  const btn = document.getElementById('save-product-btn');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  const title = document.getElementById('p-title').value.trim();
+  const categoryId = document.getElementById('p-category').value;
+  const price = parseFloat(document.getElementById('p-price').value);
+  const stock = parseInt(document.getElementById('p-stock').value);
+
+  if (!title || !categoryId || isNaN(price)) {
+    showToast('Please fill in all required fields', 'error');
+    btn.disabled = false; btn.textContent = 'Save Product'; return;
+  }
+
+  try {
+    // Upload new images to Supabase Storage
+    const newImageUrls = [];
+    for (const imgObj of uploadedImages) {
+      if (!imgObj.isNew) continue;
+      const ext = imgObj.file.name.split('.').pop();
+      const path = `products/${Date.now()}-${Math.random().toString(36).substr(2,6)}.${ext}`;
+      const { data, error } = await supabase.storage.from('product-images').upload(path, imgObj.file);
+      if (error) throw error;
+      const { data: { publicUrl } } = supabase.storage.from('product-images').getPublicUrl(path);
+      newImageUrls.push(publicUrl);
+    }
+
+    const allImages = [...existingImages, ...newImageUrls];
+
+    const productData = {
+      title,
+      description: document.getElementById('p-desc').value.trim(),
+      category_id: categoryId,
+      price,
+      discount_percent: parseInt(document.getElementById('p-discount').value) || 0,
+      stock_qty: isNaN(stock) ? 0 : stock,
+      tags: document.getElementById('p-tags').value.split(',').map(t => t.trim()).filter(Boolean),
+      is_featured: document.getElementById('p-featured').checked,
+      is_active: document.getElementById('p-active').checked,
+      images: allImages,
+      slug: title.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Date.now(),
+    };
+
+    const editId = document.getElementById('edit-product-id').value;
+    if (editId) {
+      const { error } = await supabase.from('products').update(productData).eq('id', editId);
+      if (error) throw error;
+      showToast('Product updated!', 'success');
+    } else {
+      const { error } = await supabase.from('products').insert(productData);
+      if (error) throw error;
+      showToast('Product added!', 'success');
+    }
+
+    closeProductModal();
+    await loadProducts();
+  } catch (err) {
+    showToast('Error saving: ' + err.message, 'error');
+  }
+  btn.disabled = false;
+  btn.textContent = 'Save Product';
+}
+
+async function editProduct(id) {
+  const product = allProducts.find(p => p.id === id);
+  if (product) openProductModal(product);
+}
+
+async function deleteProduct(id, title) {
+  if (!confirm(`Delete "${title}"? This cannot be undone.`)) return;
+  const { error } = await supabase.from('products').update({ is_active: false }).eq('id', id);
+  if (error) { showToast('Error: ' + error.message, 'error'); return; }
+  showToast('Product hidden from shop', 'success');
+  await loadProducts();
+}
+
+init();
+</script>
+</body>
+</html>
