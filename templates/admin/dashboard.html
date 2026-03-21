@@ -1,76 +1,105 @@
-{% extends "admin/base.html" %}
+{% extends "admin/base_admin.html" %}
+{% block title %}Dashboard{% endblock %}
 {% block page_title %}Dashboard{% endblock %}
-{% block topbar %}<a href="{{ url_for('admin.orders', status='placed') }}" class="btn btn-clay btn-sm">Review New Orders</a>{% endblock %}
-
 {% block content %}
-<div class="stat-grid">
-  <div class="stat-card" style="border-top:3px solid var(--clay)">
-    <div class="stat-icon">📦</div><div class="stat-label">Total Orders</div>
-    <div class="stat-value">{{ stats.total }}</div>
-  </div>
-  <div class="stat-card" style="border-top:3px solid #B8860B">
-    <div class="stat-icon">👀</div><div class="stat-label">New (Pending Review)</div>
-    <div class="stat-value">{{ stats.new_orders }}</div>
-    <div class="stat-sub"><a href="{{ url_for('admin.orders', status='placed') }}" style="color:var(--clay)">Review now →</a></div>
-  </div>
-  <div class="stat-card" style="border-top:3px solid var(--sage)">
-    <div class="stat-icon">💳</div><div class="stat-label">Advance to Confirm</div>
-    <div class="stat-value">{{ stats.advance_pending }}</div>
-    <div class="stat-sub"><a href="{{ url_for('admin.orders', status='advance_paid') }}" style="color:var(--clay)">Confirm now →</a></div>
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-icon stat-icon-orders">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/></svg>
+    </div>
+    <div class="stat-info">
+      <span class="stat-value">{{ stats.total_orders }}</span>
+      <span class="stat-label">Total Orders</span>
+    </div>
   </div>
   <div class="stat-card">
-    <div class="stat-icon">🎨</div><div class="stat-label">In Progress</div><div class="stat-value">{{ stats.in_progress }}</div>
+    <div class="stat-icon stat-icon-pending">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    </div>
+    <div class="stat-info">
+      <span class="stat-value">{{ stats.pending_orders }}</span>
+      <span class="stat-label">Pending Orders</span>
+    </div>
   </div>
   <div class="stat-card">
-    <div class="stat-icon">🚚</div><div class="stat-label">Shipped</div><div class="stat-value">{{ stats.shipped }}</div>
+    <div class="stat-icon stat-icon-placed">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/></svg>
+    </div>
+    <div class="stat-info">
+      <span class="stat-value">{{ stats.placed }}</span>
+      <span class="stat-label">New Orders</span>
+    </div>
   </div>
   <div class="stat-card">
-    <div class="stat-icon">🌿</div><div class="stat-label">Delivered</div><div class="stat-value">{{ stats.delivered }}</div>
+    <div class="stat-icon stat-icon-advance">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+    </div>
+    <div class="stat-info">
+      <span class="stat-value">{{ stats.advance_paid }}</span>
+      <span class="stat-label">Awaiting Verification</span>
+    </div>
   </div>
   <div class="stat-card">
-    <div class="stat-icon">💰</div><div class="stat-label">Revenue (Delivered)</div>
-    <div class="stat-value" style="font-size:22px">₹{{ "{:,.0f}".format(stats.revenue|float) }}</div>
+    <div class="stat-icon stat-icon-shipped">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+    </div>
+    <div class="stat-info">
+      <span class="stat-value">{{ stats.shipped }}</span>
+      <span class="stat-label">Shipped</span>
+    </div>
   </div>
   <div class="stat-card">
-    <div class="stat-icon">👥</div><div class="stat-label">Customers</div><div class="stat-value">{{ total_customers }}</div>
+    <div class="stat-icon stat-icon-customers">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+    </div>
+    <div class="stat-info">
+      <span class="stat-value">{{ stats.total_customers }}</span>
+      <span class="stat-label">Customers</span>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon stat-icon-products">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+    </div>
+    <div class="stat-info">
+      <span class="stat-value">{{ stats.total_products }}</span>
+      <span class="stat-label">Products</span>
+    </div>
+  </div>
+  <div class="stat-card stat-card-revenue">
+    <div class="stat-icon stat-icon-revenue">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+    </div>
+    <div class="stat-info">
+      <span class="stat-value">₹{{ "%.0f"|format(stats.total_revenue) }}</span>
+      <span class="stat-label">Total Revenue</span>
+    </div>
   </div>
 </div>
 
-<div class="admin-card">
-  <div class="admin-card-header">
-    <h3>Recent Orders</h3>
-    <a href="{{ url_for('admin.orders') }}" class="btn btn-secondary btn-sm">View All</a>
+<div class="admin-section">
+  <div class="admin-section-header">
+    <h2>Recent Orders</h2>
+    <a href="{{ url_for('admin.orders') }}" class="btn-outline-sm">View All</a>
   </div>
-  <div class="table-wrap">
+  <div class="admin-table-wrap">
     <table class="admin-table">
-      <thead><tr><th>Order</th><th>Customer</th><th>Total</th><th>Status</th><th>Date</th><th></th></tr></thead>
+      <thead><tr>
+        <th>Order ID</th><th>Customer</th><th>Total</th><th>Status</th><th>Date</th><th></th>
+      </tr></thead>
       <tbody>
-        {% for o in recent %}
+        {% for o in recent_orders %}
         <tr>
-          <td><strong>#{{ "%04d"|format(o.id) }}</strong></td>
-          <td><div>{{ o.cust_name }}</div><div style="font-size:11px;color:var(--muted)">{{ o.cust_email }}</div></td>
-          <td><strong>₹{{ "{:,.0f}".format(o.total_amount|float) }}</strong></td>
-          <td><span class="status-pill s-{{ o.status }}">{{ STATUS_ICONS.get(o.status,'📋') }} {{ STATUS_LABELS.get(o.status, o.status) }}</span></td>
-          <td style="font-size:12px">{{ o.created_at.strftime('%d %b %Y') }}</td>
-          <td><a href="{{ url_for('admin.order_detail', oid=o.id) }}" class="btn btn-sm btn-secondary">Manage</a></td>
+          <td><code>#{{ o.id[:8]|upper }}</code></td>
+          <td>{{ o.name }}</td>
+          <td>₹{{ "%.0f"|format(o.total) }}</td>
+          <td><span class="status-pill status-{{ o.status }}">{{ STATUS_LABELS.get(o.status, o.status) }}</span></td>
+          <td>{{ o.created_at[:10] }}</td>
+          <td><a href="{{ url_for('admin.order_detail', oid=o.id) }}" class="table-action">View →</a></td>
         </tr>
-        {% else %}
-        <tr><td colspan="6" style="text-align:center;padding:40px;color:var(--muted)">No orders yet</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
-</div>
-
-<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:20px">
-  <a href="{{ url_for('admin.orders', status='placed') }}" style="display:block;background:white;border:1.5px solid var(--border);border-radius:var(--rl);padding:20px;text-align:center;transition:box-shadow var(--t);text-decoration:none;color:var(--text)" onmouseover="this.style.boxShadow='var(--sh)'" onmouseout="this.style.boxShadow=''">
-    <div style="font-size:28px;margin-bottom:8px">👀</div><div style="font-weight:500;font-size:14px">Review New Orders</div><div style="font-size:12px;color:var(--muted);margin-top:4px">{{ stats.new_orders }} waiting</div>
-  </a>
-  <a href="{{ url_for('admin.orders', status='advance_paid') }}" style="display:block;background:white;border:1.5px solid var(--border);border-radius:var(--rl);padding:20px;text-align:center;transition:box-shadow var(--t);text-decoration:none;color:var(--text)" onmouseover="this.style.boxShadow='var(--sh)'" onmouseout="this.style.boxShadow=''">
-    <div style="font-size:28px;margin-bottom:8px">💳</div><div style="font-weight:500;font-size:14px">Confirm Advance</div><div style="font-size:12px;color:var(--muted);margin-top:4px">{{ stats.advance_pending }} to confirm</div>
-  </a>
-  <a href="{{ url_for('admin.product_new') }}" style="display:block;background:white;border:1.5px solid var(--border);border-radius:var(--rl);padding:20px;text-align:center;transition:box-shadow var(--t);text-decoration:none;color:var(--text)" onmouseover="this.style.boxShadow='var(--sh)'" onmouseout="this.style.boxShadow=''">
-    <div style="font-size:28px;margin-bottom:8px">➕</div><div style="font-weight:500;font-size:14px">Add Product</div><div style="font-size:12px;color:var(--muted);margin-top:4px">{{ total_products }} active</div>
-  </a>
 </div>
 {% endblock %}

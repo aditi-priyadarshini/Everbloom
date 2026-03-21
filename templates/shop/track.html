@@ -1,109 +1,49 @@
 {% extends "base.html" %}
-{% block title %}Track Order #{{ "%04d"|format(o.id) }} — {{ store_name }}{% endblock %}
+{% block title %}Track Order{% endblock %}
 {% block content %}
-<div class="page-header"><h1>Track Order</h1><p>#{{ "%04d"|format(o.id) }}</p></div>
-
-<div class="container" style="max-width:760px;padding-top:40px;padding-bottom:80px">
-
-  <!-- Header card -->
-  <div style="background:white;border:1.5px solid var(--border);border-radius:var(--rl);padding:24px 28px;margin-bottom:24px">
-    <div style="display:flex;flex-wrap:wrap;gap:20px;justify-content:space-between;align-items:center">
-      <div>
-        <p style="font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px">Order ID</p>
-        <p style="font-size:20px;font-weight:500;color:var(--ink)">#{{ "%04d"|format(o.id) }}</p>
-        <p style="font-size:12px;color:var(--muted)">{{ o.created_at.strftime('%d %b %Y') }}</p>
-      </div>
-      <div style="text-align:center">
-        <p style="font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px">Total</p>
-        <p style="font-family:var(--serif);font-size:26px;color:var(--ink)">₹{{ "{:,.0f}".format(o.total_amount|float) }}</p>
-        {% if o.advance_amount %}
-        <p style="font-size:12px;color:var(--muted)">Advance: ₹{{ "{:,.0f}".format(o.advance_amount|float) }}</p>
-        {% endif %}
-      </div>
-      <div>
-        <p style="font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px">Status</p>
-        <span class="status-pill s-{{ o.status }}">{{ STATUS_ICONS.get(o.status,'📋') }} {{ STATUS_LABELS.get(o.status, o.status) }}</span>
-      </div>
-    </div>
-    {% if o.admin_note %}
-    <div style="margin-top:16px;padding:12px 16px;background:var(--parchment);border-radius:var(--r);border-left:3px solid var(--clay);font-size:13px;color:var(--text)">
-      <strong>Note from our team:</strong> {{ o.admin_note }}
-    </div>
-    {% endif %}
+<div class="page-wrap">
+  <div class="track-header">
+    <a href="{{ url_for('orders.orders_list') }}" class="back-link">← My Orders</a>
+    <h1 class="page-title">Order #{{ order.id[:8]|upper }}</h1>
+    <span class="status-pill status-{{ order.status }}">{{ STATUS_LABELS.get(order.status, order.status) }}</span>
   </div>
 
-  <!-- Advance payment CTA -->
-  {% if o.status == 'advance_requested' %}
-  <div style="background:white;border:2px solid var(--clay);border-radius:var(--rl);padding:20px 24px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px">
-    <div>
-      <p style="font-size:15px;font-weight:500;color:var(--ink);margin-bottom:4px">💌 Action Required — Pay Advance</p>
-      <p style="font-size:13px;color:var(--muted)">Pay ₹{{ "{:,.0f}".format(o.advance_amount|float) }} via UPI to confirm your order and begin crafting.</p>
+  <!-- Progress Bar -->
+  <div class="track-progress">
+    {% set active_statuses = ORDER_STATUSES|reject('equalto','cancelled')|list %}
+    {% set si = status_index(order.status) %}
+    {% for s in active_statuses %}
+    {% set i = loop.index0 %}
+    <div class="track-step {% if i < si %}done{% elif i == si %}active{% endif %}">
+      <div class="track-dot">{% if i < si %}✓{% else %}{{ loop.index }}{% endif %}</div>
+      <div class="track-label">{{ STATUS_LABELS.get(s, s) }}</div>
     </div>
-    <a href="{{ url_for('orders.pay_advance', oid=o.id) }}" class="btn btn-clay btn-lg">Pay Now →</a>
+    {% if not loop.last %}<div class="track-line {% if i < si %}done{% endif %}"></div>{% endif %}
+    {% endfor %}
+  </div>
+
+  {% if order.status == 'advance_requested' %}
+  <div class="alert-action">
+    <p>Advance payment of <strong>₹{{ order.advance_amount }}</strong> is required.</p>
+    <a href="{{ url_for('orders.pay_advance', oid=order.id) }}" class="btn-primary">Pay Now</a>
   </div>
   {% endif %}
 
   <!-- Timeline -->
-  <div style="background:white;border:1.5px solid var(--border);border-radius:var(--rl);padding:28px;margin-bottom:24px">
-    <h3 style="font-family:var(--serif);font-size:22px;margin-bottom:28px">Order Journey</h3>
+  <div class="timeline-wrap">
+    <h3>Timeline</h3>
     <div class="timeline">
-      {% set visible = STATUSES | rejectattr(0, 'equalto', 'cancelled') | list %}
-      {% set current_idx = namespace(v=0) %}
-      {% for key, label, icon in visible %}{% if key == o.status %}{% set current_idx.v = loop.index0 %}{% endif %}{% endfor %}
-
-      {% for key, label, icon in visible %}
-      {% set idx = loop.index0 %}
-      {% set is_done    = idx < current_idx.v %}
-      {% set is_current = key == o.status %}
-      {% set event      = event_map.get(key) %}
-      <div class="tl-step">
-        <div class="tl-left">
-          <div class="tl-dot {{ 'done' if is_done and not is_current else 'current' if is_current else 'pending' }}">
-            {{ '✓' if (is_done and not is_current) else icon }}
-          </div>
-          {% if not loop.last %}
-          <div class="tl-line {{ 'filled' if is_done and not is_current else '' }}"></div>
-          {% endif %}
-        </div>
-        <div class="tl-content">
-          <div class="tl-label">{{ 'Completed' if (is_done and not is_current) else 'Current Step' if is_current else 'Upcoming' }}</div>
-          <div class="tl-name" style="color:{{ 'var(--ink)' if is_current else 'var(--text)' if is_done else 'var(--muted)' }}">{{ label }}</div>
-          {% if event %}
-          <div class="tl-time">{{ event.created_at.strftime('%d %b %Y, %I:%M %p') }}</div>
-          {% if event.note %}<div class="tl-note">{{ event.note }}</div>{% endif %}
-          {% endif %}
+      {% for t in tracking %}
+      <div class="timeline-item">
+        <div class="timeline-dot"></div>
+        <div class="timeline-content">
+          <strong>{{ STATUS_LABELS.get(t.status, t.status) }}</strong>
+          {% if t.note %}<p>{{ t.note }}</p>{% endif %}
+          <span class="timeline-date">{{ t.created_at[:16].replace('T',' ') }}</span>
         </div>
       </div>
       {% endfor %}
     </div>
-  </div>
-
-  <!-- Items -->
-  <div style="background:white;border:1.5px solid var(--border);border-radius:var(--rl);padding:24px;margin-bottom:24px">
-    <h3 style="font-family:var(--serif);font-size:20px;margin-bottom:16px">Items</h3>
-    {% for item in items %}
-    <div style="display:flex;gap:14px;padding:10px 0;border-bottom:1px solid var(--mist);align-items:center">
-      <div style="width:48px;height:48px;border-radius:var(--r);overflow:hidden;background:var(--mist);flex-shrink:0">
-        {% if item.image_snap %}<img src="{{ item.image_snap }}" style="width:100%;height:100%;object-fit:cover">
-        {% else %}<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center">🎨</div>{% endif %}
-      </div>
-      <div style="flex:1">
-        <p style="font-size:14px;font-weight:500">{{ item.title_snap or item.prod_title or 'Product' }}</p>
-        <p style="font-size:12px;color:var(--muted)">Qty: {{ item.quantity }} × ₹{{ "{:,.0f}".format(item.unit_price|float) }}</p>
-      </div>
-      <strong>₹{{ "{:,.0f}".format((item.unit_price|float) * item.quantity) }}</strong>
-    </div>
-    {% endfor %}
-  </div>
-
-  <!-- Address -->
-  <div style="background:white;border:1.5px solid var(--border);border-radius:var(--rl);padding:24px">
-    <h3 style="font-family:var(--serif);font-size:20px;margin-bottom:12px">Delivery Address</h3>
-    <p style="font-size:14px;color:var(--text);line-height:1.8">
-      {{ o.addr_name }}<br>{{ o.addr_street }}<br>
-      {{ o.addr_city }}, {{ o.addr_state }} — {{ o.addr_pin }}<br>
-      📞 {{ o.addr_phone }}
-    </p>
   </div>
 </div>
 {% endblock %}

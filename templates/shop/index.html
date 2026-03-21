@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}Everbloom — Handcrafted with Love{% endblock %}
+{% block content %}
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-left">
+    <div class="hero-tag">Handcrafted in India</div>
+    <h1 class="hero-title">Made with<br><em>heart &amp; hands</em></h1>
+    <p class="hero-desc">Each piece is lovingly crafted by artisans — unique, soulful, and made to be treasured.</p>
+    <div class="hero-btns">
+      <a href="{{ url_for('shop.shop') }}" class="btn-primary">Explore Collection</a>
+      <a href="{{ url_for('shop.custom_order') }}" class="btn-outline">Custom Order</a>
+    </div>
+  </div>
+  <div class="hero-right">
+    <div class="hero-blob"></div>
+    <div class="hero-art">
+      <svg viewBox="0 0 420 460" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="210" cy="230" r="180" fill="rgba(208,160,160,0.15)"/>
+        <g opacity="0.3">
+          <ellipse cx="80" cy="100" rx="16" ry="32" fill="#8aaa7e" transform="rotate(-30 80 100)"/>
+          <ellipse cx="340" cy="360" rx="16" ry="32" fill="#8aaa7e" transform="rotate(150 340 360)"/>
+          <ellipse cx="50" cy="310" rx="12" ry="26" fill="#8aaa7e" transform="rotate(20 50 310)"/>
+          <ellipse cx="380" cy="140" rx="12" ry="26" fill="#8aaa7e" transform="rotate(-160 380 140)"/>
+        </g>
+        <rect x="120" y="80" width="148" height="112" rx="4" fill="#fdf6f0" stroke="#d4a0a0" stroke-width="1.5"/>
+        <rect x="128" y="88" width="132" height="96" rx="2" fill="#f5e6e0"/>
+        <ellipse cx="168" cy="128" rx="24" ry="18" fill="#e8c4b8"/>
+        <ellipse cx="208" cy="123" rx="18" ry="22" fill="#c8d8c0"/>
+        <ellipse cx="238" cy="135" rx="15" ry="12" fill="#c9a96e" opacity="0.7"/>
+        <line x1="165" y1="192" x2="148" y2="268" stroke="#5c3d3d" stroke-width="2.5"/>
+        <line x1="245" y1="192" x2="262" y2="268" stroke="#5c3d3d" stroke-width="2.5"/>
+        <line x1="205" y1="192" x2="205" y2="276" stroke="#5c3d3d" stroke-width="2"/>
+        <ellipse cx="300" cy="255" rx="32" ry="12" fill="#d4a0a0" opacity="0.5"/>
+        <path d="M268 255Q264 300 282 328Q300 342 318 328Q336 300 332 255Z" fill="#e8c4b8"/>
+        <ellipse cx="300" cy="328" rx="20" ry="7" fill="#d4a0a0" opacity="0.4"/>
+        <rect x="290" y="243" width="20" height="14" rx="3" fill="#e0b8a8"/>
+        <ellipse cx="110" cy="330" rx="22" ry="7" fill="#c9a96e" opacity="0.3"/>
+        <path d="M100 330Q94 295 103 266Q112 248 120 266Q128 295 120 330Z" fill="#d4b896"/>
+        <circle cx="110" cy="256" r="16" fill="#e8c4b8"/>
+        <text x="340" y="75" font-size="14" fill="#c9a96e" opacity="0.6">✦</text>
+        <text x="65" y="210" font-size="10" fill="#d4a0a0" opacity="0.5">✦</text>
+        <text x="180" y="400" font-size="9" fill="#c9a96e" opacity="0.4">✦</text>
+      </svg>
+    </div>
+    <div class="hero-badge">
+      <span class="num">100%</span>
+      <span class="label">Hand<br>crafted</span>
+    </div>
+  </div>
+</section>
+
+<!-- MARQUEE -->
+<div class="marquee-wrap">
+  <div class="marquee-track">
+    {% set items = ['Handcrafted with love','Unique & one-of-a-kind','Pay on delivery','Custom orders welcome','Made in India','Free shipping above ₹999'] %}
+    {% for item in items * 3 %}
+    <span class="marquee-item">{{ item }}</span>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- FLASH SALE -->
+{% if flash_products %}
+<section class="section-pad">
+  <div class="section-inner">
+    <div class="section-tag">Limited Time</div>
+    <h2 class="section-title">Flash <em>Sale</em></h2>
+    <div class="products-grid">
+      {% for p in flash_products %}
+      {% include "shop/_product_card.html" %}
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<!-- CATEGORIES -->
+<section class="section-pad bg-cream">
+  <div class="section-inner">
+    <div class="section-tag">Browse by</div>
+    <h2 class="section-title">Our <em>craft categories</em></h2>
+    <div class="cat-grid">
+      {% for cat in categories %}
+      <a href="{{ url_for('shop.shop') }}?category={{ cat.id }}" class="cat-card">
+        {% if cat.image_url %}
+        <img src="{{ cat.image_url }}" alt="{{ cat.name }}" class="cat-img">
+        {% else %}
+        <div class="cat-placeholder cat-{{ cat.slug }}"></div>
+        {% endif %}
+        <div class="cat-overlay"></div>
+        <div class="cat-info">
+          <div class="cat-name">{{ cat.name }}</div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- FEATURED -->
+{% if featured %}
+<section class="section-pad bg-blush">
+  <div class="section-inner">
+    <div class="section-tag">Handpicked</div>
+    <h2 class="section-title">Featured <em>creations</em></h2>
+    <div class="products-grid">
+      {% for p in featured %}
+      {% include "shop/_product_card.html" %}
+      {% endfor %}
+    </div>
+    <div style="text-align:center;margin-top:3rem;">
+      <a href="{{ url_for('shop.shop') }}" class="btn-outline">View All Products</a>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<!-- HOW IT WORKS -->
+<section class="section-pad">
+  <div class="section-inner">
+    <div class="section-tag">Process</div>
+    <h2 class="section-title">How it <em>works</em></h2>
+    <div class="steps-grid">
+      <div class="step-card">
+        <div class="step-num">1</div>
+        <h3>Browse &amp; Order</h3>
+        <p>Choose what you love. No payment at checkout.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-num">2</div>
+        <h3>We Review</h3>
+        <p>We review and send a UPI QR for advance payment.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-num">3</div>
+        <h3>Crafting Begins</h3>
+        <p>Our artisans craft your piece. You get updates.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-num">4</div>
+        <h3>Delivered to You</h3>
+        <p>Your piece arrives. Pay balance on delivery.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TESTIMONIAL -->
+<section class="testimonial-section">
+  <blockquote>"The painting I ordered felt like it was made just for me. The craftsmanship, the packaging — everything was perfect."</blockquote>
+  <cite>— Priya M., Mumbai</cite>
+</section>
+
+<!-- NEWSLETTER -->
+<section class="newsletter-section">
+  <div class="newsletter-text">
+    <h2>Stay in the loop</h2>
+    <p>New pieces, stories &amp; exclusive offers in your inbox.</p>
+  </div>
+  <form class="newsletter-form" onsubmit="return false;">
+    <input type="email" placeholder="your@email.com">
+    <button type="submit">Subscribe</button>
+  </form>
+</section>
+{% endblock %}

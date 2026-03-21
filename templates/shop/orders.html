@@ -1,61 +1,41 @@
 {% extends "base.html" %}
-{% block title %}My Orders — {{ store_name }}{% endblock %}
+{% block title %}My Orders{% endblock %}
 {% block content %}
-<div class="page-header"><h1>My Orders</h1><p>Your Everbloom journey</p></div>
-
-<div class="container" style="max-width:860px;padding-top:48px;padding-bottom:80px">
+<div class="page-wrap">
+  <h1 class="page-title">My Orders</h1>
   {% if orders %}
-  {% for o in orders %}
-  <div style="background:white;border:1.5px solid var(--border);border-radius:var(--rl);margin-bottom:14px;cursor:pointer;transition:box-shadow var(--t);overflow:hidden"
-       onclick="location.href='{{ url_for('orders.track', oid=o.id) }}'"
-       onmouseover="this.style.boxShadow='var(--sh2)'" onmouseout="this.style.boxShadow=''">
-    <div style="padding:20px 24px;display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between">
-      <div style="display:flex;gap:16px;align-items:center">
-        <!-- Item thumbnails -->
-        <div style="display:flex">
-          {% for item in o.items[:3] %}
-          <div style="width:50px;height:50px;border-radius:var(--r);overflow:hidden;background:var(--mist);border:2px solid white;{% if not loop.first %}margin-left:-14px{% endif %};box-shadow:var(--sh)">
-            {% if item.image_snap %}<img src="{{ item.image_snap }}" style="width:100%;height:100%;object-fit:cover">
-            {% else %}<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:16px">🎨</div>{% endif %}
-          </div>
-          {% endfor %}
-        </div>
+  <div class="orders-list">
+    {% for o in orders %}
+    <div class="order-card">
+      <div class="order-card-header">
         <div>
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
-            <span style="font-size:14px;font-weight:500;color:var(--ink)">#{{ "%04d"|format(o.id) }}</span>
-            <span class="status-pill s-{{ o.status }}">{{ STATUS_ICONS.get(o.status,'📋') }} {{ STATUS_LABELS.get(o.status, o.status) }}</span>
-            {% if o.status == 'advance_requested' %}
-            <span style="background:rgba(139,69,19,.12);color:var(--clay);padding:3px 10px;border-radius:99px;font-size:11px;font-weight:500">⚠ Action Required</span>
-            {% endif %}
-          </div>
-          <p style="font-size:12px;color:var(--muted)">{{ o.created_at.strftime('%d %b %Y') }}</p>
+          <span class="order-id">#{{ o.id[:8]|upper }}</span>
+          <span class="order-date">{{ o.created_at[:10] }}</span>
+        </div>
+        <span class="status-pill status-{{ o.status }}">{{ STATUS_LABELS.get(o.status, o.status) }}</span>
+      </div>
+      <div class="order-progress">
+        {% set si = status_index(o.status) %}
+        {% for i in range(ORDER_STATUSES|length) %}
+        <div class="progress-step {% if i < si %}done{% elif i == si %}active{% endif %}"></div>
+        {% endfor %}
+      </div>
+      <div class="order-card-footer">
+        <span class="order-total">₹{{ "%.0f"|format(o.total) }}</span>
+        <div class="order-actions">
+          {% if o.status == 'advance_requested' %}
+          <a href="{{ url_for('orders.pay_advance', oid=o.id) }}" class="btn-primary-sm">Pay Advance</a>
+          {% endif %}
+          <a href="{{ url_for('orders.track', oid=o.id) }}" class="btn-outline-sm">Track</a>
         </div>
       </div>
-      <div style="display:flex;align-items:center;gap:20px">
-        <div style="text-align:right">
-          <p style="font-size:11px;color:var(--muted);margin-bottom:2px">Total</p>
-          <p style="font-family:var(--serif);font-size:20px;color:var(--ink)">₹{{ "{:,.0f}".format(o.total_amount|float) }}</p>
-        </div>
-        <span style="color:var(--muted);font-size:20px">›</span>
-      </div>
     </div>
-    <!-- Progress bar -->
-    {% if o.status not in ('cancelled',) %}
-    {% set steps = ['placed','advance_requested','advance_paid','advance_confirmed','crafting','quality_check','shipped','delivered'] %}
-    {% set sidx = steps.index(o.status) if o.status in steps else 0 %}
-    <div style="height:3px;background:var(--border)">
-      <div style="height:100%;width:{{ ((sidx / (steps|length - 1)) * 100)|round|int }}%;background:var(--clay);transition:width .5s ease"></div>
-    </div>
-    {% endif %}
+    {% endfor %}
   </div>
-  {% endfor %}
-
   {% else %}
   <div class="empty-state">
-    <div class="empty-icon">🛒</div>
-    <h3>No orders yet</h3>
-    <p>Start shopping and your orders will appear here</p>
-    <a href="{{ url_for('shop.shop') }}" class="btn btn-clay btn-lg">Browse Shop</a>
+    <p>You haven't placed any orders yet.</p>
+    <a href="{{ url_for('shop.shop') }}" class="btn-primary">Start Shopping</a>
   </div>
   {% endif %}
 </div>

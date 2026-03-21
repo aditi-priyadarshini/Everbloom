@@ -1,106 +1,62 @@
 {% extends "base.html" %}
-{% block title %}Shop — {{ store_name }}{% endblock %}
+{% block title %}Shop{% endblock %}
 {% block content %}
-<div class="page-header"><h1>Our Collection</h1><p>{{ total }} piece{{ 's' if total != 1 }}</p></div>
-
-<div class="container" style="padding-top:40px;padding-bottom:80px">
-  <div style="display:grid;grid-template-columns:240px 1fr;gap:36px;align-items:start">
-
-    <!-- Filters -->
-    <aside style="position:sticky;top:80px;background:white;border:1.5px solid var(--border);border-radius:var(--rl);padding:24px">
-      <form method="GET" action="{{ url_for('shop.shop') }}">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-          <h3 style="font-family:var(--serif);font-size:18px">Filters</h3>
-          <a href="{{ url_for('shop.shop') }}" style="font-size:12px;color:var(--clay)">Clear</a>
-        </div>
-
-        <div style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--border)">
-          <div class="form-label">Search</div>
-          <input type="text" name="q" class="form-input" placeholder="Search pieces..." value="{{ q or '' }}">
-        </div>
-
-        <div style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--border)">
-          <div class="form-label">Category</div>
-          {% for c in cats %}
-          <label style="display:flex;align-items:center;gap:9px;padding:5px 0;cursor:pointer;font-size:14px;color:var(--text)">
-            <input type="radio" name="cat" value="{{ c.slug }}" {% if sel_cat and sel_cat.slug==c.slug %}checked{% endif %} style="accent-color:var(--clay)">
-            {{ c.icon }} {{ c.name }}
-          </label>
+<div class="shop-layout">
+  <!-- Filters sidebar -->
+  <aside class="shop-filters">
+    <h3>Filters</h3>
+    <form method="get" action="{{ url_for('shop.shop') }}">
+      <div class="filter-group">
+        <label class="filter-label">Category</label>
+        <select name="category" onchange="this.form.submit()">
+          <option value="">All Categories</option>
+          {% for cat in categories %}
+          <option value="{{ cat.id }}" {% if selected_category == cat.id|string %}selected{% endif %}>{{ cat.name }}</option>
           {% endfor %}
-        </div>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label class="filter-label">Sort By</label>
+        <select name="sort" onchange="this.form.submit()">
+          <option value="newest" {% if sort=='newest' %}selected{% endif %}>Newest</option>
+          <option value="price_asc" {% if sort=='price_asc' %}selected{% endif %}>Price: Low to High</option>
+          <option value="price_desc" {% if sort=='price_desc' %}selected{% endif %}>Price: High to Low</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label class="filter-label">Max Price (₹)</label>
+        <input type="number" name="price_max" placeholder="e.g. 2000" value="{{ request.args.get('price_max','') }}">
+      </div>
+      <div class="filter-checks">
+        <label><input type="checkbox" name="in_stock" value="1" {% if in_stock %}checked{% endif %} onchange="this.form.submit()"> In stock only</label>
+        <label><input type="checkbox" name="on_sale" value="1" {% if on_sale %}checked{% endif %} onchange="this.form.submit()"> On sale</label>
+      </div>
+      <button type="submit" class="btn-filter">Apply</button>
+      <a href="{{ url_for('shop.shop') }}" class="btn-reset">Reset</a>
+    </form>
+  </aside>
 
-        <div style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--border)">
-          <div class="form-label">Price Range (₹)</div>
-          <div style="display:flex;gap:8px;align-items:center">
-            <input type="number" name="min_p" class="form-input" placeholder="Min" value="{{ min_p or '' }}" style="font-size:13px">
-            <span style="color:var(--muted)">–</span>
-            <input type="number" name="max_p" class="form-input" placeholder="Max" value="{{ max_p or '' }}" style="font-size:13px">
-          </div>
-        </div>
-
-        <div style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--border)">
-          <div class="form-label">Sort By</div>
-          <select name="sort" class="form-select">
-            <option value="newest"     {% if sort=='newest' %}selected{% endif %}>Newest First</option>
-            <option value="price_asc"  {% if sort=='price_asc' %}selected{% endif %}>Price: Low → High</option>
-            <option value="price_desc" {% if sort=='price_desc' %}selected{% endif %}>Price: High → Low</option>
-            <option value="discount"   {% if sort=='discount' %}selected{% endif %}>Most Discounted</option>
-          </select>
-        </div>
-
-        <div style="margin-bottom:20px">
-          <div class="form-label">Availability</div>
-          <label style="display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;font-size:14px">
-            <input type="checkbox" name="in_stock" value="1" {% if in_stock %}checked{% endif %} style="accent-color:var(--clay)"> In Stock Only
-          </label>
-          <label style="display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;font-size:14px">
-            <input type="checkbox" name="on_sale" value="1" {% if on_sale %}checked{% endif %} style="accent-color:var(--clay)"> On Sale
-          </label>
-        </div>
-
-        <button type="submit" class="btn btn-primary btn-full">Apply Filters</button>
+  <!-- Products -->
+  <div class="shop-main">
+    <div class="shop-header">
+      <form method="get" action="{{ url_for('shop.shop') }}" class="search-form">
+        <input type="text" name="q" placeholder="Search products…" value="{{ search }}">
+        <button type="submit">Search</button>
       </form>
-    </aside>
-
-    <!-- Products -->
-    <div>
-      {% if products %}
-      <div class="grid-3">
-        {% for p in products %}{% include 'shop/_card.html' %}{% endfor %}
-      </div>
-
-      <!-- Pagination -->
-      {% if total_pages > 1 %}
-      <div style="display:flex;justify-content:center;gap:8px;margin-top:48px;flex-wrap:wrap">
-        {% if page > 1 %}
-        <a href="{{ url_for('shop.shop', page=page-1, q=q, cat=sel_cat.slug if sel_cat else '', sort=sort, min_p=min_p, max_p=max_p, in_stock=1 if in_stock else '', on_sale=1 if on_sale else '') }}" class="btn btn-secondary btn-sm">← Prev</a>
-        {% endif %}
-        {% for n in range(1, total_pages+1) %}
-        <a href="{{ url_for('shop.shop', page=n, q=q, cat=sel_cat.slug if sel_cat else '', sort=sort) }}"
-           class="btn btn-sm {{ 'btn-primary' if n==page else 'btn-secondary' }}">{{ n }}</a>
-        {% endfor %}
-        {% if page < total_pages %}
-        <a href="{{ url_for('shop.shop', page=page+1, q=q, cat=sel_cat.slug if sel_cat else '', sort=sort) }}" class="btn btn-secondary btn-sm">Next →</a>
-        {% endif %}
-      </div>
-      {% endif %}
-
-      {% else %}
-      <div class="empty-state">
-        <div class="empty-icon">🔍</div>
-        <h3>No pieces found</h3>
-        <p>Try adjusting your filters</p>
-        <a href="{{ url_for('shop.shop') }}" class="btn btn-primary">Clear Filters</a>
-      </div>
-      {% endif %}
+      <p class="results-count">{{ products|length }} product{{ 's' if products|length != 1 }}</p>
     </div>
+    {% if products %}
+    <div class="products-grid">
+      {% for p in products %}
+      {% include "shop/_product_card.html" %}
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <p>No products found. Try adjusting your filters.</p>
+      <a href="{{ url_for('shop.shop') }}" class="btn-outline">Clear Filters</a>
+    </div>
+    {% endif %}
   </div>
 </div>
-
-<style>
-@media(max-width:768px){
-  .container > div[style*="grid-template-columns:240px"] { grid-template-columns:1fr !important; }
-  aside { display:none; }
-}
-</style>
 {% endblock %}

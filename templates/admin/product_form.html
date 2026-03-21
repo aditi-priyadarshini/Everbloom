@@ -1,95 +1,113 @@
-{% extends "admin/base.html" %}
-{% block page_title %}{{ 'Edit Product' if p else 'New Product' }}{% endblock %}
-{% block topbar %}<a href="{{ url_for('admin.products') }}" class="btn btn-secondary btn-sm">← Products</a>{% endblock %}
-
+{% extends "admin/base_admin.html" %}
+{% block title %}{{ 'Edit' if action == 'edit' else 'New' }} Product{% endblock %}
+{% block page_title %}{{ 'Edit Product' if action == 'edit' else 'Add New Product' }}{% endblock %}
 {% block content %}
-<div style="max-width:760px">
-  <form method="POST" enctype="multipart/form-data">
+<div class="form-page-wrap">
+  <form method="post" enctype="multipart/form-data" class="product-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    {% if p %}<input type="hidden" name="existing_images" value="{{ p.images or '' }}">{% endif %}
 
-    <div class="admin-card" style="margin-bottom:20px">
-      <div class="admin-card-header"><h3>Product Details</h3></div>
-      <div style="padding:24px;display:grid;grid-template-columns:1fr 1fr;gap:18px">
-        <div class="form-group" style="grid-column:1/-1">
-          <label class="form-label">Title *</label>
-          <input type="text" name="title" class="form-input" value="{{ p.title if p else '' }}" required placeholder="e.g. Handpainted Madhubani Canvas">
-        </div>
-        <div class="form-group" style="grid-column:1/-1">
-          <label class="form-label">Description</label>
-          <textarea name="description" class="form-textarea" rows="4" placeholder="Describe the piece — materials, size, inspiration...">{{ p.description if p else '' }}</textarea>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Category *</label>
-          <select name="category_id" class="form-select" required>
-            <option value="">Select category</option>
-            {% for c in cats %}<option value="{{ c.id }}" {% if p and p.category_id==c.id %}selected{% endif %}>{{ c.icon }} {{ c.name }}</option>{% endfor %}
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Stock Quantity</label>
-          <input type="number" name="stock_qty" class="form-input" value="{{ p.stock_qty if p else 0 }}" min="0">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Base Price (₹) *</label>
-          <input type="number" name="price" id="price-input" class="form-input" value="{{ p.price if p else '' }}" step="0.01" min="0" required oninput="calcFinal()">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Discount (%)</label>
-          <input type="number" name="discount_percent" id="disc-input" class="form-input" value="{{ p.discount_percent if p else 0 }}" min="0" max="100" oninput="calcFinal()">
-        </div>
-        <div class="form-group" style="grid-column:1/-1">
-          <label class="form-label">Final Price (auto-calculated)</label>
-          <div id="final-display" style="padding:11px 14px;background:var(--parchment);border:1.5px solid var(--border);border-radius:var(--r);font-size:15px;font-weight:500;color:var(--ink)">₹0</div>
-        </div>
-        <div class="form-group" style="grid-column:1/-1">
-          <label class="form-label">Tags (comma-separated)</label>
-          <input type="text" name="tags" class="form-input" value="{{ p.tags if p else '' }}" placeholder="handmade, traditional, unique">
-        </div>
-        <div style="display:flex;gap:24px;grid-column:1/-1;align-items:center">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px">
-            <input type="checkbox" name="is_featured" {% if p and p.is_featured %}checked{% endif %} style="accent-color:var(--clay);width:16px;height:16px"> Featured
-          </label>
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px">
-            <input type="checkbox" name="is_active" {% if not p or p.is_active %}checked{% endif %} style="accent-color:var(--clay);width:16px;height:16px"> Active (visible in shop)
-          </label>
-        </div>
-      </div>
-    </div>
-
-    {% if p and p.images %}
-    <div class="admin-card" style="margin-bottom:20px">
-      <div class="admin-card-header"><h3>Current Images</h3></div>
-      <div style="padding:16px 20px;display:flex;gap:10px;flex-wrap:wrap">
-        {% for img in p.images.split(',') %}{% set img=img.strip() %}{% if img %}
-        <div style="position:relative;width:88px;height:88px;border-radius:var(--r);overflow:hidden;border:1.5px solid var(--border)">
-          <img src="{{ img }}" style="width:100%;height:100%;object-fit:cover">
-        </div>
-        {% endif %}{% endfor %}
-      </div>
-      <p style="padding:0 20px 16px;font-size:12px;color:var(--muted)">Upload new images below to add more.</p>
-    </div>
-    {% endif %}
-
-    <div class="admin-card" style="margin-bottom:20px">
-      <div class="admin-card-header"><h3>{{ 'Add Images' if p else 'Product Images' }}</h3></div>
-      <div style="padding:20px">
-        <div class="upload-area" id="upload-area">
-          <div id="upload-prompt">
-            <div style="font-size:36px;margin-bottom:10px">🖼️</div>
-            <p style="font-size:14px;color:var(--text);margin-bottom:4px">Click or drag & drop images</p>
-            <p style="font-size:12px;color:var(--muted)">JPG, PNG, WebP — max 5MB each</p>
+    <div class="form-grid">
+      <div class="form-col-main">
+        <div class="admin-card">
+          <h3>Product Details</h3>
+          <div class="form-group">
+            <label>Title *</label>
+            <input type="text" name="title" value="{{ product.title if product else '' }}" required>
           </div>
-          <input type="file" id="img-input" name="images" accept="image/*" multiple style="display:none">
+          <div class="form-group">
+            <label>Description</label>
+            <textarea name="description" rows="5">{{ product.description if product else '' }}</textarea>
+          </div>
+          <div class="form-row-3">
+            <div class="form-group">
+              <label>Price (₹) *</label>
+              <input type="number" name="price" step="0.01" value="{{ product.price if product else '' }}" required>
+            </div>
+            <div class="form-group">
+              <label>Discount %</label>
+              <input type="number" name="discount_percent" min="0" max="100" value="{{ product.discount_percent if product else '0' }}">
+            </div>
+            <div class="form-group">
+              <label>Stock Qty *</label>
+              <input type="number" name="stock" min="0" value="{{ product.stock if product else '0' }}" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Category</label>
+              <select name="category_id">
+                <option value="">Select category</option>
+                {% for cat in categories %}
+                <option value="{{ cat.id }}" {% if product and product.category_id == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Crafting Days</label>
+              <input type="number" name="crafting_days" min="1" value="{{ product.crafting_days if product else '7' }}">
+            </div>
+          </div>
         </div>
-        <div class="img-grid" id="img-preview-grid"></div>
-      </div>
-    </div>
 
-    <div style="display:flex;gap:12px">
-      <button type="submit" class="btn btn-clay btn-lg">{{ '💾 Save Changes' if p else '✨ Create Product' }}</button>
-      <a href="{{ url_for('admin.products') }}" class="btn btn-secondary btn-lg">Cancel</a>
+        <div class="admin-card">
+          <h3>Images</h3>
+          {% if product and product.images %}
+          <div class="existing-images">
+            {% for img in product.images %}
+            <div class="existing-img-wrap">
+              <img src="{{ img }}" alt="" class="existing-img">
+              <label class="remove-img-label">
+                <input type="checkbox" name="remove_image" value="{{ loop.index0 }}"> Remove
+              </label>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+          <div class="form-group">
+            <label>Upload Images (multiple allowed)</label>
+            <input type="file" name="images" multiple accept="image/*" class="file-input">
+          </div>
+        </div>
+      </div>
+
+      <div class="form-col-side">
+        <div class="admin-card">
+          <h3>Visibility</h3>
+          <label class="toggle-label">
+            <input type="checkbox" name="featured" {% if product and product.featured %}checked{% endif %}>
+            <span class="toggle-track-ui"></span>
+            Featured on Homepage
+          </label>
+        </div>
+
+        <div class="admin-card">
+          <h3>Flash Sale</h3>
+          <label class="toggle-label">
+            <input type="checkbox" name="is_flash_sale" id="flashToggle" {% if product and product.is_flash_sale %}checked{% endif %} onchange="toggleFlash(this)">
+            <span class="toggle-track-ui"></span>
+            Enable Flash Sale
+          </label>
+          <div id="flashEndWrap" style="margin-top:1rem; {% if not product or not product.is_flash_sale %}display:none{% endif %}">
+            <div class="form-group">
+              <label>Sale Ends At</label>
+              <input type="datetime-local" name="flash_sale_ends_at" value="{{ product.flash_sale_ends_at[:16] if product and product.flash_sale_ends_at else '' }}">
+            </div>
+          </div>
+        </div>
+
+        <div class="admin-card">
+          <div class="form-actions">
+            <button type="submit" class="btn-primary btn-full">{{ 'Save Changes' if action == 'edit' else 'Create Product' }}</button>
+            <a href="{{ url_for('admin.products') }}" class="btn-outline btn-full">Cancel</a>
+          </div>
+        </div>
+      </div>
     </div>
   </form>
 </div>
+<script>
+function toggleFlash(cb) {
+  document.getElementById('flashEndWrap').style.display = cb.checked ? 'block' : 'none';
+}
+</script>
 {% endblock %}

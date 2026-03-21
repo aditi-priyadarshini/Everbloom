@@ -1,156 +1,279 @@
-import math
-from flask import Blueprint, render_template, request, session, redirect, url_for, flash, jsonify
-from flask_login import current_user
-from models import (Product, Category, Order, Tracking, Notification,
-                    final_price, first_img, img_list, STATUSES, STATUS_KEYS, STATUS_LABELS, STATUS_ICONS)
-from emails import mail_placed
+from flask import Blueprint, render_template, request, redirect, url_for, session, jsonify, flash
+import models
+from routes.auth import login_required
 
-bp = Blueprint("shop", __name__)
+shop_bp = Blueprint("shop", __name__)
 
 
-def get_cart(): return session.get("cart", {})
-def save_cart(c): session["cart"] = c; session.modified = True
-def cart_total(c): return sum(i["price"] * i["qty"] for i in c.values())
+def _cart():
+    return session.setdefault("cart", {})
 
 
-@bp.route("/")
-def home():
-    cats     = Category.all()
-    featured = Product.featured(4)
-    newest   = Product.newest(8)
-    return render_template("shop/home.html", cats=cats, featured=featured, newest=newest)
+def _cart_count():
+    return sum(_cart().values())
 
 
-@bp.route("/shop")
+def _cart_total(cart):
+    total = 0
+    for pid, qty in cart.items():
+        p = models.get_product(pid)
+        if p:
+            total += models.discounted_price(p) * qty
+    return round(total, 2)
+
+
+@shop_bp.context_processor
+def inject_cart():
+    return {"cart_count": _cart_count()}
+
+
+@shop_bp.route("/")
+def index():
+    featured = models.get_products(featured=True, limit=6)
+    categories = models.get_categories()
+    flash_products = [p for p in models.get_products(flash=True) if models.is_flash_active(p)][:3]
+    return render_template("shop/index.html",
+                           featured=featured,
+                           categories=categories,
+                           flash_products=flash_products)
+
+
+@shop_bp.route("/shop")
 def shop():
-    q        = request.args.get("q", "").strip()
-    cat_slug = request.args.get("cat", "")
-    sort     = request.args.get("sort", "newest")
-    min_p    = request.args.get("min_p", type=float)
-    max_p    = request.args.get("max_p", type=float)
-    in_stock = bool(request.args.get("in_stock"))
-    on_sale  = bool(request.args.get("on_sale"))
-    page     = request.args.get("page", 1, type=int)
-    sel_cat  = Category.by_slug(cat_slug) if cat_slug else None
-    cat_id   = sel_cat["id"] if sel_cat else None
-    products, total = Product.list(cat_id=cat_id, q=q, sort=sort, min_p=min_p,
-                                   max_p=max_p, in_stock=in_stock, on_sale=on_sale, page=page)
+    category_id = request.args.get("category")
+    price_max = request.args.get("price_max")
+    in_stock = request.args.get("in_stock") == "1"
+    on_sale = request.args.get("on_sale") == "1"
+    sort = request.args.get("sort", "newest")
+    search = request.args.get("q", "").strip()
+
+    order_map = {
+        "newest": "created_at.desc",
+        "price_asc": "price.asc",
+        "price_desc": "price.desc",
+    }
+    order = order_map.get(sort, "created_at.desc")
+
+    products = models.get_products(
+        category_id=category_id,
+        in_stock=in_stock,
+        on_sale=on_sale,
+        order=order,
+        search=search or None,
+    )
+
+    # Price filter client-side (Supabase free tier doesn't support lte easily without RLS)
+    if price_max:
+        try:
+            pm = float(price_max)
+            products = [p for p in products if models.discounted_price(p) <= pm]
+        except Exception:
+            pass
+
+    categories = models.get_categories()
     return render_template("shop/shop.html",
-                           products=products, total=total, page=page,
-                           total_pages=math.ceil(total/12) if total else 1,
-                           cats=Category.all(), sel_cat=sel_cat,
-                           q=q, sort=sort, min_p=min_p, max_p=max_p,
-                           in_stock=in_stock, on_sale=on_sale)
+                           products=products,
+                           categories=categories,
+                           selected_category=category_id,
+                           sort=sort,
+                           in_stock=in_stock,
+                           on_sale=on_sale,
+                           search=search)
 
 
-@bp.route("/product/<int:pid>")
+@shop_bp.route("/product/<pid>")
 def product(pid):
-    p = Product.get(pid)
-    if not p: flash("Product not found.", "error"); return redirect(url_for("shop.shop"))
-    related = Product.related(p["category_id"], p["id"]) if p.get("category_id") else []
-    return render_template("shop/product.html", p=p, related=related)
+    p = models.get_product(pid)
+    if not p:
+        flash("Product not found.", "error")
+        return redirect(url_for("shop.shop"))
+    reviews = models.get_reviews(pid)
+    avg = models.avg_rating(reviews)
+    user_review = None
+    if session.get("user_id"):
+        user_review = models.get_review_by_user(pid, session["user_id"])
+    related = models.get_products(category_id=p.get("category_id"), limit=4)
+    related = [r for r in related if str(r["id"]) != str(pid)][:3]
+    return render_template("shop/product.html",
+                           product=p,
+                           reviews=reviews,
+                           avg_rating=avg,
+                           user_review=user_review,
+                           related=related)
 
 
-@bp.route("/cart")
-def cart():
-    c = get_cart()
-    return render_template("shop/cart.html", cart=c, total=cart_total(c))
-
-
-@bp.route("/cart/add", methods=["POST"])
-def cart_add():
-    pid = request.form.get("pid", type=int)
-    qty = request.form.get("qty", 1, type=int)
-    p   = Product.get(pid)
-    if not p: flash("Product not found.", "error"); return redirect(url_for("shop.shop"))
-    c   = get_cart()
-    key = str(pid)
-    fp  = final_price(p)
-    fi  = first_img(p)
-    if key in c:
-        c[key]["qty"] = min(c[key]["qty"] + qty, p["stock_qty"])
+@shop_bp.route("/product/<pid>/review", methods=["POST"])
+@login_required
+def submit_review(pid):
+    rating = int(request.form.get("rating", 5))
+    comment = request.form.get("comment", "").strip()
+    existing = models.get_review_by_user(pid, session["user_id"])
+    if existing:
+        models.update_review(existing["id"], {"rating": rating, "comment": comment})
     else:
-        c[key] = {"id": p["id"], "title": p["title"], "price": fp,
-                  "image": fi, "stock_qty": p["stock_qty"], "qty": min(qty, p["stock_qty"])}
-    save_cart(c)
-    flash(f'"{p["title"]}" added to cart!', "success")
+        models.create_review({"product_id": pid, "user_id": session["user_id"],
+                               "rating": rating, "comment": comment})
+    return redirect(url_for("shop.product", pid=pid))
+
+
+@shop_bp.route("/cart")
+def cart():
+    cart = _cart()
+    items = []
+    for pid, qty in cart.items():
+        p = models.get_product(pid)
+        if p:
+            items.append({"product": p, "qty": qty,
+                          "subtotal": round(models.discounted_price(p) * qty, 2)})
+    total = sum(i["subtotal"] for i in items)
+    return render_template("shop/cart.html", items=items, total=total)
+
+
+@shop_bp.route("/cart/add/<pid>", methods=["POST"])
+def cart_add(pid):
+    qty = int(request.form.get("qty", 1))
+    cart = _cart()
+    cart[pid] = cart.get(pid, 0) + qty
+    session.modified = True
+    flash("Added to cart!", "success")
     return redirect(request.referrer or url_for("shop.cart"))
 
 
-@bp.route("/cart/update", methods=["POST"])
-def cart_update():
-    key = request.form.get("pid")
-    qty = request.form.get("qty", type=int)
-    c   = get_cart()
-    if key in c:
-        if qty and qty > 0: c[key]["qty"] = min(qty, c[key]["stock_qty"])
-        else: del c[key]
-    save_cart(c)
+@shop_bp.route("/cart/update/<pid>", methods=["POST"])
+def cart_update(pid):
+    qty = int(request.form.get("qty", 1))
+    cart = _cart()
+    if qty <= 0:
+        cart.pop(pid, None)
+    else:
+        cart[pid] = qty
+    session.modified = True
     return redirect(url_for("shop.cart"))
 
 
-@bp.route("/cart/remove/<pid>", methods=["POST"])
+@shop_bp.route("/cart/remove/<pid>", methods=["POST"])
 def cart_remove(pid):
-    c = get_cart(); c.pop(str(pid), None); save_cart(c)
+    _cart().pop(pid, None)
+    session.modified = True
     return redirect(url_for("shop.cart"))
 
 
-@bp.route("/cart/clear", methods=["POST"])
-def cart_clear():
-    session.pop("cart", None)
-    return redirect(url_for("shop.cart"))
-
-
-@bp.route("/checkout", methods=["GET", "POST"])
+@shop_bp.route("/checkout", methods=["GET", "POST"])
+@login_required
 def checkout():
-    if not current_user.is_authenticated:
-        flash("Please log in to checkout.", "info")
-        return redirect(url_for("auth.login", next=url_for("shop.checkout")))
-    c = get_cart()
-    if not c: return redirect(url_for("shop.shop"))
-    total = cart_total(c)
+    cart = _cart()
+    if not cart:
+        return redirect(url_for("shop.cart"))
+
+    items = []
+    for pid, qty in cart.items():
+        p = models.get_product(pid)
+        if p:
+            items.append({"product": p, "qty": qty,
+                          "subtotal": round(models.discounted_price(p) * qty, 2)})
+    subtotal = sum(i["subtotal"] for i in items)
+
+    coupon_error = None
+    discount = 0
+    coupon_obj = None
+
     if request.method == "POST":
-        addr = {k: request.form.get(k, "").strip() for k in ("name","phone","street","city","state","pin")}
-        if not all(addr.values()):
-            flash("Please fill in all address fields.", "error")
-            return render_template("shop/checkout.html", cart=c, total=total, pre=addr)
-        notes = request.form.get("notes", "").strip()
-        oid   = Order.create(current_user.id, total, addr, notes)
-        Order.add_items(oid, c)
-        Tracking.add(oid, "placed", "Order placed. We'll review it shortly.")
-        Notification.add(current_user.id, oid, "Order Placed 📋", f"Order #{oid:04d} placed!")
-        order = Order.get(oid)
-        try: mail_placed(order)
-        except: pass
-        for item in c.values(): Product.deduct(item["id"], item["qty"])
-        session.pop("cart", None)
-        flash("Order placed! We'll review it and be in touch soon. 🌿", "success")
-        return redirect(url_for("orders.track", oid=oid))
-    pre = {"name": current_user.full_name, "phone": getattr(current_user, "phone", "") or "",
-           "street": "", "city": "", "state": "", "pin": ""}
-    return render_template("shop/checkout.html", cart=c, total=total, pre=pre)
+        name = request.form.get("name", "").strip()
+        phone = request.form.get("phone", "").strip()
+        address = request.form.get("address", "").strip()
+        coupon_code = request.form.get("coupon_code", "").strip().upper()
+
+        if coupon_code:
+            coupon_obj = models.get_coupon(coupon_code)
+            if coupon_obj:
+                discount = round(subtotal * coupon_obj["discount_percent"] / 100, 2)
+            else:
+                coupon_error = "Invalid or expired coupon."
+
+        if not coupon_error:
+            total = round(subtotal - discount, 2)
+            order = models.create_order({
+                "user_id": session["user_id"],
+                "name": name, "phone": phone, "address": address,
+                "total": total,
+                "coupon_code": coupon_code or None,
+                "discount_amount": discount,
+                "status": "placed",
+            })
+            if order:
+                for i in items:
+                    p = i["product"]
+                    models.create_order_item({
+                        "order_id": order["id"],
+                        "product_id": str(p["id"]),
+                        "title": p["title"],
+                        "price": models.discounted_price(p),
+                        "quantity": i["qty"],
+                        "image_url": (p.get("images") or [""])[0],
+                    })
+                    # Reduce stock
+                    new_stock = max(0, int(p.get("stock", 0)) - i["qty"])
+                    models.update_product(str(p["id"]), {"stock": new_stock})
+
+                models.add_tracking(order["id"], "placed", "Order placed by customer.")
+                models.create_notification(session["user_id"],
+                                           f"Order #{str(order['id'])[:8].upper()} placed!",
+                                           url_for("orders.order_detail", oid=order["id"]))
+                if coupon_code and coupon_obj:
+                    models.use_coupon(coupon_code)
+
+                import emails
+                user = models.get_user_by_id(session["user_id"])
+                emails.send_order_placed(user["email"], order)
+
+                session.pop("cart", None)
+                flash("Order placed successfully!", "success")
+                return redirect(url_for("orders.orders_list"))
+
+    user = models.get_user_by_id(session["user_id"])
+    return render_template("shop/checkout.html",
+                           items=items, subtotal=subtotal,
+                           discount=discount, user=user,
+                           coupon_error=coupon_error)
 
 
-# Notifications API
-@bp.route("/api/notifications")
-def notifs():
-    if not current_user.is_authenticated: return jsonify([])
-    rows = Notification.for_user(current_user.id)
-    return jsonify([{"id": n["id"], "title": n["title"], "message": n["message"],
-                     "is_read": n["is_read"], "order_id": n["order_id"],
-                     "time": n["created_at"][:16].replace("T", " ")} for n in rows])
+@shop_bp.route("/custom-order", methods=["GET", "POST"])
+def custom_order():
+    success = False
+    if request.method == "POST":
+        import supa
+        ref_url = None
+        ref_file = request.files.get("reference_image")
+        if ref_file and ref_file.filename:
+            import uuid
+            path = f"custom/{uuid.uuid4()}-{ref_file.filename}"
+            ref_url = supa.upload_file("products", path, ref_file.read(), ref_file.content_type)
+        data = {
+            "name": request.form.get("name", "").strip(),
+            "email": request.form.get("email", "").strip(),
+            "phone": request.form.get("phone", "").strip(),
+            "description": request.form.get("description", "").strip(),
+            "budget": request.form.get("budget", "").strip(),
+            "reference_image_url": ref_url,
+            "user_id": session.get("user_id"),
+        }
+        if models.create_custom_request(data):
+            import emails
+            emails.send_custom_request_received(data["email"], data["name"])
+            success = True
+    return render_template("shop/custom_order.html", success=success)
 
-@bp.route("/api/notifications/count")
-def notif_count():
-    if not current_user.is_authenticated: return jsonify({"n": 0})
-    return jsonify({"n": Notification.unread(current_user.id)})
 
-@bp.route("/api/notifications/read/<int:nid>", methods=["POST"])
-def notif_read(nid):
-    if current_user.is_authenticated: Notification.mark_read(nid, current_user.id)
-    return jsonify({"ok": True})
+@shop_bp.route("/api/notifications")
+@login_required
+def notifications_api():
+    notifs = models.get_notifications(session["user_id"])
+    unread = len([n for n in notifs if not n["read"]])
+    return jsonify({"notifications": notifs, "unread": unread})
 
-@bp.route("/api/notifications/read-all", methods=["POST"])
-def notif_read_all():
-    if current_user.is_authenticated: Notification.mark_all(current_user.id)
+
+@shop_bp.route("/api/notifications/read", methods=["POST"])
+@login_required
+def mark_read():
+    models.mark_notifications_read(session["user_id"])
     return jsonify({"ok": True})

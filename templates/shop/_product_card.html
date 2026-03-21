@@ -1,0 +1,57 @@
+<div class="product-card">
+  <a href="{{ url_for('shop.product', pid=p.id) }}" class="product-img-wrap">
+    {% set imgs = p.images or [] %}
+    {% if imgs %}
+    <img src="{{ imgs[0] }}" alt="{{ p.title }}" loading="lazy">
+    {% else %}
+    <div class="product-img-placeholder">
+      <svg viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg" width="80">
+        <circle cx="80" cy="80" r="60" fill="#f5e6e0" opacity="0.6"/>
+        <ellipse cx="68" cy="78" rx="20" ry="16" fill="#e8c4b8"/>
+        <ellipse cx="96" cy="74" rx="16" ry="18" fill="#c8d8c0"/>
+        <ellipse cx="115" cy="84" rx="12" ry="10" fill="#c9a96e" opacity="0.7"/>
+        <text x="60" y="130" font-size="10" fill="#c9a96e" opacity="0.5">✦</text>
+      </svg>
+    </div>
+    {% endif %}
+    {% if p.is_flash_sale and is_flash_active(p) %}
+    <span class="badge-flash">⚡ Flash</span>
+    {% elif p.discount_percent and p.discount_percent > 0 %}
+    <span class="badge-sale">{{ p.discount_percent }}% off</span>
+    {% elif p.featured %}
+    <span class="badge-featured">Featured</span>
+    {% endif %}
+    {% if p.stock == 0 %}
+    <div class="out-of-stock-overlay">Out of Stock</div>
+    {% endif %}
+  </a>
+  <div class="product-body">
+    <div class="product-cat">
+      {% if p.category_id == 1 %}Paintings
+      {% elif p.category_id == 2 %}DIY Kits
+      {% elif p.category_id == 3 %}Sculptures
+      {% else %}Craft{% endif %}
+    </div>
+    <h3 class="product-name">{{ p.title }}</h3>
+    <div class="product-price">
+      {% set final_price = discounted_price(p) %}
+      <span class="price-now">₹{{ "%.0f"|format(final_price) }}</span>
+      {% if p.discount_percent and p.discount_percent > 0 %}
+      <span class="price-was">₹{{ "%.0f"|format(p.price) }}</span>
+      {% endif %}
+    </div>
+    {% if p.crafting_days %}
+    <div class="crafting-days">Ready in {{ p.crafting_days }} days</div>
+    {% endif %}
+  </div>
+  <div class="product-footer">
+    {% if p.stock > 0 %}
+    <form method="post" action="{{ url_for('shop.cart_add', pid=p.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn-add-cart">Add to Cart</button>
+    </form>
+    {% else %}
+    <button class="btn-add-cart disabled" disabled>Out of Stock</button>
+    {% endif %}
+  </div>
+</div>

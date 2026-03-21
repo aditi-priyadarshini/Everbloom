@@ -1,104 +1,143 @@
--- ============================================================
--- EVERBLOOM — Paste this into Supabase SQL Editor and run it.
--- Takes about 5 seconds. Run it only once.
--- ============================================================
+-- Everbloom Database Schema
+-- Paste into Supabase SQL Editor
 
+-- Users
 create table if not exists users (
-  id            bigserial primary key,
-  full_name     text not null,
-  email         text unique not null,
-  phone         text default '',
-  address       text default '',
+  id uuid primary key default gen_random_uuid(),
+  email text unique not null,
   password_hash text not null,
-  role          text default 'customer',
-  created_at    timestamptz default now()
+  name text,
+  phone text,
+  address text,
+  is_admin boolean default false,
+  created_at timestamptz default now()
 );
 
+-- Categories
 create table if not exists categories (
-  id          bigserial primary key,
-  name        text not null,
-  slug        text unique not null,
-  icon        text default '🎨',
-  description text default ''
+  id serial primary key,
+  name text not null,
+  slug text unique not null,
+  description text,
+  image_url text
 );
 
+insert into categories (name, slug) values
+  ('Paintings', 'paintings'),
+  ('DIY Kits', 'diy-kits'),
+  ('Sculptures', 'sculptures')
+on conflict do nothing;
+
+-- Products
 create table if not exists products (
-  id               bigserial primary key,
-  title            text not null,
-  description      text default '',
-  price            numeric(10,2) not null,
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  description text,
+  price numeric(10,2) not null,
   discount_percent integer default 0,
-  images           text default '',
-  category_id      bigint references categories(id),
-  stock_qty        integer default 0,
-  is_featured      boolean default false,
-  is_active        boolean default true,
-  tags             text default '',
-  created_at       timestamptz default now()
+  images text[] default '{}',
+  stock integer default 0,
+  category_id integer references categories(id),
+  featured boolean default false,
+  is_flash_sale boolean default false,
+  flash_sale_ends_at timestamptz,
+  crafting_days integer default 7,
+  created_at timestamptz default now()
 );
 
+-- Coupons
+create table if not exists coupons (
+  id serial primary key,
+  code text unique not null,
+  discount_percent integer not null,
+  max_uses integer default 100,
+  used_count integer default 0,
+  expires_at timestamptz,
+  active boolean default true,
+  created_at timestamptz default now()
+);
+
+-- Orders
 create table if not exists orders (
-  id             bigserial primary key,
-  customer_id    bigint references users(id) not null,
-  total_amount   numeric(10,2) not null,
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references users(id),
+  name text not null,
+  phone text not null,
+  address text not null,
+  total numeric(10,2) not null,
   advance_amount numeric(10,2) default 0,
-  advance_proof  text default '',
-  addr_name      text default '',
-  addr_phone     text default '',
-  addr_street    text default '',
-  addr_city      text default '',
-  addr_state     text default '',
-  addr_pin       text default '',
-  notes          text default '',
-  admin_note     text default '',
-  status         text default 'placed',
-  delivered_at   timestamptz,
-  created_at     timestamptz default now()
+  coupon_code text,
+  discount_amount numeric(10,2) default 0,
+  status text default 'placed',
+  payment_screenshot_url text,
+  is_custom_order boolean default false,
+  custom_notes text,
+  created_at timestamptz default now()
 );
 
+-- Order Items
 create table if not exists order_items (
-  id         bigserial primary key,
-  order_id   bigint references orders(id) on delete cascade,
-  product_id bigint references products(id),
-  quantity   integer not null,
-  unit_price numeric(10,2) not null,
-  title_snap text default '',
-  image_snap text default ''
+  id serial primary key,
+  order_id uuid references orders(id),
+  product_id uuid references products(id),
+  title text not null,
+  price numeric(10,2) not null,
+  quantity integer not null,
+  image_url text
 );
 
+-- Tracking
 create table if not exists tracking (
-  id         bigserial primary key,
-  order_id   bigint references orders(id) on delete cascade,
-  status     text not null,
-  note       text default '',
+  id serial primary key,
+  order_id uuid references orders(id),
+  status text not null,
+  note text,
   created_at timestamptz default now()
 );
 
+-- Notifications
 create table if not exists notifications (
-  id         bigserial primary key,
-  user_id    bigint references users(id) on delete cascade,
-  order_id   bigint references orders(id) on delete set null,
-  title      text not null,
-  message    text not null,
-  is_read    boolean default false,
+  id serial primary key,
+  user_id uuid references users(id),
+  message text not null,
+  link text,
+  read boolean default false,
   created_at timestamptz default now()
 );
 
--- Seed categories
-insert into categories (name, slug, icon, description) values
-  ('Paintings',  'paintings',  '🎨', 'Original hand-painted artworks'),
-  ('Pottery',    'pottery',    '🏺', 'Handcrafted clay and ceramic pieces'),
-  ('Jewellery',  'jewellery',  '💍', 'Artisan-made jewellery'),
-  ('DIY Kits',   'diy-kits',   '🧰', 'Complete craft kits for home'),
-  ('Textiles',   'textiles',   '🧵', 'Handwoven and embroidered fabrics'),
-  ('Sculptures', 'sculptures', '🗿', 'Three-dimensional art pieces')
-on conflict (slug) do nothing;
+-- Reviews
+create table if not exists reviews (
+  id serial primary key,
+  product_id uuid references products(id),
+  user_id uuid references users(id),
+  rating integer check (rating between 1 and 5),
+  comment text,
+  created_at timestamptz default now(),
+  unique(product_id, user_id)
+);
 
--- Disable RLS (we handle auth in Flask, not Supabase Auth)
-alter table users          disable row level security;
-alter table categories     disable row level security;
-alter table products       disable row level security;
-alter table orders         disable row level security;
-alter table order_items    disable row level security;
-alter table tracking       disable row level security;
-alter table notifications  disable row level security;
+-- Custom Order Requests
+create table if not exists custom_requests (
+  id serial primary key,
+  user_id uuid references users(id),
+  name text not null,
+  email text not null,
+  phone text,
+  description text not null,
+  budget text,
+  reference_image_url text,
+  status text default 'pending',
+  admin_note text,
+  created_at timestamptz default now()
+);
+
+-- UPI Settings
+create table if not exists settings (
+  key text primary key,
+  value text
+);
+
+insert into settings (key, value) values
+  ('upi_id', 'yourname@upi'),
+  ('upi_qr_url', '')
+on conflict do nothing;

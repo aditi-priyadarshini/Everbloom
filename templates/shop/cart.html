@@ -1,82 +1,47 @@
 {% extends "base.html" %}
-{% block title %}Cart — {{ store_name }}{% endblock %}
+{% block title %}Cart{% endblock %}
 {% block content %}
-<div class="page-header"><h1>Your Cart</h1></div>
-
-<div class="container" style="padding-top:48px;padding-bottom:80px">
-  {% if cart %}
+<div class="page-wrap">
+  <h1 class="page-title">Your Cart</h1>
+  {% if items %}
   <div class="cart-layout">
-    <!-- Items -->
-    <div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-        <h2 style="font-family:var(--serif);font-size:24px">{{ cart|length }} item{{ 's' if cart|length != 1 }}</h2>
-        <form method="POST" action="{{ url_for('shop.cart_clear') }}" onsubmit="return confirm('Clear your cart?')">
+    <div class="cart-items">
+      {% for item in items %}
+      <div class="cart-row">
+        <div class="cart-img">
+          {% set imgs = item.product.images or [] %}
+          {% if imgs %}<img src="{{ imgs[0] }}" alt="{{ item.product.title }}">
+          {% else %}<div class="cart-img-ph"></div>{% endif %}
+        </div>
+        <div class="cart-info">
+          <a href="{{ url_for('shop.product', pid=item.product.id) }}" class="cart-name">{{ item.product.title }}</a>
+          <div class="cart-price">₹{{ "%.0f"|format(discounted_price(item.product)) }} each</div>
+        </div>
+        <form method="post" action="{{ url_for('shop.cart_update', pid=item.product.id) }}" class="cart-qty-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button style="font-size:13px;color:var(--error);background:none;border:none;cursor:pointer">Clear cart</button>
+          <input type="number" name="qty" value="{{ item.qty }}" min="0" max="{{ item.product.stock }}" class="qty-input" onchange="this.form.submit()">
+        </form>
+        <div class="cart-subtotal">₹{{ "%.0f"|format(item.subtotal) }}</div>
+        <form method="post" action="{{ url_for('shop.cart_remove', pid=item.product.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="cart-remove">&times;</button>
         </form>
       </div>
-
-      {% for key, item in cart.items() %}
-      <div class="cart-item">
-        <div class="cart-item-img">
-          {% if item.image %}<img src="{{ item.image }}" alt="{{ item.title }}">
-          {% else %}<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:28px">🎨</div>{% endif %}
-        </div>
-        <div style="flex:1">
-          <h4 style="font-family:var(--serif);font-size:18px;margin-bottom:4px">{{ item.title }}</h4>
-          <p style="font-size:13px;color:var(--muted);margin-bottom:12px">₹{{ "{:,.0f}".format(item.price) }} each</p>
-          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-            <form method="POST" action="{{ url_for('shop.cart_update') }}" style="display:flex">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <input type="hidden" name="pid" value="{{ key }}">
-              <div class="qty-wrap">
-                <button type="submit" name="qty" value="{{ item.qty - 1 }}" class="qty-btn">−</button>
-                <span class="qty-val" style="display:flex;align-items:center;justify-content:center">{{ item.qty }}</span>
-                <button type="submit" name="qty" value="{{ item.qty + 1 }}" class="qty-btn">+</button>
-              </div>
-            </form>
-            <form method="POST" action="{{ url_for('shop.cart_remove', pid=key) }}">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button style="font-size:12px;color:var(--error);background:none;border:none;cursor:pointer">Remove</button>
-            </form>
-          </div>
-        </div>
-        <div style="text-align:right;flex-shrink:0">
-          <p style="font-size:18px;font-weight:500;color:var(--ink)">₹{{ "{:,.0f}".format(item.price * item.qty) }}</p>
-        </div>
-      </div>
       {% endfor %}
-
-      <a href="{{ url_for('shop.shop') }}" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--clay);margin-top:20px">← Continue Shopping</a>
     </div>
-
-    <!-- Summary -->
-    <div class="order-summary">
-      <h3 style="font-family:var(--serif);font-size:22px;margin-bottom:20px">Order Summary</h3>
-      {% for key, item in cart.items() %}
-      <div style="display:flex;justify-content:space-between;margin-bottom:10px">
-        <span style="font-size:13px;color:var(--muted)">{{ item.title }} × {{ item.qty }}</span>
-        <span style="font-size:13px">₹{{ "{:,.0f}".format(item.price * item.qty) }}</span>
-      </div>
-      {% endfor %}
-      <div style="border-top:1.5px solid var(--border);padding-top:14px;margin-top:8px;display:flex;justify-content:space-between;align-items:baseline">
-        <span style="font-size:15px;font-weight:500">Total</span>
-        <span style="font-family:var(--serif);font-size:28px;color:var(--ink)">₹{{ "{:,.0f}".format(total) }}</span>
-      </div>
-      <a href="{{ url_for('shop.checkout') }}" class="btn btn-clay btn-full btn-lg" style="margin-top:20px">Proceed to Checkout →</a>
-      <div style="margin-top:16px;padding:14px;background:var(--parchment);border-radius:var(--r);font-size:12px;color:var(--muted);line-height:1.7">
-        <strong style="color:var(--text)">💌 No payment at checkout!</strong><br>
-        We review your order first, then email you the advance UPI QR.
-      </div>
+    <div class="cart-summary">
+      <h3>Order Summary</h3>
+      <div class="summary-row"><span>Subtotal</span><span>₹{{ "%.0f"|format(total) }}</span></div>
+      <div class="summary-row muted"><span>Shipping</span><span>Calculated at checkout</span></div>
+      <div class="summary-total"><span>Total</span><span>₹{{ "%.0f"|format(total) }}</span></div>
+      <a href="{{ url_for('shop.checkout') }}" class="btn-primary btn-full">Proceed to Checkout</a>
+      <a href="{{ url_for('shop.shop') }}" class="btn-outline btn-full" style="margin-top:.8rem;">Continue Shopping</a>
     </div>
   </div>
-
   {% else %}
   <div class="empty-state">
-    <div class="empty-icon">🛒</div>
-    <h3>Your cart is empty</h3>
-    <p>Discover our handcrafted pieces</p>
-    <a href="{{ url_for('shop.shop') }}" class="btn btn-clay btn-lg">Browse Shop</a>
+    <p>Your cart is empty.</p>
+    <a href="{{ url_for('shop.shop') }}" class="btn-primary">Browse Products</a>
   </div>
   {% endif %}
 </div>

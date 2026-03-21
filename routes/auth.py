@@ -1,73 +1,96 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, session
-from flask_login import login_user, logout_user, login_required, current_user
-from models import User
-from emails import mail_welcome
+from flask import Blueprint, render_template, request, redirect, url_for, session, flash
+from werkzeug.security import generate_password_hash, check_password_hash
+import models
+import emails
 
-bp = Blueprint("auth", __name__)
+auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
 
-@bp.route("/login", methods=["GET", "POST"])
+def login_required(f):
+    from functools import wraps
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("user_id"):
+            return redirect(url_for("auth.login", next=request.url))
+        return f(*args, **kwargs)
+    return decorated
+
+
+def admin_only(f):
+    from functools import wraps
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("is_admin"):
+            flash("Admin access required.", "error")
+            return redirect(url_for("shop.index"))
+        return f(*args, **kwargs)
+    return decorated
+
+
+@auth_bp.route("/login", methods=["GET", "POST"])
 def login():
-    if current_user.is_authenticated:
-        return redirect(url_for("shop.home"))
+    if session.get("user_id"):
+        return redirect(url_for("shop.index"))
+    error = None
     if request.method == "POST":
         email = request.form.get("email", "").strip().lower()
-        pw    = request.form.get("password", "")
-        user  = User.by_email(email)
-        if user and user.check_password(pw):
-            login_user(user, remember=bool(request.form.get("remember")))
-            return redirect(url_for("shop.home"))
-        flash("Invalid email or password.", "error")
-    return render_template("auth/login.html")
+        password = request.form.get("password", "")
+        user = models.get_user_by_email(email)
+        if user and check_password_hash(user["password_hash"], password):
+            session["user_id"] = str(user["id"])
+            session["user_name"] = user.get("name", "")
+            session["is_admin"] = user.get("is_admin", False)
+            next_url = request.args.get("next")
+            return redirect(next_url if next_url else url_for("shop.index"))
+        error = "Invalid email or password."
+    return render_template("auth/login.html", error=error)
 
 
-@bp.route("/signup", methods=["GET", "POST"])
+@auth_bp.route("/signup", methods=["GET", "POST"])
 def signup():
-    if current_user.is_authenticated:
-        return redirect(url_for("shop.home"))
+    if session.get("user_id"):
+        return redirect(url_for("shop.index"))
+    error = None
     if request.method == "POST":
-        name    = request.form.get("full_name", "").strip()
-        email   = request.form.get("email", "").strip().lower()
-        phone   = request.form.get("phone", "").strip()
-        pw      = request.form.get("password", "")
-        confirm = request.form.get("confirm", "")
-        if not name or not email or not pw:
-            flash("Please fill in all required fields.", "error")
-        elif len(pw) < 8:
-            flash("Password must be at least 8 characters.", "error")
-        elif pw != confirm:
-            flash("Passwords do not match.", "error")
-        elif User.by_email(email):
-            flash("An account with this email already exists.", "error")
+        name = request.form.get("name", "").strip()
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
+        if models.get_user_by_email(email):
+            error = "An account with this email already exists."
+        elif len(password) < 6:
+            error = "Password must be at least 6 characters."
         else:
-            uid = User.create(name, email, phone, pw)
-            if uid:
-                login_user(User.get(uid))
-                try: mail_welcome(name, email)
-                except: pass
-                flash("Welcome to Everbloom! 🌿", "success")
-                return redirect(url_for("shop.home"))
-    return render_template("auth/signup.html")
+            pw_hash = generate_password_hash(password, method="pbkdf2:sha256")
+            user = models.create_user(email, pw_hash, name)
+            if user:
+                session["user_id"] = str(user["id"])
+                session["user_name"] = user.get("name", "")
+                session["is_admin"] = False
+                emails.send_welcome(email, name)
+                return redirect(url_for("shop.index"))
+            error = "Could not create account. Please try again."
+    return render_template("auth/signup.html", error=error)
 
 
-@bp.route("/logout")
-@login_required
+@auth_bp.route("/logout")
 def logout():
-    logout_user()
-    session.pop("cart", None)
-    return redirect(url_for("shop.home"))
+    session.clear()
+    return redirect(url_for("shop.index"))
 
 
-@bp.route("/profile", methods=["GET", "POST"])
+@auth_bp.route("/profile", methods=["GET", "POST"])
 @login_required
 def profile():
+    user = models.get_user_by_id(session["user_id"])
+    success = None
     if request.method == "POST":
-        User.update(
-            current_user.id,
-            request.form.get("full_name", "").strip() or current_user.full_name,
-            request.form.get("phone", "").strip(),
-            request.form.get("address", "").strip(),
-        )
-        flash("Profile updated.", "success")
-        return redirect(url_for("auth.profile"))
-    return render_template("auth/profile.html")
+        data = {
+            "name": request.form.get("name", "").strip(),
+            "phone": request.form.get("phone", "").strip(),
+            "address": request.form.get("address", "").strip(),
+        }
+        models.update_user(session["user_id"], data)
+        session["user_name"] = data["name"]
+        success = "Profile updated!"
+        user = models.get_user_by_id(session["user_id"])
+    return render_template("auth/profile.html", user=user, success=success)
