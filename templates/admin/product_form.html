@@ -50,7 +50,39 @@
         </div>
 
         <div class="admin-card">
-          <h3>Images</h3>
+          <h3>Product Variants</h3>
+          <p class="action-hint">Add variants like Size (Small/Medium/Large) or Colour (Red/Blue). Each variant can have a price modifier and its own stock.</p>
+          {% if product and product.id %}
+          {% set variants = [] %}
+          <div id="variantsList">
+            <!-- Existing variants loaded via separate request -->
+          </div>
+          <form method="post" action="{{ url_for('admin.variant_add', pid=product.id) }}" class="variant-add-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-row-4">
+              <div class="form-group">
+                <label>Group (e.g. Size)</label>
+                <input type="text" name="name" placeholder="Size" required>
+              </div>
+              <div class="form-group">
+                <label>Value (e.g. Small)</label>
+                <input type="text" name="value" placeholder="Small" required>
+              </div>
+              <div class="form-group">
+                <label>Price Modifier (₹)</label>
+                <input type="number" name="price_modifier" value="0" step="0.01">
+              </div>
+              <div class="form-group">
+                <label>Stock</label>
+                <input type="number" name="stock" value="0" min="0">
+              </div>
+            </div>
+            <button type="submit" class="btn-outline">+ Add Variant</button>
+          </form>
+          {% else %}
+          <p class="action-hint muted">Save the product first, then add variants.</p>
+          {% endif %}
+        </div>
           {% if product and product.images %}
           <div class="existing-images">
             {% for img in product.images %}

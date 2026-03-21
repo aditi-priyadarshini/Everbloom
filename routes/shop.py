@@ -89,15 +89,19 @@ def product(pid):
         return redirect(url_for("shop.shop"))
     reviews = models.get_reviews(pid)
     avg = models.avg_rating(reviews)
+    variants = models.get_variants(pid)
     user_review = None
     if session.get("user_id"):
         user_review = models.get_review_by_user(pid, session["user_id"])
     related = models.get_products(category_id=p.get("category_id"), limit=4)
     related = [r for r in related if str(r["id"]) != str(pid)][:3]
+    wishlisted = models.is_wishlisted(session["user_id"], pid) if session.get("user_id") else False
     return render_template("shop/product.html",
                            product=p,
                            reviews=reviews,
                            avg_rating=avg,
+                           variants=variants,
+                           wishlisted=wishlisted,
                            user_review=user_review,
                            related=related)
 
@@ -182,6 +186,9 @@ def checkout():
         phone = request.form.get("phone", "").strip()
         address = request.form.get("address", "").strip()
         coupon_code = request.form.get("coupon_code", "").strip().upper()
+        gift_card_code = request.form.get("gift_card_code", "").strip().upper()
+        gift_card_discount = 0
+        gift_card_obj = None
 
         if coupon_code:
             coupon_obj = models.get_coupon(coupon_code)
@@ -190,8 +197,16 @@ def checkout():
             else:
                 coupon_error = "Invalid or expired coupon."
 
+        if gift_card_code and not coupon_error:
+            gift_card_obj = models.get_gift_card(gift_card_code)
+            if gift_card_obj:
+                gift_card_discount = min(float(gift_card_obj["balance"]), subtotal - discount)
+            else:
+                coupon_error = "Invalid or expired gift card."
+
         if not coupon_error:
-            total = round(subtotal - discount, 2)
+            total = round(subtotal - discount - gift_card_discount, 2)
+            total = max(0, total)
             order = models.create_order({
                 "user_id": session["user_id"],
                 "name": name, "phone": phone, "address": address,
@@ -221,6 +236,8 @@ def checkout():
                                            url_for("orders.order_detail", oid=order["id"]))
                 if coupon_code and coupon_obj:
                     models.use_coupon(coupon_code)
+                if gift_card_code and gift_card_obj and gift_card_discount > 0:
+                    models.use_gift_card(gift_card_code, gift_card_discount)
 
                 import emails
                 user = models.get_user_by_id(session["user_id"])
@@ -264,9 +281,56 @@ def custom_order():
     return render_template("shop/custom_order.html", success=success)
 
 
-@shop_bp.route("/api/notifications")
+@shop_bp.route("/wishlist")
 @login_required
-def notifications_api():
+def wishlist():
+    items = models.get_wishlist(session["user_id"])
+    return render_template("shop/wishlist.html", items=items)
+
+
+@shop_bp.route("/wishlist/toggle/<pid>", methods=["POST"])
+@login_required
+def wishlist_toggle(pid):
+    added = models.toggle_wishlist(session["user_id"], pid)
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify({"wishlisted": added})
+    flash("Added to wishlist!" if added else "Removed from wishlist.", "success")
+    return redirect(request.referrer or url_for("shop.shop"))
+
+
+@shop_bp.route("/back-in-stock/<pid>", methods=["POST"])
+def back_in_stock(pid):
+    email = request.form.get("email", "").strip()
+    if email:
+        models.add_back_in_stock_alert(pid, email, session.get("user_id"))
+        flash("We'll notify you when it's back!", "success")
+    return redirect(request.referrer or url_for("shop.shop"))
+
+
+@shop_bp.route("/faq")
+def faq():
+    faqs = models.get_faqs()
+    return render_template("shop/faq.html", faqs=faqs)
+
+
+@shop_bp.route("/artisans")
+def artisans():
+    artisan_list = models.get_artisans()
+    return render_template("shop/artisans.html", artisans=artisan_list)
+
+
+@shop_bp.route("/artisans/<aid>")
+def artisan_detail(aid):
+    artisan = models.get_artisan(aid)
+    if not artisan:
+        return redirect(url_for("shop.artisans"))
+    return render_template("shop/artisan_detail.html", artisan=artisan)
+
+
+@shop_bp.route("/about")
+def about():
+    artisan_list = models.get_artisans()
+    return render_template("shop/about.html", artisans=artisan_list)
     notifs = models.get_notifications(session["user_id"])
     unread = len([n for n in notifs if not n["read"]])
     return jsonify({"notifications": notifs, "unread": unread})

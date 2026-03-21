@@ -37,7 +37,17 @@
       {% elif product.category_id == 3 %}Sculptures
       {% else %}Craft{% endif %}
     </div>
-    <h1 class="product-info-title">{{ product.title }}</h1>
+    <div class="product-title-row">
+      <h1 class="product-info-title">{{ product.title }}</h1>
+      {% if session.user_id %}
+
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="wishlist-btn {% if wishlisted %}wishlisted{% endif %}" title="{% if wishlisted %}Remove from wishlist{% else %}Add to wishlist{% endif %}">
+          {% if wishlisted %}♥{% else %}♡{% endif %}
+        </button>
+      </form>
+      {% endif %}
+    </div>
 
     <!-- Rating -->
     {% if avg_rating > 0 %}
@@ -79,6 +89,23 @@
     {% if product.stock > 0 %}
     <form method="post" action="{{ url_for('shop.cart_add', pid=product.id) }}" class="add-to-cart-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% if variants %}
+      {% set variant_groups = {} %}
+      {% for v in variants %}{% set _ = variant_groups.update({v.name: variant_groups.get(v.name, []) + [v]}) %}{% endfor %}
+      {% for group_name, group_variants in variant_groups.items() %}
+      <div class="form-group">
+        <label>{{ group_name }}</label>
+        <div class="variant-options">
+          {% for v in group_variants %}
+          <label class="variant-option">
+            <input type="radio" name="variant_{{ group_name|lower|replace(' ','_') }}" value="{{ v.value }}" {% if loop.first %}checked{% endif %}>
+            <span class="variant-pill">{{ v.value }}{% if v.price_modifier > 0 %} +₹{{ "%.0f"|format(v.price_modifier) }}{% elif v.price_modifier < 0 %} -₹{{ "%.0f"|format(v.price_modifier|abs) }}{% endif %}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+      {% endif %}
       <div class="qty-wrap">
         <label>Qty</label>
         <input type="number" name="qty" value="1" min="1" max="{{ product.stock }}" class="qty-input">
@@ -87,6 +114,14 @@
     </form>
     {% else %}
     <button class="btn-primary btn-full disabled" disabled>Out of Stock</button>
+    <div class="back-in-stock-form">
+      <p class="back-in-stock-label">Get notified when it's back:</p>
+      <form method="post" action="{{ url_for('shop.back_in_stock', pid=product.id) }}" class="bis-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="email" name="email" placeholder="your@email.com" value="{{ session.get('user_email','') }}" required class="bis-input">
+        <button type="submit" class="btn-outline">Notify Me</button>
+      </form>
+    </div>
     {% endif %}
 
     <a href="{{ url_for('shop.custom_order') }}" class="custom-order-link">Want something custom? →</a>

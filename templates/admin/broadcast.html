@@ -1,0 +1,39 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Broadcast Email{% endblock %}
+{% block page_title %}Broadcast Email{% endblock %}
+{% block content %}
+<div class="form-grid" style="max-width:900px;">
+  <div>
+    <div class="admin-card">
+      <h3>Send Email to All Customers</h3>
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+          <label>Subject *</label>
+          <input type="text" name="subject" placeholder="New collection just dropped!" required>
+        </div>
+        <div class="form-group">
+          <label>Body (HTML allowed)</label>
+          <textarea name="body" rows="8" placeholder="&lt;p&gt;Hello,&lt;/p&gt;&lt;p&gt;We have something special for you...&lt;/p&gt;" required></textarea>
+        </div>
+        <button type="submit" class="btn-primary" onclick="return confirm('Send this email to ALL customers?')">Send to All Customers</button>
+      </form>
+    </div>
+  </div>
+  <div>
+    <div class="admin-card">
+      <h3>Sent History</h3>
+      {% if broadcasts %}
+      {% for b in broadcasts %}
+      <div style="padding:.8rem 0;border-bottom:1px solid #f5e6e0;">
+        <p style="font-weight:500;font-size:.88rem;color:#3a2a2a;">{{ b.subject }}</p>
+        <p style="font-size:.78rem;color:#7a5c5c;">Sent to {{ b.sent_to }} customers · {{ b.created_at[:10] }}</p>
+      </div>
+      {% endfor %}
+      {% else %}
+      <p class="muted" style="font-size:.85rem;">No broadcasts sent yet.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

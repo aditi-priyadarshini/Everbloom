@@ -52,6 +52,7 @@ def create_app():
         ORDER_STATUSES=models.ORDER_STATUSES,
         STATUS_LABELS=models.STATUS_LABELS,
         SITE_URL=os.environ.get("SITE_URL", "http://localhost:5000"),
+        get_setting=models.get_setting,
     )
 
     return app
