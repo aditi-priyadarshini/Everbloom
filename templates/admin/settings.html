@@ -1,0 +1,32 @@
+{% extends "admin/base.html" %}
+{% block page_title %}Settings{% endblock %}
+{% block content %}
+<div style="max-width:560px">
+  <form method="POST" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="admin-card" style="margin-bottom:20px">
+      <div class="admin-card-header">UPI Payment Settings</div>
+      <div class="form-group">
+        <label class="form-label">UPI ID</label>
+        <input type="text" name="upi_id" class="form-input" value="{{ upi_id }}" placeholder="yourname@upi">
+      </div>
+      <div class="form-group">
+        <label class="form-label">UPI QR Code Image</label>
+        {% if qr_exists %}
+        <div style="margin-bottom:12px">
+          <img src="{{ url_for('static', filename='uploads/qr/upi_qr.png') }}" style="max-width:180px;border-radius:var(--radius);border:1px solid var(--border)">
+          <p style="font-size:12px;color:var(--sage);margin-top:6px">✓ QR code uploaded</p>
+        </div>
+        {% endif %}
+        <input type="file" name="qr_code" class="form-input" accept="image/*" style="padding:8px">
+        <p style="font-size:11px;color:var(--text-muted);margin-top:4px">Upload a new QR to replace the current one.</p>
+      </div>
+      <button type="submit" class="btn btn-primary">Save Settings</button>
+    </div>
+  </form>
+  <div class="admin-card">
+    <div class="admin-card-header">Environment Variables</div>
+    <p style="font-size:13px;color:var(--text-muted);line-height:1.7">For permanent config changes, edit your <code style="background:var(--sand);padding:2px 6px;border-radius:3px">.env</code> file and restart the server. See README for all available variables.</p>
+  </div>
+</div>
+{% endblock %}

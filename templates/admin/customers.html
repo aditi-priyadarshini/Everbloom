@@ -1,0 +1,26 @@
+{% extends "admin/base.html" %}
+{% block page_title %}Customers{% endblock %}
+{% block content %}
+<div class="admin-table-wrap">
+  <div class="admin-table-header">
+    <form method="GET" style="display:flex;gap:10px"><div class="admin-search"><span class="admin-search-icon">🔍</span><input type="text" name="q" class="form-input" placeholder="Search..." value="{{ q }}"></div><button class="btn btn-secondary btn-sm" type="submit">Search</button></form>
+    <span style="font-size:13px;color:var(--text-muted)">{{ pagination.total }} customers</span>
+  </div>
+  <div class="table-scroll"><table class="admin-table">
+    <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Joined</th><th>Orders</th></tr></thead>
+    <tbody>
+      {% for c in customers %}
+      <tr>
+        <td>{{ c.full_name }}</td>
+        <td>{{ c.email }}</td>
+        <td>{{ c.phone or '—' }}</td>
+        <td style="font-size:12px">{{ c.created_at.strftime('%d %b %Y') }}</td>
+        <td>{{ c.orders.count() }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text-muted)">No customers yet</td></tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

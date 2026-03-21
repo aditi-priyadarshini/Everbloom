@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Pay Advance — Order #{{ "%04d"|format(order.id) }}{% endblock %}
+{% block content %}
+<div class="page-header"><h1>Pay Advance</h1><p>Order #{{ "%04d"|format(order.id) }}</p></div>
+<div class="container" style="max-width:560px;padding-top:48px;padding-bottom:80px">
+  <div style="background:white;border:1px solid var(--border);border-radius:var(--radius-lg);padding:32px;margin-bottom:20px;text-align:center">
+    <p style="font-size:13px;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Advance Amount</p>
+    <p style="font-family:var(--font-display);font-size:52px;color:var(--brown-dark);margin-bottom:4px">₹{{ "{:,.0f}".format(order.advance_amount) }}</p>
+    <p style="font-size:13px;color:var(--text-muted)">Order Total: ₹{{ "{:,.0f}".format(order.total_amount) }} · Balance on delivery: ₹{{ "{:,.0f}".format(order.total_amount - order.advance_amount) }}</p>
+
+    <div style="margin:28px 0">
+      {% set qr_path = url_for('static', filename='uploads/qr/upi_qr.png') %}
+      <div style="width:200px;height:200px;margin:0 auto;background:var(--sand);border-radius:12px;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;overflow:hidden">
+        <img src="{{ qr_path }}" alt="UPI QR" style="width:100%;height:100%;object-fit:contain" onerror="this.parentElement.innerHTML='<div style=\'padding:20px;text-align:center\'><div style=\'font-size:40px\'>📱</div><p style=\'font-size:11px;color:var(--text-muted);margin-top:8px\'>Upload QR in Admin → Settings</p></div>'">
+      </div>
+    </div>
+    <p style="font-size:14px;color:var(--text-secondary);margin-bottom:4px">UPI ID: <strong>{{ config.UPI_ID }}</strong></p>
+    <p style="font-size:12px;color:var(--text-muted)">Open GPay / PhonePe / Paytm → Send Money → Enter UPI ID above</p>
+  </div>
+
+  <div style="background:white;border:1px solid var(--border);border-radius:var(--radius-lg);padding:28px">
+    <h3 style="font-family:var(--font-display);font-size:20px;margin-bottom:16px">Upload Payment Screenshot</h3>
+    <form method="POST" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="img-upload-area" onclick="document.getElementById('proof-input').click()" id="upload-area">
+        <div id="upload-prompt">
+          <div style="font-size:40px;margin-bottom:10px">📸</div>
+          <p style="font-size:14px;color:var(--text-secondary)">Click to upload payment screenshot</p>
+          <p style="font-size:12px;color:var(--text-muted)">JPG, PNG — max 5MB</p>
+        </div>
+        <input type="file" id="proof-input" name="proof" accept="image/*" style="display:none" onchange="previewProof(this)" required>
+      </div>
+      <div id="proof-preview" style="display:none;margin-top:12px;text-align:center">
+        <img id="proof-img" style="max-width:100%;max-height:200px;border-radius:var(--radius);border:1px solid var(--border)">
+        <p style="font-size:12px;color:var(--sage);margin-top:6px">✓ Screenshot selected</p>
+      </div>
+      <button type="submit" class="btn btn-primary btn-full btn-lg" style="margin-top:20px">Submit Payment Proof →</button>
+    </form>
+  </div>
+</div>
+<script>
+function previewProof(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  document.getElementById('proof-preview').style.display = 'block';
+  document.getElementById('proof-img').src = url;
+  document.getElementById('upload-prompt').style.display = 'none';
+}
+</script>
+{% endblock %}

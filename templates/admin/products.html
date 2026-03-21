@@ -1,0 +1,49 @@
+{% extends "admin/base.html" %}
+{% block page_title %}Products{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('admin.product_new') }}" class="btn btn-primary btn-sm">+ Add Product</a>{% endblock %}
+{% block content %}
+<div class="admin-table-wrap">
+  <div class="admin-table-header">
+    <form method="GET" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <div class="admin-search"><span class="admin-search-icon">🔍</span>
+        <input type="text" name="q" class="form-input" placeholder="Search products..." value="{{ q }}">
+      </div>
+      <select name="cat" class="form-select" style="max-width:160px">
+        <option value="">All Categories</option>
+        {% for cat in categories %}<option value="{{ cat.id }}" {% if cat_id==cat.id %}selected{% endif %}>{{ cat.name }}</option>{% endfor %}
+      </select>
+      <button class="btn btn-secondary btn-sm" type="submit">Filter</button>
+    </form>
+  </div>
+  <div class="table-scroll">
+    <table class="admin-table">
+      <thead><tr><th>Image</th><th>Product</th><th>Category</th><th>Price</th><th>Discount</th><th>Stock</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>
+        {% for p in products %}
+        <tr>
+          <td><div style="width:44px;height:44px;border-radius:var(--radius);overflow:hidden;background:var(--sand)">
+            {% if p.first_image %}<img src="{{ url_for('static', filename='uploads/products/' + p.first_image) }}" style="width:100%;height:100%;object-fit:cover">
+            {% else %}<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:18px">🎨</div>{% endif %}
+          </div></td>
+          <td><div style="font-weight:500">{{ p.title }}</div><div style="font-size:11px;color:var(--text-muted)">#{{ p.id }}</div></td>
+          <td>{{ p.category.name if p.category else '—' }}</td>
+          <td>₹{{ "{:,.0f}".format(p.price) }}</td>
+          <td>{% if p.discount_percent > 0 %}<span style="color:var(--sage);font-weight:500">{{ p.discount_percent }}%</span>{% else %}—{% endif %}</td>
+          <td><span style="color:{% if p.stock_qty > 0 %}var(--success){% else %}var(--error){% endif %}">{{ p.stock_qty }}</span></td>
+          <td><span class="status-badge {% if p.is_active %}status-delivered{% else %}status-cancelled{% endif %}">{% if p.is_active %}Active{% else %}Hidden{% endif %}</span></td>
+          <td><div style="display:flex;gap:6px">
+            <a href="{{ url_for('admin.product_edit', product_id=p.id) }}" class="btn btn-sm btn-secondary">Edit</a>
+            <form method="POST" action="{{ url_for('admin.product_delete', product_id=p.id) }}" onsubmit="return confirm('Hide this product?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-sm" style="background:rgba(192,97,74,0.1);color:var(--error);border:1px solid rgba(192,97,74,0.2)">Hide</button>
+            </form>
+          </div></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" style="text-align:center;padding:48px;color:var(--text-muted)">No products yet. <a href="{{ url_for('admin.product_new') }}" style="color:var(--brown-accent)">Add one →</a></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

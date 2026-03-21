@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Checkout — {{ store_name }}{% endblock %}
+
+{% block content %}
+<div class="page-header"><h1>Checkout</h1></div>
+
+<div class="container" style="padding-top:48px;padding-bottom:80px">
+  <div style="display:grid;grid-template-columns:1fr 360px;gap:40px;align-items:start" class="cart-layout">
+
+    <!-- Form -->
+    <div>
+      <div style="background:rgba(139,94,60,0.06);border:1px solid rgba(139,94,60,0.15);border-radius:var(--radius-lg);padding:16px 20px;margin-bottom:28px;font-size:14px;color:var(--text-secondary);display:flex;gap:12px;align-items:flex-start">
+        <span style="font-size:22px">💌</span>
+        <div>
+          <strong style="color:var(--brown-dark)">No full payment at checkout!</strong><br>
+          Once we review your order, we'll email you a UPI QR to pay just the advance amount. The rest is paid on delivery.
+        </div>
+      </div>
+
+      <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div style="background:white;border:1px solid var(--border);border-radius:var(--radius-lg);padding:28px;margin-bottom:20px">
+          <h3 style="font-family:var(--font-display);font-size:22px;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border)">
+            Delivery Address
+          </h3>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px" class="checkout-addr-grid">
+            <div class="form-group" style="grid-column:1/-1">
+              <label class="form-label">Recipient Name *</label>
+              <input type="text" name="addr_name" class="form-input" value="{{ pre.addr_name }}" required placeholder="Full name">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Phone *</label>
+              <input type="tel" name="addr_phone" class="form-input" value="{{ pre.addr_phone }}" required placeholder="+91 98765 43210">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Pincode *</label>
+              <input type="text" name="addr_pin" class="form-input" value="{{ pre.addr_pin }}" required placeholder="110001" maxlength="6">
+            </div>
+            <div class="form-group" style="grid-column:1/-1">
+              <label class="form-label">Street Address *</label>
+              <input type="text" name="addr_street" class="form-input" value="{{ pre.addr_street }}" required placeholder="House/Flat, Building, Street">
+            </div>
+            <div class="form-group">
+              <label class="form-label">City *</label>
+              <input type="text" name="addr_city" class="form-input" value="{{ pre.addr_city }}" required placeholder="City">
+            </div>
+            <div class="form-group">
+              <label class="form-label">State *</label>
+              <input type="text" name="addr_state" class="form-input" value="{{ pre.addr_state }}" required placeholder="State">
+            </div>
+            <div class="form-group" style="grid-column:1/-1">
+              <label class="form-label">Order Notes (optional)</label>
+              <textarea name="notes" class="form-textarea" rows="3" placeholder="Any special instructions for your order?"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px">
+          <a href="{{ url_for('shop.cart') }}" class="btn btn-secondary btn-lg">← Back to Cart</a>
+          <button type="submit" class="btn btn-primary btn-lg" style="flex:1">Place Order — We'll Review & Contact You 🌸</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Summary -->
+    <div style="background:white;border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;position:sticky;top:90px">
+      <h3 style="font-family:var(--font-display);font-size:20px;margin-bottom:16px">Order Summary</h3>
+      {% for key, item in cart.items() %}
+      <div style="display:flex;gap:12px;margin-bottom:14px;align-items:center">
+        <div style="width:48px;height:48px;border-radius:var(--radius);overflow:hidden;background:var(--sand);flex-shrink:0">
+          {% if item.image %}<img src="{{ url_for('static', filename='uploads/products/' + item.image) }}" style="width:100%;height:100%;object-fit:cover">
+          {% else %}<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center">🎨</div>{% endif %}
+        </div>
+        <div style="flex:1">
+          <p style="font-size:13px;font-weight:500">{{ item.title }}</p>
+          <p style="font-size:12px;color:var(--text-muted)">{{ item.qty }} × ₹{{ "{:,.0f}".format(item.price) }}</p>
+        </div>
+        <span style="font-size:13px;font-weight:500">₹{{ "{:,.0f}".format(item.price * item.qty) }}</span>
+      </div>
+      {% endfor %}
+      <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:8px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-weight:500">Total</span>
+        <span style="font-family:var(--font-display);font-size:24px;color:var(--brown-dark)">₹{{ "{:,.0f}".format(total) }}</span>
+      </div>
+
+      <div style="margin-top:20px;padding:14px;background:var(--cream);border-radius:var(--radius)">
+        <p style="font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px">What happens next?</p>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-secondary)">📋 Order received & reviewed</div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-secondary)">💌 Advance payment email sent to you</div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-secondary)">✅ Advance confirmed → Crafting begins</div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-secondary)">🌸 Delivered to your door</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
