@@ -5,12 +5,12 @@ from flask import current_app
 
 ORDER_STATUSES_MSGS = {
     "advance_requested": ("Advance Payment Required — Everbloom", "Your advance payment details are ready."),
-    "advance_confirmed": ("Your Order is Being Crafted — Everbloom", "We've confirmed your payment and crafting has begun!"),
+    "advance_confirmed": ("Your Order is Being Crafted — Everbloom", "Payment confirmed! Crafting has begun."),
     "crafting":          ("Crafting in Progress — Everbloom", "Our artisans are working on your piece."),
-    "quality_check":     ("Quality Check in Progress — Everbloom", "Your order is undergoing quality inspection."),
+    "quality_check":     ("Quality Check — Everbloom", "Your order is undergoing quality inspection."),
     "shipped":           ("Your Order is Shipped — Everbloom", "Your handcrafted piece is on its way!"),
-    "delivered":         ("Your Order has been Delivered — Everbloom", "Thank you for shopping with Everbloom!"),
-    "cancelled":         ("Your Order has been Cancelled — Everbloom", "Your order has been cancelled."),
+    "delivered":         ("Order Delivered — Everbloom", "Thank you for shopping with Everbloom!"),
+    "cancelled":         ("Order Cancelled — Everbloom", "Your order has been cancelled."),
 }
 
 BASE = """
@@ -31,15 +31,14 @@ BASE = """
 def _send(to, subject, html):
     try:
         from app import mail
-        # Check credentials are set before attempting
         username = current_app.config.get("MAIL_USERNAME", "")
         password = current_app.config.get("MAIL_PASSWORD", "")
         if not username or not password:
-            print(f"[email SKIP] MAIL_USERNAME or MAIL_PASSWORD not set in env vars", file=sys.stderr)
+            print("[email SKIP] MAIL_USERNAME or MAIL_PASSWORD not set", file=sys.stderr)
             return False
         msg = Message(subject, recipients=[to], html=html)
         mail.send(msg)
-        print(f"[email OK] sent '{subject}' to {to}", file=sys.stderr)
+        print(f"[email OK] '{subject}' → {to}", file=sys.stderr)
         return True
     except Exception as e:
         print(f"[email ERROR] {type(e).__name__}: {e}", file=sys.stderr)
@@ -75,7 +74,7 @@ def send_advance_requested(user_email, order, upi_id, upi_qr_url, site_url):
 
 def send_status_update(user_email, order, status, note=None):
     subject, headline = ORDER_STATUSES_MSGS.get(
-        status, ("Order Update — Everbloom", "Your order status has been updated."))
+        status, ("Order Update — Everbloom", "Your order has been updated."))
     note_html = f"<p style='color:#5c3d3d;font-style:italic;'>{note}</p>" if note else ""
     balance_html = ""
     if status == "delivered":
@@ -84,8 +83,7 @@ def send_status_update(user_email, order, status, note=None):
     body = f"""
     <h2 style="color:#5c3d3d;">{headline}</h2>
     <p style="color:#3a2a2a;">Order <strong>#{str(order['id'])[:8].upper()}</strong></p>
-    {note_html}
-    {balance_html}
+    {note_html}{balance_html}
     """
     return _send(user_email, subject, BASE.format(body=body))
 

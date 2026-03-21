@@ -19,15 +19,17 @@ def create_app():
     app.config["APPLICATION_ROOT"] = "/"
     app.config["PREFERRED_URL_SCHEME"] = "https"
 
-    # Mail — read every env var fresh, never cache at module level
-    app.config["MAIL_SERVER"]          = "smtp.gmail.com"
-    app.config["MAIL_PORT"]            = 587
-    app.config["MAIL_USE_TLS"]         = True
-    app.config["MAIL_USE_SSL"]         = False
-    app.config["MAIL_USERNAME"]        = os.environ.get("MAIL_USERNAME", "")
-    app.config["MAIL_PASSWORD"]        = os.environ.get("MAIL_PASSWORD", "")
-    app.config["MAIL_DEFAULT_SENDER"]  = os.environ.get("MAIL_USERNAME", "noreply@everbloom.in")
-    app.config["MAIL_SUPPRESS_SEND"]   = False
+    # Outlook / Hotmail SMTP
+    mail_user = os.environ.get("MAIL_USERNAME", "")
+    mail_pass = os.environ.get("MAIL_PASSWORD", "")
+    app.config["MAIL_SERVER"]         = "smtp-mail.outlook.com"
+    app.config["MAIL_PORT"]           = 587
+    app.config["MAIL_USE_TLS"]        = True
+    app.config["MAIL_USE_SSL"]        = False
+    app.config["MAIL_USERNAME"]       = mail_user
+    app.config["MAIL_PASSWORD"]       = mail_pass
+    app.config["MAIL_DEFAULT_SENDER"] = ("Everbloom", mail_user)
+    app.config["MAIL_SUPPRESS_SEND"]  = False
 
     mail.init_app(app)
     csrf.init_app(app)
