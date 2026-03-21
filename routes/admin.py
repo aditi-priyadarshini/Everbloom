@@ -155,7 +155,7 @@ def product_delete(pid):
 
 
 def _parse_product_form(req, existing=None):
-    import datetime
+    import sys
     data = {
         "title": req.form.get("title", "").strip(),
         "description": req.form.get("description", "").strip(),
@@ -168,20 +168,30 @@ def _parse_product_form(req, existing=None):
         "crafting_days": int(req.form.get("crafting_days", 7)),
     }
     flash_ends = req.form.get("flash_sale_ends_at", "")
-    if flash_ends:
-        data["flash_sale_ends_at"] = flash_ends
-    else:
-        data["flash_sale_ends_at"] = None
+    data["flash_sale_ends_at"] = flash_ends if flash_ends else None
 
     # Handle image uploads
     images = list((existing or {}).get("images") or [])
     files = req.files.getlist("images")
     for f in files:
-        if f and f.filename:
-            path = f"products/{uuid.uuid4()}-{f.filename}"
-            url = supa.upload_file("products", path, f.read(), f.content_type)
+        if not f or not f.filename:
+            continue
+        try:
+            file_bytes = f.read()
+            if not file_bytes:
+                continue
+            safe_name = f.filename.replace(" ", "_").replace("/", "_")
+            path = f"products/{uuid.uuid4()}-{safe_name}"
+            content_type = f.content_type or "image/jpeg"
+            url = supa.upload_file("everbloom", path, file_bytes, content_type)
             if url:
                 images.append(url)
+                print(f"[upload OK] {url}", file=sys.stderr)
+            else:
+                flash(f"Image '{f.filename}' failed — check bucket 'everbloom' exists and is Public in Supabase Storage.", "error")
+        except Exception as e:
+            print(f"[upload EXCEPTION] {e}", file=sys.stderr)
+            flash(f"Upload error: {e}", "error")
 
     # Remove images
     remove_indices = req.form.getlist("remove_image")
@@ -388,7 +398,7 @@ def artisan_new():
         img = request.files.get("image")
         if img and img.filename:
             path = f"artisans/{uuid.uuid4()}-{img.filename}"
-            image_url = supa.upload_file("products", path, img.read(), img.content_type)
+            image_url = supa.upload_file("everbloom", path, img.read(), img.content_type)
         models.create_artisan({
             "name": request.form.get("name", ""),
             "bio": request.form.get("bio", ""),
@@ -421,7 +431,7 @@ def artisan_edit(aid):
         img = request.files.get("image")
         if img and img.filename:
             path = f"artisans/{uuid.uuid4()}-{img.filename}"
-            url = supa.upload_file("products", path, img.read(), img.content_type)
+            url = supa.upload_file("everbloom", path, img.read(), img.content_type)
             if url:
                 data["image_url"] = url
         models.update_artisan(aid, data)
@@ -536,7 +546,7 @@ def settings():
         qr_file = request.files.get("upi_qr")
         if qr_file and qr_file.filename:
             path = f"settings/upi_qr_{uuid.uuid4()}.png"
-            url = supa.upload_file("products", path, qr_file.read(), qr_file.content_type)
+            url = supa.upload_file("everbloom", path, qr_file.read(), qr_file.content_type)
             if url:
                 models.set_setting("upi_qr_url", url)
         flash("Settings saved!", "success")
