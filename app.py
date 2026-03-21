@@ -16,22 +16,22 @@ def create_app():
     )
     app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-me")
     app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
-    # Ensure static files work on Vercel
     app.config["APPLICATION_ROOT"] = "/"
     app.config["PREFERRED_URL_SCHEME"] = "https"
 
-    # Mail config
-    app.config["MAIL_SERVER"] = "smtp.gmail.com"
-    app.config["MAIL_PORT"] = 587
-    app.config["MAIL_USE_TLS"] = True
-    app.config["MAIL_USERNAME"] = os.environ.get("MAIL_USERNAME", "")
-    app.config["MAIL_PASSWORD"] = os.environ.get("MAIL_PASSWORD", "")
-    app.config["MAIL_DEFAULT_SENDER"] = os.environ.get("MAIL_USERNAME", "noreply@everbloom.in")
+    # Mail — read every env var fresh, never cache at module level
+    app.config["MAIL_SERVER"]          = "smtp.gmail.com"
+    app.config["MAIL_PORT"]            = 587
+    app.config["MAIL_USE_TLS"]         = True
+    app.config["MAIL_USE_SSL"]         = False
+    app.config["MAIL_USERNAME"]        = os.environ.get("MAIL_USERNAME", "")
+    app.config["MAIL_PASSWORD"]        = os.environ.get("MAIL_PASSWORD", "")
+    app.config["MAIL_DEFAULT_SENDER"]  = os.environ.get("MAIL_USERNAME", "noreply@everbloom.in")
+    app.config["MAIL_SUPPRESS_SEND"]   = False
 
     mail.init_app(app)
     csrf.init_app(app)
 
-    # Register blueprints
     from routes.auth import auth_bp
     from routes.shop import shop_bp
     from routes.orders import orders_bp
@@ -42,7 +42,6 @@ def create_app():
     app.register_blueprint(orders_bp)
     app.register_blueprint(admin_bp)
 
-    # Jinja globals
     import models
     app.jinja_env.globals.update(
         discounted_price=models.discounted_price,
