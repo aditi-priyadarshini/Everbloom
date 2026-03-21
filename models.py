@@ -1,379 +1,276 @@
-"""
-models.py — Simple Python classes that wrap SQL queries.
-No ORM — just psycopg2 + RealDictCursor (returns dicts).
-"""
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
-from db import query, get_db
+from db import run, db as db_ctx
 
-# ── Order status config ───────────────────────────────────────────────────────
-ORDER_STATUSES = [
-    ("draft",             "Order Received",           "📋"),
-    ("advance_requested", "Advance Payment Requested", "💌"),
-    ("advance_paid",      "Advance Paid",              "💳"),
-    ("advance_confirmed", "Advance Confirmed",         "✅"),
-    ("accepted",          "Accepted by Artist",        "🎨"),
-    ("material_sourced",  "Raw Material Sourced",      "🪵"),
-    ("crafting",          "Crafting in Progress",      "✂️"),
-    ("quality_check",     "Quality Check",             "🔍"),
-    ("packed",            "Packed & Ready",            "📦"),
-    ("shipped",           "Shipped",                   "🚚"),
-    ("delivered",         "Delivered",                 "🌸"),
-    ("cancelled",         "Cancelled",                 "❌"),
+# ── Status config ─────────────────────────────────────────────────────────────
+STATUSES = [
+    ("placed",            "Order Placed",              "📋"),
+    ("advance_requested", "Advance Requested",          "💌"),
+    ("advance_paid",      "Advance Paid",               "💳"),
+    ("advance_confirmed", "Advance Confirmed",          "✅"),
+    ("crafting",          "Being Crafted",              "🎨"),
+    ("quality_check",     "Quality Check",              "🔍"),
+    ("shipped",           "Shipped",                    "🚚"),
+    ("delivered",         "Delivered",                  "🌸"),
+    ("cancelled",         "Cancelled",                  "❌"),
 ]
-STATUS_KEYS   = [s[0] for s in ORDER_STATUSES]
-STATUS_LABELS = {s[0]: s[1] for s in ORDER_STATUSES}
-STATUS_ICONS  = {s[0]: s[2] for s in ORDER_STATUSES}
+STATUS_KEYS   = [s[0] for s in STATUSES]
+STATUS_LABELS = {s[0]: s[1] for s in STATUSES}
+STATUS_ICONS  = {s[0]: s[2] for s in STATUSES}
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+def final_price(p):
+    return round(float(p["price"]) * (1 - (p["discount_percent"] or 0) / 100), 2)
+
+def image_list(p):
+    raw = p.get("images") or ""
+    return [i.strip() for i in raw.split(",") if i.strip()]
+
+def first_image(p):
+    imgs = image_list(p)
+    return imgs[0] if imgs else ""
 
 
 # ── User ──────────────────────────────────────────────────────────────────────
 class User(UserMixin):
     def __init__(self, row):
-        self.id            = row["id"]
-        self.full_name     = row["full_name"]
-        self.email         = row["email"]
-        self.phone         = row.get("phone") or ""
-        self.address       = row.get("address") or ""
-        self.password_hash = row["password_hash"]
-        self.role          = row.get("role", "customer")
-        self.created_at    = row.get("created_at")
+        for k, v in row.items():
+            setattr(self, k, v)
 
     @property
     def is_admin(self):
         return self.role == "admin"
 
-    def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
+    def check_password(self, pw):
+        return check_password_hash(self.password_hash, pw)
 
     @staticmethod
-    def get(user_id):
-        row = query("SELECT * FROM users WHERE id=%s", (user_id,), fetchone=True)
+    def get(uid):
+        row = run("SELECT * FROM users WHERE id=%s", (uid,), one=True)
         return User(row) if row else None
 
     @staticmethod
-    def get_by_email(email):
-        row = query("SELECT * FROM users WHERE email=%s", (email,), fetchone=True)
+    def by_email(email):
+        row = run("SELECT * FROM users WHERE email=%s", (email,), one=True)
         return User(row) if row else None
 
     @staticmethod
     def create(full_name, email, phone, password):
         ph = generate_password_hash(password)
-        row = query(
+        row = run(
             "INSERT INTO users (full_name,email,phone,password_hash) VALUES (%s,%s,%s,%s) RETURNING id",
-            (full_name, email, phone, ph), fetchone=True
+            (full_name, email, phone, ph), one=True
         )
         return row["id"] if row else None
 
     @staticmethod
-    def update_profile(user_id, full_name, phone, address):
-        query("UPDATE users SET full_name=%s, phone=%s, address=%s WHERE id=%s",
-              (full_name, phone, address, user_id))
+    def update(uid, full_name, phone, address):
+        run("UPDATE users SET full_name=%s, phone=%s, address=%s WHERE id=%s",
+            (full_name, phone, address, uid))
 
     @staticmethod
-    def set_admin(email):
-        query("UPDATE users SET role='admin' WHERE email=%s", (email,))
+    def all_customers(search="", page=1, per=20):
+        q = f"%{search}%"
+        total = run("SELECT COUNT(*) as n FROM users WHERE role='customer' AND (full_name ILIKE %s OR email ILIKE %s)", (q,q), one=True)["n"]
+        rows  = run("SELECT * FROM users WHERE role='customer' AND (full_name ILIKE %s OR email ILIKE %s) ORDER BY created_at DESC LIMIT %s OFFSET %s",
+                    (q, q, per, (page-1)*per), many=True)
+        return rows, total
 
 
 # ── Category ──────────────────────────────────────────────────────────────────
 class Category:
     @staticmethod
     def all():
-        return query("SELECT * FROM categories ORDER BY name", fetchall=True) or []
+        return run("SELECT * FROM categories ORDER BY name", many=True)
 
     @staticmethod
-    def get_by_slug(slug):
-        return query("SELECT * FROM categories WHERE slug=%s", (slug,), fetchone=True)
-
-    @staticmethod
-    def get(cat_id):
-        return query("SELECT * FROM categories WHERE id=%s", (cat_id,), fetchone=True)
+    def by_slug(slug):
+        return run("SELECT * FROM categories WHERE slug=%s", (slug,), one=True)
 
 
 # ── Product ───────────────────────────────────────────────────────────────────
 class Product:
     @staticmethod
-    def final_price(row):
-        return float(row["price"]) * (1 - (row["discount_percent"] or 0) / 100)
-
-    @staticmethod
-    def image_list(row):
-        imgs = row.get("images") or ""
-        return [i.strip() for i in imgs.split(",") if i.strip()]
-
-    @staticmethod
-    def first_image(row):
-        imgs = Product.image_list(row)
-        return imgs[0] if imgs else None
-
-    @staticmethod
-    def tag_list(row):
-        tags = row.get("tags") or ""
-        return [t.strip() for t in tags.split(",") if t.strip()]
-
-    @staticmethod
-    def get(product_id, active_only=True):
-        sql = "SELECT p.*, c.name as cat_name, c.slug as cat_slug, c.icon as cat_icon FROM products p LEFT JOIN categories c ON c.id=p.category_id WHERE p.id=%s"
+    def get(pid, active_only=True):
+        sql = "SELECT p.*, c.name cat_name, c.slug cat_slug, c.icon cat_icon FROM products p LEFT JOIN categories c ON c.id=p.category_id WHERE p.id=%s"
         if active_only:
             sql += " AND p.is_active=TRUE"
-        return query(sql, (product_id,), fetchone=True)
+        return run(sql, (pid,), one=True)
 
     @staticmethod
-    def list(category_id=None, search=None, sort="newest", min_price=None,
-             max_price=None, in_stock=False, on_sale=False,
-             active_only=True, page=1, per_page=12):
-        conditions = []
-        params = []
-        if active_only:
-            conditions.append("p.is_active=TRUE")
-        if category_id:
-            conditions.append("p.category_id=%s")
-            params.append(category_id)
-        if search:
-            conditions.append("(p.title ILIKE %s OR p.description ILIKE %s)")
-            params += [f"%{search}%", f"%{search}%"]
-        if min_price is not None:
-            conditions.append("p.price>=%s")
-            params.append(min_price)
-        if max_price is not None:
-            conditions.append("p.price<=%s")
-            params.append(max_price)
+    def list(cat_id=None, q="", sort="newest", min_p=None, max_p=None,
+             in_stock=False, on_sale=False, page=1, per=12):
+        where, params = ["p.is_active=TRUE"], []
+        if cat_id:
+            where.append("p.category_id=%s"); params.append(cat_id)
+        if q:
+            where.append("(p.title ILIKE %s OR p.description ILIKE %s)"); params += [f"%{q}%", f"%{q}%"]
+        if min_p is not None:
+            where.append("p.price>=%s"); params.append(min_p)
+        if max_p is not None:
+            where.append("p.price<=%s"); params.append(max_p)
         if in_stock:
-            conditions.append("p.stock_qty>0")
+            where.append("p.stock_qty>0")
         if on_sale:
-            conditions.append("p.discount_percent>0")
-
-        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
-        order = {"price_asc": "p.price ASC", "price_desc": "p.price DESC",
-                 "discount": "p.discount_percent DESC"}.get(sort, "p.created_at DESC")
-
-        count_sql = f"SELECT COUNT(*) as cnt FROM products p LEFT JOIN categories c ON c.id=p.category_id {where}"
-        total = query(count_sql, params, fetchone=True)["cnt"]
-
-        offset = (page - 1) * per_page
-        sql = f"""SELECT p.*, c.name as cat_name, c.slug as cat_slug, c.icon as cat_icon
-                  FROM products p LEFT JOIN categories c ON c.id=p.category_id
-                  {where} ORDER BY {order} LIMIT %s OFFSET %s"""
-        rows = query(sql, params + [per_page, offset], fetchall=True) or []
+            where.append("p.discount_percent>0")
+        w = "WHERE " + " AND ".join(where)
+        order = {"price_asc":"p.price ASC","price_desc":"p.price DESC","discount":"p.discount_percent DESC"}.get(sort,"p.created_at DESC")
+        total = run(f"SELECT COUNT(*) n FROM products p LEFT JOIN categories c ON c.id=p.category_id {w}", params, one=True)["n"]
+        rows  = run(f"SELECT p.*, c.name cat_name, c.slug cat_slug, c.icon cat_icon FROM products p LEFT JOIN categories c ON c.id=p.category_id {w} ORDER BY {order} LIMIT %s OFFSET %s",
+                    params+[per,(page-1)*per], many=True)
         return rows, total
 
     @staticmethod
-    def featured(limit=4):
-        return query(
-            "SELECT p.*, c.name as cat_name, c.slug as cat_slug, c.icon as cat_icon FROM products p LEFT JOIN categories c ON c.id=p.category_id WHERE p.is_active=TRUE AND p.is_featured=TRUE LIMIT %s",
-            (limit,), fetchall=True) or []
+    def featured(n=4):
+        return run("SELECT p.*, c.name cat_name, c.slug cat_slug FROM products p LEFT JOIN categories c ON c.id=p.category_id WHERE p.is_active=TRUE AND p.is_featured=TRUE LIMIT %s", (n,), many=True)
 
     @staticmethod
-    def newest(limit=4):
-        return query(
-            "SELECT p.*, c.name as cat_name, c.slug as cat_slug, c.icon as cat_icon FROM products p LEFT JOIN categories c ON c.id=p.category_id WHERE p.is_active=TRUE ORDER BY p.created_at DESC LIMIT %s",
-            (limit,), fetchall=True) or []
+    def newest(n=8):
+        return run("SELECT p.*, c.name cat_name, c.slug cat_slug FROM products p LEFT JOIN categories c ON c.id=p.category_id WHERE p.is_active=TRUE ORDER BY p.created_at DESC LIMIT %s", (n,), many=True)
 
     @staticmethod
-    def related(category_id, exclude_id, limit=4):
-        return query(
-            "SELECT p.*, c.name as cat_name, c.slug as cat_slug, c.icon as cat_icon FROM products p LEFT JOIN categories c ON c.id=p.category_id WHERE p.category_id=%s AND p.id!=%s AND p.is_active=TRUE LIMIT %s",
-            (category_id, exclude_id, limit), fetchall=True) or []
+    def related(cat_id, exclude_id, n=4):
+        return run("SELECT p.*, c.name cat_name FROM products p LEFT JOIN categories c ON c.id=p.category_id WHERE p.category_id=%s AND p.id!=%s AND p.is_active=TRUE LIMIT %s",
+                   (cat_id, exclude_id, n), many=True)
 
     @staticmethod
-    def create(data):
-        row = query("""
-            INSERT INTO products (title,slug,description,category_id,price,discount_percent,
-                                  stock_qty,tags,is_featured,is_active,images)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
-            (data["title"], data["slug"], data["description"], data["category_id"],
-             data["price"], data["discount_percent"], data["stock_qty"], data["tags"],
-             data["is_featured"], data["is_active"], data.get("images", "")),
-            fetchone=True)
+    def create(d):
+        row = run("INSERT INTO products (title,description,price,discount_percent,images,category_id,stock_qty,is_featured,is_active,tags) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+                  (d["title"],d["description"],d["price"],d["discount_percent"],d["images"],d["category_id"],d["stock_qty"],d["is_featured"],d["is_active"],d["tags"]), one=True)
         return row["id"] if row else None
 
     @staticmethod
-    def update(product_id, data):
-        query("""UPDATE products SET title=%s,slug=%s,description=%s,category_id=%s,
-                 price=%s,discount_percent=%s,stock_qty=%s,tags=%s,
-                 is_featured=%s,is_active=%s,images=%s WHERE id=%s""",
-              (data["title"], data["slug"], data["description"], data["category_id"],
-               data["price"], data["discount_percent"], data["stock_qty"], data["tags"],
-               data["is_featured"], data["is_active"], data.get("images", ""), product_id))
+    def update(pid, d):
+        run("UPDATE products SET title=%s,description=%s,price=%s,discount_percent=%s,images=%s,category_id=%s,stock_qty=%s,is_featured=%s,is_active=%s,tags=%s WHERE id=%s",
+            (d["title"],d["description"],d["price"],d["discount_percent"],d["images"],d["category_id"],d["stock_qty"],d["is_featured"],d["is_active"],d["tags"],pid))
 
     @staticmethod
-    def deduct_stock(product_id, qty):
-        query("UPDATE products SET stock_qty=GREATEST(0,stock_qty-%s) WHERE id=%s", (qty, product_id))
+    def deduct(pid, qty):
+        run("UPDATE products SET stock_qty=GREATEST(0,stock_qty-%s) WHERE id=%s", (qty, pid))
 
     @staticmethod
-    def hide(product_id):
-        query("UPDATE products SET is_active=FALSE WHERE id=%s", (product_id,))
+    def hide(pid):
+        run("UPDATE products SET is_active=FALSE WHERE id=%s", (pid,))
 
     @staticmethod
-    def admin_list(search=None, category_id=None, page=1, per_page=20):
-        conditions, params = [], []
-        if search:
-            conditions.append("p.title ILIKE %s")
-            params.append(f"%{search}%")
-        if category_id:
-            conditions.append("p.category_id=%s")
-            params.append(category_id)
-        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
-        total = query(f"SELECT COUNT(*) as cnt FROM products p {where}", params, fetchone=True)["cnt"]
-        offset = (page - 1) * per_page
-        rows = query(
-            f"SELECT p.*, c.name as cat_name FROM products p LEFT JOIN categories c ON c.id=p.category_id {where} ORDER BY p.created_at DESC LIMIT %s OFFSET %s",
-            params + [per_page, offset], fetchall=True) or []
+    def admin_list(q="", cat_id=None, page=1, per=20):
+        where, params = [], []
+        if q:
+            where.append("p.title ILIKE %s"); params.append(f"%{q}%")
+        if cat_id:
+            where.append("p.category_id=%s"); params.append(cat_id)
+        w = ("WHERE " + " AND ".join(where)) if where else ""
+        total = run(f"SELECT COUNT(*) n FROM products p {w}", params, one=True)["n"]
+        rows  = run(f"SELECT p.*, c.name cat_name FROM products p LEFT JOIN categories c ON c.id=p.category_id {w} ORDER BY p.created_at DESC LIMIT %s OFFSET %s",
+                    params+[per,(page-1)*per], many=True)
         return rows, total
 
 
 # ── Order ─────────────────────────────────────────────────────────────────────
 class Order:
     @staticmethod
-    def create(customer_id, total, addr, notes=""):
-        row = query("""
-            INSERT INTO orders (customer_id,total_amount,addr_name,addr_phone,
-                addr_street,addr_city,addr_state,addr_pin,notes,status)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'draft') RETURNING id""",
-            (customer_id, total, addr["name"], addr["phone"],
-             addr["street"], addr["city"], addr["state"], addr["pin"], notes),
-            fetchone=True)
+    def create(customer_id, total, addr, notes):
+        row = run("""INSERT INTO orders (customer_id,total_amount,addr_name,addr_phone,addr_street,addr_city,addr_state,addr_pin,notes,status)
+                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'placed') RETURNING id""",
+                  (customer_id,total,addr["name"],addr["phone"],addr["street"],addr["city"],addr["state"],addr["pin"],notes), one=True)
         return row["id"] if row else None
 
     @staticmethod
-    def get(order_id):
-        return query("""
-            SELECT o.*, u.full_name as cust_name, u.email as cust_email, u.phone as cust_phone
-            FROM orders o JOIN users u ON u.id=o.customer_id
-            WHERE o.id=%s""", (order_id,), fetchone=True)
+    def add_items(order_id, cart):
+        with db_ctx() as conn:
+            with conn.cursor() as cur:
+                for item in cart.values():
+                    cur.execute("INSERT INTO order_items (order_id,product_id,quantity,unit_price,title_snap,image_snap) VALUES (%s,%s,%s,%s,%s,%s)",
+                                (order_id,item["id"],item["qty"],item["price"],item["title"],item.get("image","")))
 
     @staticmethod
-    def get_for_customer(order_id, customer_id):
-        return query("""
-            SELECT o.*, u.full_name as cust_name, u.email as cust_email
-            FROM orders o JOIN users u ON u.id=o.customer_id
-            WHERE o.id=%s AND o.customer_id=%s""", (order_id, customer_id), fetchone=True)
+    def get(oid):
+        return run("SELECT o.*, u.full_name cust_name, u.email cust_email, u.phone cust_phone FROM orders o JOIN users u ON u.id=o.customer_id WHERE o.id=%s", (oid,), one=True)
 
     @staticmethod
-    def list_for_customer(customer_id):
-        return query("""
-            SELECT o.* FROM orders o
-            WHERE o.customer_id=%s ORDER BY o.created_at DESC""",
-            (customer_id,), fetchall=True) or []
+    def get_for_customer(oid, cid):
+        return run("SELECT o.*, u.full_name cust_name, u.email cust_email FROM orders o JOIN users u ON u.id=o.customer_id WHERE o.id=%s AND o.customer_id=%s", (oid,cid), one=True)
 
     @staticmethod
-    def admin_list(status=None, search=None, page=1, per_page=20):
-        conditions, params = [], []
+    def for_customer(cid):
+        return run("SELECT * FROM orders WHERE customer_id=%s ORDER BY created_at DESC", (cid,), many=True)
+
+    @staticmethod
+    def items(oid):
+        return run("SELECT oi.*, p.title prod_title, p.images prod_images FROM order_items oi LEFT JOIN products p ON p.id=oi.product_id WHERE oi.order_id=%s", (oid,), many=True)
+
+    @staticmethod
+    def set_status(oid, status, note="", advance=None):
+        if advance is not None:
+            run("UPDATE orders SET status=%s, advance_amount=%s WHERE id=%s", (status, advance, oid))
+        else:
+            run("UPDATE orders SET status=%s WHERE id=%s", (status, oid))
+        if note:
+            run("UPDATE orders SET admin_note=%s WHERE id=%s", (note, oid))
+        if status == "delivered":
+            run("UPDATE orders SET delivered_at=NOW() WHERE id=%s", (oid,))
+
+    @staticmethod
+    def set_advance_proof(oid, url):
+        run("UPDATE orders SET advance_proof=%s, status='advance_paid' WHERE id=%s", (url, oid))
+
+    @staticmethod
+    def admin_list(status="", q="", page=1, per=20):
+        where, params = [], []
         if status:
-            conditions.append("o.status=%s")
-            params.append(status)
-        if search:
-            conditions.append("(u.full_name ILIKE %s OR u.email ILIKE %s)")
-            params += [f"%{search}%", f"%{search}%"]
-        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
-        total = query(f"SELECT COUNT(*) as cnt FROM orders o JOIN users u ON u.id=o.customer_id {where}", params, fetchone=True)["cnt"]
-        offset = (page - 1) * per_page
-        rows = query(
-            f"SELECT o.*, u.full_name as cust_name, u.email as cust_email FROM orders o JOIN users u ON u.id=o.customer_id {where} ORDER BY o.created_at DESC LIMIT %s OFFSET %s",
-            params + [per_page, offset], fetchall=True) or []
+            where.append("o.status=%s"); params.append(status)
+        if q:
+            where.append("(u.full_name ILIKE %s OR u.email ILIKE %s)"); params+=[f"%{q}%",f"%{q}%"]
+        w = ("WHERE "+" AND ".join(where)) if where else ""
+        total = run(f"SELECT COUNT(*) n FROM orders o JOIN users u ON u.id=o.customer_id {w}", params, one=True)["n"]
+        rows  = run(f"SELECT o.*, u.full_name cust_name, u.email cust_email FROM orders o JOIN users u ON u.id=o.customer_id {w} ORDER BY o.created_at DESC LIMIT %s OFFSET %s",
+                    params+[per,(page-1)*per], many=True)
         return rows, total
 
     @staticmethod
-    def update_status(order_id, status, admin_note=None, advance_amount=None):
-        if advance_amount is not None:
-            query("UPDATE orders SET status=%s, advance_amount=%s WHERE id=%s",
-                  (status, advance_amount, order_id))
-        elif admin_note:
-            query("UPDATE orders SET status=%s, admin_note=%s WHERE id=%s",
-                  (status, admin_note, order_id))
-        else:
-            query("UPDATE orders SET status=%s WHERE id=%s", (status, order_id))
-        if status == "delivered":
-            query("UPDATE orders SET delivered_at=NOW() WHERE id=%s", (order_id,))
-
-    @staticmethod
-    def set_advance_proof(order_id, url):
-        query("UPDATE orders SET advance_proof=%s, status='advance_paid' WHERE id=%s", (url, order_id))
-
-    @staticmethod
-    def dashboard_stats():
-        return query("""
-            SELECT
-              COUNT(*) as total,
-              COUNT(*) FILTER (WHERE status='draft') as pending_review,
-              COUNT(*) FILTER (WHERE status='advance_paid') as advance_pending,
-              COUNT(*) FILTER (WHERE status IN ('advance_confirmed','accepted','material_sourced','crafting','quality_check')) as in_progress,
-              COUNT(*) FILTER (WHERE status='shipped') as shipped,
-              COUNT(*) FILTER (WHERE status='delivered') as delivered,
-              COALESCE(SUM(total_amount) FILTER (WHERE status IN ('delivered','shipped','packed')), 0) as revenue
-            FROM orders""", fetchone=True)
-
-    @staticmethod
-    def items(order_id):
-        return query("""
-            SELECT oi.*, p.title as prod_title, p.images as prod_images
-            FROM order_items oi LEFT JOIN products p ON p.id=oi.product_id
-            WHERE oi.order_id=%s""", (order_id,), fetchall=True) or []
-
-    @staticmethod
-    def add_items(order_id, cart):
-        with get_db() as conn:
-            with conn.cursor() as cur:
-                for key, item in cart.items():
-                    cur.execute("""
-                        INSERT INTO order_items (order_id,product_id,quantity,unit_price,title_snap,image_snap)
-                        VALUES (%s,%s,%s,%s,%s,%s)""",
-                        (order_id, item["id"], item["qty"], item["price"],
-                         item["title"], item.get("image", "")))
+    def stats():
+        return run("""SELECT
+            COUNT(*) total,
+            COUNT(*) FILTER (WHERE status='placed') new_orders,
+            COUNT(*) FILTER (WHERE status='advance_paid') advance_pending,
+            COUNT(*) FILTER (WHERE status IN ('advance_confirmed','crafting','quality_check')) in_progress,
+            COUNT(*) FILTER (WHERE status='shipped') shipped,
+            COUNT(*) FILTER (WHERE status='delivered') delivered,
+            COALESCE(SUM(total_amount) FILTER (WHERE status='delivered'),0) revenue
+            FROM orders""", one=True)
 
 
 # ── Tracking ──────────────────────────────────────────────────────────────────
 class Tracking:
     @staticmethod
-    def add(order_id, status, note=None, created_by=None):
-        query("INSERT INTO tracking_events (order_id,status,note,created_by) VALUES (%s,%s,%s,%s)",
-              (order_id, status, note, created_by))
+    def add(oid, status, note=""):
+        run("INSERT INTO tracking (order_id,status,note) VALUES (%s,%s,%s)", (oid, status, note))
 
     @staticmethod
-    def list(order_id):
-        return query("SELECT * FROM tracking_events WHERE order_id=%s ORDER BY created_at ASC",
-                     (order_id,), fetchall=True) or []
+    def for_order(oid):
+        return run("SELECT * FROM tracking WHERE order_id=%s ORDER BY created_at ASC", (oid,), many=True)
 
 
 # ── Notification ──────────────────────────────────────────────────────────────
 class Notification:
     @staticmethod
-    def add(user_id, order_id, title, message):
-        query("INSERT INTO notifications (user_id,order_id,title,message) VALUES (%s,%s,%s,%s)",
-              (user_id, order_id, title, message))
+    def add(uid, oid, title, msg):
+        run("INSERT INTO notifications (user_id,order_id,title,message) VALUES (%s,%s,%s,%s)", (uid,oid,title,msg))
 
     @staticmethod
-    def list(user_id, limit=10):
-        return query("SELECT * FROM notifications WHERE user_id=%s ORDER BY created_at DESC LIMIT %s",
-                     (user_id, limit), fetchall=True) or []
+    def for_user(uid, n=10):
+        return run("SELECT * FROM notifications WHERE user_id=%s ORDER BY created_at DESC LIMIT %s", (uid,n), many=True)
 
     @staticmethod
-    def unread_count(user_id):
-        row = query("SELECT COUNT(*) as cnt FROM notifications WHERE user_id=%s AND is_read=FALSE",
-                    (user_id,), fetchone=True)
-        return row["cnt"] if row else 0
+    def unread(uid):
+        r = run("SELECT COUNT(*) n FROM notifications WHERE user_id=%s AND is_read=FALSE", (uid,), one=True)
+        return r["n"] if r else 0
 
     @staticmethod
-    def mark_read(notif_id, user_id):
-        query("UPDATE notifications SET is_read=TRUE WHERE id=%s AND user_id=%s", (notif_id, user_id))
+    def mark_read(nid, uid):
+        run("UPDATE notifications SET is_read=TRUE WHERE id=%s AND user_id=%s", (nid,uid))
 
     @staticmethod
-    def mark_all_read(user_id):
-        query("UPDATE notifications SET is_read=TRUE WHERE user_id=%s", (user_id,))
-
-    @staticmethod
-    def count_customers():
-        row = query("SELECT COUNT(*) as cnt FROM users WHERE role='customer'", fetchone=True)
-        return row["cnt"] if row else 0
-
-    @staticmethod
-    def list_customers(search=None, page=1, per_page=20):
-        conditions, params = [], []
-        if search:
-            conditions.append("(full_name ILIKE %s OR email ILIKE %s)")
-            params += [f"%{search}%", f"%{search}%"]
-        where = ("WHERE role='customer' AND " + " AND ".join(conditions)) if conditions else "WHERE role='customer'"
-        total = query(f"SELECT COUNT(*) as cnt FROM users {where}", params, fetchone=True)["cnt"]
-        offset = (page - 1) * per_page
-        rows = query(f"SELECT * FROM users {where} ORDER BY created_at DESC LIMIT %s OFFSET %s",
-                     params + [per_page, offset], fetchall=True) or []
-        return rows, total
+    def mark_all(uid):
+        run("UPDATE notifications SET is_read=TRUE WHERE user_id=%s", (uid,))

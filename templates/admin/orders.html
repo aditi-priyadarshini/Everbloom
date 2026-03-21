@@ -1,56 +1,52 @@
 {% extends "admin/base.html" %}
 {% block page_title %}Orders{% endblock %}
-{% block topbar_actions %}<span style="font-size:13px;color:var(--text-muted)">{{ pagination.total }} orders</span>{% endblock %}
+{% block topbar %}<span style="font-size:13px;color:var(--muted)">{{ total }} orders</span>{% endblock %}
+
 {% block content %}
-<!-- Filter Tabs -->
-<div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap">
-  <a href="{{ url_for('admin.orders') }}" class="filter-tab {% if not status_filter %}active{% endif %}">All</a>
-  <a href="{{ url_for('admin.orders', status='draft') }}" class="filter-tab {% if status_filter=='draft' %}active{% endif %}">👀 Pending Review</a>
-  <a href="{{ url_for('admin.orders', status='advance_requested') }}" class="filter-tab {% if status_filter=='advance_requested' %}active{% endif %}">💌 Advance Requested</a>
-  <a href="{{ url_for('admin.orders', status='advance_paid') }}" class="filter-tab {% if status_filter=='advance_paid' %}active{% endif %}">💳 Advance Paid</a>
-  <a href="{{ url_for('admin.orders', status='advance_confirmed') }}" class="filter-tab {% if status_filter=='advance_confirmed' %}active{% endif %}">✅ Confirmed</a>
-  <a href="{{ url_for('admin.orders', status='crafting') }}" class="filter-tab {% if status_filter=='crafting' %}active{% endif %}">🎨 Crafting</a>
-  <a href="{{ url_for('admin.orders', status='shipped') }}" class="filter-tab {% if status_filter=='shipped' %}active{% endif %}">🚚 Shipped</a>
-  <a href="{{ url_for('admin.orders', status='delivered') }}" class="filter-tab {% if status_filter=='delivered' %}active{% endif %}">🌸 Delivered</a>
-  <a href="{{ url_for('admin.orders', status='cancelled') }}" class="filter-tab {% if status_filter=='cancelled' %}active{% endif %}">❌ Cancelled</a>
+<div class="filter-tabs">
+  <a href="{{ url_for('admin.orders') }}"                        class="filter-tab {% if not status %}active{% endif %}">All</a>
+  <a href="{{ url_for('admin.orders', status='placed') }}"       class="filter-tab {% if status=='placed' %}active{% endif %}">📋 New</a>
+  <a href="{{ url_for('admin.orders', status='advance_requested') }}" class="filter-tab {% if status=='advance_requested' %}active{% endif %}">💌 Advance Sent</a>
+  <a href="{{ url_for('admin.orders', status='advance_paid') }}" class="filter-tab {% if status=='advance_paid' %}active{% endif %}">💳 Advance Paid</a>
+  <a href="{{ url_for('admin.orders', status='advance_confirmed') }}" class="filter-tab {% if status=='advance_confirmed' %}active{% endif %}">✅ Confirmed</a>
+  <a href="{{ url_for('admin.orders', status='crafting') }}"     class="filter-tab {% if status=='crafting' %}active{% endif %}">🎨 Crafting</a>
+  <a href="{{ url_for('admin.orders', status='shipped') }}"      class="filter-tab {% if status=='shipped' %}active{% endif %}">🚚 Shipped</a>
+  <a href="{{ url_for('admin.orders', status='delivered') }}"    class="filter-tab {% if status=='delivered' %}active{% endif %}">🌿 Delivered</a>
+  <a href="{{ url_for('admin.orders', status='cancelled') }}"    class="filter-tab {% if status=='cancelled' %}active{% endif %}">❌ Cancelled</a>
 </div>
-<div class="admin-table-wrap">
-  <div class="admin-table-header">
+
+<div class="admin-card">
+  <div class="admin-card-header">
     <form method="GET" style="display:flex;gap:10px;align-items:center">
-      <input type="hidden" name="status" value="{{ status_filter }}">
-      <div class="admin-search"><span class="admin-search-icon">🔍</span>
-        <input type="text" name="q" class="form-input" placeholder="Search customer..." value="{{ q }}">
-      </div>
-      <button class="btn btn-secondary btn-sm" type="submit">Search</button>
+      <input type="hidden" name="status" value="{{ status }}">
+      <input type="text" name="q" class="form-input" placeholder="Search customer..." value="{{ q }}" style="max-width:240px">
+      <button type="submit" class="btn btn-secondary btn-sm">Search</button>
     </form>
   </div>
-  <div class="table-scroll">
+  <div class="table-wrap">
     <table class="admin-table">
       <thead><tr><th>Order</th><th>Customer</th><th>Total</th><th>Advance</th><th>Status</th><th>Date</th><th></th></tr></thead>
       <tbody>
-        {% for order in orders %}
-        <tr onclick="location.href='{{ url_for('admin.order_detail', order_id=order.id) }}'" style="cursor:pointer">
-          <td><strong>#{{ "%04d"|format(order.id) }}</strong></td>
-          <td>
-            <div>{{ order.customer.full_name }}</div>
-            <div style="font-size:11px;color:var(--text-muted)">{{ order.customer.email }}</div>
-          </td>
-          <td><strong>₹{{ "{:,.0f}".format(order.total_amount) }}</strong></td>
-          <td>{% if order.advance_amount %}₹{{ "{:,.0f}".format(order.advance_amount) }}{% else %}—{% endif %}</td>
-          <td><span class="status-badge status-{{ order.status }}">{{ STATUS_ICONS.get(order.status,'📋') }} {{ order.status_label }}</span></td>
-          <td style="font-size:12px">{{ order.created_at.strftime('%d %b %Y') }}</td>
-          <td onclick="event.stopPropagation()"><a href="{{ url_for('admin.order_detail', order_id=order.id) }}" class="btn btn-sm btn-accent">Manage →</a></td>
+        {% for o in orders %}
+        <tr style="cursor:pointer" onclick="location.href='{{ url_for('admin.order_detail', oid=o.id) }}'">
+          <td><strong>#{{ "%04d"|format(o.id) }}</strong></td>
+          <td><div>{{ o.cust_name }}</div><div style="font-size:11px;color:var(--muted)">{{ o.cust_email }}</div></td>
+          <td><strong>₹{{ "{:,.0f}".format(o.total_amount|float) }}</strong></td>
+          <td>{% if o.advance_amount %}₹{{ "{:,.0f}".format(o.advance_amount|float) }}{% else %}<span style="color:var(--muted)">—</span>{% endif %}</td>
+          <td><span class="status-pill s-{{ o.status }}">{{ STATUS_ICONS.get(o.status,'📋') }} {{ STATUS_LABELS.get(o.status,o.status) }}</span></td>
+          <td style="font-size:12px">{{ o.created_at.strftime('%d %b %Y') }}</td>
+          <td onclick="event.stopPropagation()"><a href="{{ url_for('admin.order_detail', oid=o.id) }}" class="btn btn-clay btn-sm">Manage →</a></td>
         </tr>
         {% else %}
-        <tr><td colspan="7" style="text-align:center;padding:48px;color:var(--text-muted)">No orders found</td></tr>
+        <tr><td colspan="7" style="text-align:center;padding:48px;color:var(--muted)">No orders found</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
-  {% if pagination.pages > 1 %}
-  <div style="padding:16px 24px;display:flex;gap:8px;justify-content:center">
-    {% for p in pagination.iter_pages() %}
-      {% if p %}<a href="{{ url_for('admin.orders', status=status_filter, q=q, page=p) }}" class="btn btn-sm {% if p == pagination.page %}btn-primary{% else %}btn-secondary{% endif %}">{{ p }}</a>{% endif %}
+  {% if pages > 1 %}
+  <div style="padding:16px 20px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
+    {% for n in range(1,pages+1) %}
+    <a href="{{ url_for('admin.orders', status=status, q=q, page=n) }}" class="btn btn-sm {{ 'btn-primary' if n==page else 'btn-secondary' }}">{{ n }}</a>
     {% endfor %}
   </div>
   {% endif %}

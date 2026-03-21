@@ -1,26 +1,30 @@
 {% extends "admin/base.html" %}
 {% block page_title %}Customers{% endblock %}
 {% block content %}
-<div class="admin-table-wrap">
-  <div class="admin-table-header">
-    <form method="GET" style="display:flex;gap:10px"><div class="admin-search"><span class="admin-search-icon">🔍</span><input type="text" name="q" class="form-input" placeholder="Search..." value="{{ q }}"></div><button class="btn btn-secondary btn-sm" type="submit">Search</button></form>
-    <span style="font-size:13px;color:var(--text-muted)">{{ pagination.total }} customers</span>
+<div class="admin-card">
+  <div class="admin-card-header">
+    <form method="GET" style="display:flex;gap:10px">
+      <input type="text" name="q" class="form-input" placeholder="Search by name or email..." value="{{ q }}" style="max-width:280px">
+      <button type="submit" class="btn btn-secondary btn-sm">Search</button>
+    </form>
+    <span style="font-size:13px;color:var(--muted)">{{ total }} customers</span>
   </div>
-  <div class="table-scroll"><table class="admin-table">
-    <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Joined</th><th>Orders</th></tr></thead>
-    <tbody>
-      {% for c in customers %}
-      <tr>
-        <td>{{ c.full_name }}</td>
-        <td>{{ c.email }}</td>
-        <td>{{ c.phone or '—' }}</td>
-        <td style="font-size:12px">{{ c.created_at.strftime('%d %b %Y') }}</td>
-        <td>{{ c.orders.count() }}</td>
-      </tr>
-      {% else %}
-      <tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text-muted)">No customers yet</td></tr>
-      {% endfor %}
-    </tbody>
-  </table></div>
+  <div class="table-wrap">
+    <table class="admin-table">
+      <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Joined</th></tr></thead>
+      <tbody>
+        {% for c in customers %}
+        <tr>
+          <td style="font-weight:500">{{ c.full_name }}</td>
+          <td>{{ c.email }}</td>
+          <td>{{ c.phone or '—' }}</td>
+          <td style="font-size:12px">{{ c.created_at.strftime('%d %b %Y') }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" style="text-align:center;padding:48px;color:var(--muted)">No customers yet</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 {% endblock %}

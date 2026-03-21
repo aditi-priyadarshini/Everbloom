@@ -1,127 +1,162 @@
-// ============================================================
-// EVERBLOOM — Main JS (Flask edition)
-// ============================================================
+// Everbloom — main.js
 
-// ── Mobile Nav ───────────────────────────────────────────────
-function toggleMobileNav() {
-  const nav     = document.getElementById('mobile-nav');
-  const overlay = document.getElementById('nav-overlay');
-  if (nav)     nav.classList.toggle('open');
-  if (overlay) overlay.classList.toggle('open');
-  document.body.style.overflow = nav?.classList.contains('open') ? 'hidden' : '';
+// ── Mobile nav ────────────────────────────────────────────────
+function openMobileNav() {
+  document.getElementById('mobile-nav')?.classList.add('open');
+  document.getElementById('nav-overlay')?.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeMobileNav() {
+  document.getElementById('mobile-nav')?.classList.remove('open');
+  document.getElementById('nav-overlay')?.classList.remove('open');
+  document.body.style.overflow = '';
 }
 
-// ── Notification Bell ────────────────────────────────────────
-function toggleNotifDropdown() {
-  const dd = document.getElementById('notif-dropdown');
+// ── Admin sidebar ─────────────────────────────────────────────
+function toggleAdminSidebar() {
+  document.querySelector('.admin-sidebar')?.classList.toggle('open');
+  document.getElementById('admin-overlay')?.classList.toggle('open');
+}
+
+// ── Notification bell ─────────────────────────────────────────
+const notifWrap = () => document.getElementById('notif-dd');
+
+function toggleNotif() {
+  const dd = notifWrap();
   if (!dd) return;
-  const isOpen = dd.classList.toggle('open');
-  if (isOpen) loadNotifications();
+  const open = dd.classList.toggle('open');
+  if (open) loadNotifs();
 }
 
-async function loadNotifications() {
+async function loadNotifs() {
   const list = document.getElementById('notif-list');
   if (!list) return;
-
   try {
-    const res  = await fetch('/notifications');
-    const data = await res.json();
-
+    const data = await fetch('/api/notifications').then(r => r.json());
     if (!data.length) {
-      list.innerHTML = '<div style="padding:28px;text-align:center;color:var(--text-muted);font-size:14px">No notifications yet</div>';
+      list.innerHTML = '<div class="notif-empty">No notifications yet</div>';
       return;
     }
-
     list.innerHTML = data.map(n => `
-      <div class="notif-item ${n.is_read ? '' : 'unread'}"
-           onclick="markNotifRead(${n.id}, ${n.order_id || 'null'})">
-        <div style="font-size:13px;font-weight:${n.is_read ? '400' : '600'};color:var(--text-primary);margin-bottom:2px">${n.title}</div>
-        <div style="font-size:12px;color:var(--text-muted);line-height:1.4">${n.message}</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">${n.created_at}</div>
-      </div>
-    `).join('');
-  } catch (e) {
-    list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">Could not load notifications</div>';
+      <div class="notif-item ${n.is_read ? '' : 'unread'}" onclick="readNotif(${n.id}, ${n.order_id || 'null'})">
+        <div class="notif-item-title">${n.title}</div>
+        <div class="notif-item-msg">${n.message}</div>
+        <div class="notif-item-time">${n.time}</div>
+      </div>`).join('');
+  } catch(e) {
+    list.innerHTML = '<div class="notif-empty">Could not load notifications</div>';
   }
 }
 
-async function markNotifRead(notifId, orderId) {
-  await fetch(`/notifications/read/${notifId}`, { method: 'POST' });
-  if (orderId) window.location.href = `/orders/${orderId}/track`;
-  else loadNotifications();
+async function readNotif(id, orderId) {
+  await fetch(`/api/notifications/read/${id}`, {method:'POST'});
+  if (orderId) location.href = `/orders/${orderId}/track`;
+  else loadNotifs();
 }
 
-async function markAllRead() {
-  await fetch('/notifications/read-all', { method: 'POST' });
+async function readAllNotifs() {
+  await fetch('/api/notifications/read-all', {method:'POST'});
   document.getElementById('notif-badge').style.display = 'none';
-  loadNotifications();
+  loadNotifs();
 }
 
-// Poll notification count every 30s
-async function pollNotifCount() {
+async function pollNotifs() {
   const badge = document.getElementById('notif-badge');
   if (!badge) return;
   try {
-    const res   = await fetch('/notifications/count');
-    const data  = await res.json();
-    const count = data.count || 0;
-    badge.textContent = count;
-    badge.style.display = count > 0 ? 'flex' : 'none';
-  } catch (e) {}
+    const d = await fetch('/api/notifications/count').then(r => r.json());
+    const n = d.n || 0;
+    badge.textContent = n;
+    badge.style.display = n > 0 ? 'flex' : 'none';
+  } catch(e) {}
 }
 
-// Close notification dropdown on outside click
-document.addEventListener('click', (e) => {
-  const dd  = document.getElementById('notif-dropdown');
-  const btn = document.getElementById('notif-btn');
-  if (dd && !dd.contains(e.target) && btn && !btn.contains(e.target)) {
-    dd.classList.remove('open');
-  }
+// Close notif dropdown on outside click
+document.addEventListener('click', e => {
+  const wrap = document.getElementById('notif-wrap');
+  if (wrap && !wrap.contains(e.target)) notifWrap()?.classList.remove('open');
 });
 
-// ── Auto-dismiss flash messages ──────────────────────────────
-function initFlashMessages() {
-  document.querySelectorAll('.flash').forEach(flash => {
+// ── Flash auto-dismiss ────────────────────────────────────────
+function initFlash() {
+  document.querySelectorAll('.flash').forEach(el => {
     setTimeout(() => {
-      flash.style.animation = 'slideIn 0.3s ease reverse';
-      setTimeout(() => flash.remove(), 300);
-    }, 4500);
+      el.style.transition = 'opacity .3s';
+      el.style.opacity = '0';
+      setTimeout(() => el.remove(), 300);
+    }, 4000);
   });
 }
 
-// ── Image upload preview (shared) ───────────────────────────
-function previewImages(files, previewGridId = 'preview-grid') {
-  const grid = document.getElementById(previewGridId);
-  if (!grid) return;
-  grid.innerHTML = '';
-  Array.from(files).forEach((file, i) => {
-    if (!file.type.startsWith('image/')) return;
-    const url = URL.createObjectURL(file);
-    grid.innerHTML += `
-      <div class="img-preview-item">
-        <img src="${url}" alt="Preview ${i + 1}">
-        ${i === 0 ? '<div style="position:absolute;bottom:4px;left:4px;background:var(--brown-accent);color:white;font-size:9px;padding:2px 6px;border-radius:2px;letter-spacing:1px">MAIN</div>' : ''}
-      </div>`;
+// ── Image upload preview ──────────────────────────────────────
+function initUploadArea() {
+  const area  = document.getElementById('upload-area');
+  const input = document.getElementById('img-input');
+  const grid  = document.getElementById('img-preview-grid');
+  if (!area || !input || !grid) return;
+
+  area.addEventListener('click', () => input.click());
+  area.addEventListener('dragover', e => { e.preventDefault(); area.classList.add('drag'); });
+  area.addEventListener('dragleave', () => area.classList.remove('drag'));
+  area.addEventListener('drop', e => {
+    e.preventDefault(); area.classList.remove('drag');
+    addFiles(e.dataTransfer.files);
   });
+  input.addEventListener('change', () => addFiles(input.files));
+
+  function addFiles(files) {
+    Array.from(files).forEach((f, i) => {
+      if (!f.type.startsWith('image/')) return;
+      const url = URL.createObjectURL(f);
+      const idx = grid.children.length;
+      grid.insertAdjacentHTML('beforeend', `
+        <div class="img-thumb" id="thumb-${idx}">
+          <img src="${url}">
+          ${idx === 0 ? '<span style="position:absolute;bottom:3px;left:3px;background:var(--clay);color:#fff;font-size:9px;padding:1px 5px;border-radius:2px">Main</span>' : ''}
+          <button class="img-thumb-rm" onclick="removeThumb(${idx})" type="button">×</button>
+        </div>`);
+    });
+  }
 }
 
-// ── CSRF token helper for fetch() calls ──────────────────────
-function getCsrfToken() {
-  const meta = document.querySelector('meta[name="csrf-token"]');
-  if (meta) return meta.getAttribute('content');
-  // fallback: grab from any hidden csrf input on the page
-  const input = document.querySelector('input[name="csrf_token"]');
-  return input ? input.value : '';
+function removeThumb(idx) {
+  document.getElementById(`thumb-${idx}`)?.remove();
 }
 
-// ── Format price (used in JS calculations) ───────────────────
-function formatPrice(amount) {
-  return '₹' + Number(amount).toLocaleString('en-IN', { minimumFractionDigits: 0 });
+// ── Final price calculator (product form) ─────────────────────
+function calcFinal() {
+  const price = parseFloat(document.getElementById('price-input')?.value) || 0;
+  const disc  = parseFloat(document.getElementById('disc-input')?.value) || 0;
+  const el    = document.getElementById('final-display');
+  if (el) el.textContent = '₹' + (price * (1 - disc/100)).toLocaleString('en-IN', {maximumFractionDigits: 0});
 }
 
-// ── On DOM ready ─────────────────────────────────────────────
+// ── Qty controls ──────────────────────────────────────────────
+function changeQty(delta) {
+  const input = document.getElementById('qty-input');
+  if (!input) return;
+  const max = parseInt(input.max) || 999;
+  input.value = Math.max(1, Math.min(max, parseInt(input.value || 1) + delta));
+}
+
+// ── Payment screenshot preview ────────────────────────────────
+function previewProof(input) {
+  const f = input.files[0];
+  if (!f) return;
+  const url = URL.createObjectURL(f);
+  const el  = document.getElementById('proof-preview');
+  if (el) {
+    el.innerHTML = `<img src="${url}" style="max-width:100%;max-height:200px;border-radius:var(--r);border:1.5px solid var(--border)">
+      <p style="font-size:12px;color:var(--success);margin-top:6px;text-align:center">✓ Screenshot selected</p>`;
+  }
+  document.getElementById('upload-prompt')?.style && (document.getElementById('upload-prompt').style.display = 'none');
+}
+
+// ── Init ──────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  initFlashMessages();
-  pollNotifCount();
-  setInterval(pollNotifCount, 30000);
+  initFlash();
+  initUploadArea();
+  pollNotifs();
+  setInterval(pollNotifs, 30000);
+  calcFinal();
 });

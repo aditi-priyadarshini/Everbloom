@@ -1,212 +1,187 @@
 {% extends "admin/base.html" %}
-{% block title %}Order #{{ "%04d"|format(order.id) }} — Admin{% endblock %}
-{% block page_title %}Order #{{ "%04d"|format(order.id) }}{% endblock %}
-{% block topbar_actions %}
-<a href="{{ url_for('admin.orders') }}" class="btn btn-secondary btn-sm">← All Orders</a>
-{% endblock %}
+{% block page_title %}Order #{{ "%04d"|format(o.id) }}{% endblock %}
+{% block topbar %}<a href="{{ url_for('admin.orders') }}" class="btn btn-secondary btn-sm">← All Orders</a>{% endblock %}
 
 {% block content %}
-<div style="display:grid;grid-template-columns:1fr 380px;gap:24px;align-items:start">
+<div style="display:grid;grid-template-columns:1fr 360px;gap:24px;align-items:start">
 
-  <!-- LEFT: Order Info -->
+  <!-- LEFT -->
   <div>
-
-    <!-- Customer + Address -->
+    <!-- Customer & address -->
     <div class="admin-card" style="margin-bottom:16px">
-      <div class="admin-card-header">Customer & Delivery</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <div class="admin-card-header"><h3>Customer & Delivery</h3></div>
+      <div style="padding:20px;display:grid;grid-template-columns:1fr 1fr;gap:20px">
         <div>
-          <p class="info-label">Customer</p>
-          <p style="font-weight:500;margin-bottom:2px">{{ order.customer.full_name }}</p>
-          <p style="font-size:13px;color:var(--text-muted)">{{ order.customer.email }}</p>
-          <p style="font-size:13px;color:var(--text-muted)">{{ order.customer.phone or '—' }}</p>
+          <p style="font-size:10px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">Customer</p>
+          <p style="font-weight:500;margin-bottom:2px">{{ o.cust_name }}</p>
+          <p style="font-size:13px;color:var(--muted)">{{ o.cust_email }}</p>
+          <p style="font-size:13px;color:var(--muted)">{{ o.addr_phone }}</p>
         </div>
         <div>
-          <p class="info-label">Delivery Address</p>
-          <p style="font-size:14px;color:var(--text-secondary);line-height:1.7">
-            {{ order.addr_name }}<br>
-            {{ order.addr_street }}<br>
-            {{ order.addr_city }}, {{ order.addr_state }} — {{ order.addr_pin }}<br>
-            📞 {{ order.addr_phone }}
+          <p style="font-size:10px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">Delivery</p>
+          <p style="font-size:14px;color:var(--text);line-height:1.8">
+            {{ o.addr_name }}<br>{{ o.addr_street }}<br>{{ o.addr_city }}, {{ o.addr_state }} — {{ o.addr_pin }}
           </p>
         </div>
       </div>
-      {% if order.notes %}
-      <div style="margin-top:12px;padding:12px;background:var(--cream);border-radius:var(--radius);font-size:13px;color:var(--text-secondary)">
-        <strong>Customer Note:</strong> {{ order.notes }}
+      {% if o.notes %}
+      <div style="padding:0 20px 16px">
+        <div style="background:var(--parchment);border-radius:var(--r);padding:10px 14px;font-size:13px;color:var(--text)">
+          <strong>Customer note:</strong> {{ o.notes }}
+        </div>
       </div>
       {% endif %}
     </div>
 
     <!-- Items -->
     <div class="admin-card" style="margin-bottom:16px">
-      <div class="admin-card-header">Order Items</div>
-      {% for item in order.items %}
-      <div style="display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--sand);align-items:center">
-        <div style="width:52px;height:52px;border-radius:var(--radius);overflow:hidden;background:var(--sand);flex-shrink:0">
-          {% if item.image_snap %}
-          <img src="{{ item.image_snap }}" style="width:100%;height:100%;object-fit:cover">
-          {% else %}
-          <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:20px">🎨</div>
-          {% endif %}
+      <div class="admin-card-header"><h3>Items Ordered</h3></div>
+      <div style="padding:4px 20px">
+        {% for item in items %}
+        <div style="display:flex;gap:14px;padding:14px 0;border-bottom:1px solid var(--mist);align-items:center">
+          <div style="width:48px;height:48px;border-radius:var(--r);overflow:hidden;background:var(--mist);flex-shrink:0">
+            {% if item.image_snap %}<img src="{{ item.image_snap }}" style="width:100%;height:100%;object-fit:cover">
+            {% else %}<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center">🎨</div>{% endif %}
+          </div>
+          <div style="flex:1">
+            <p style="font-size:14px;font-weight:500">{{ item.title_snap or item.prod_title or 'Product' }}</p>
+            <p style="font-size:12px;color:var(--muted)">Qty: {{ item.quantity }} × ₹{{ "{:,.0f}".format(item.unit_price|float) }}</p>
+          </div>
+          <strong>₹{{ "{:,.0f}".format((item.unit_price|float)*item.quantity) }}</strong>
         </div>
-        <div style="flex:1">
-          <p style="font-size:14px;font-weight:500">{{ item.title_snap or (item.product.title if item.product else 'Deleted product') }}</p>
-          <p style="font-size:12px;color:var(--text-muted)">Qty: {{ item.quantity }} × ₹{{ "{:,.0f}".format(item.unit_price) }}</p>
+        {% endfor %}
+        <div style="display:flex;justify-content:space-between;padding:14px 0;font-size:15px">
+          <span>Total</span><strong style="font-family:var(--serif);font-size:22px;color:var(--ink)">₹{{ "{:,.0f}".format(o.total_amount|float) }}</strong>
         </div>
-        <strong>₹{{ "{:,.0f}".format(item.subtotal) }}</strong>
+        {% if o.advance_amount %}
+        <div style="display:flex;justify-content:space-between;padding-bottom:14px;font-size:13px;color:var(--muted)">
+          <span>Advance</span><span>₹{{ "{:,.0f}".format(o.advance_amount|float) }}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding-bottom:14px;font-size:13px;color:var(--muted)">
+          <span>Balance on delivery</span><span>₹{{ "{:,.0f}".format((o.total_amount|float)-(o.advance_amount|float)) }}</span>
+        </div>
+        {% endif %}
       </div>
-      {% endfor %}
-      <div style="display:flex;justify-content:space-between;padding-top:14px;font-size:16px">
-        <span>Total</span>
-        <strong style="font-size:20px;color:var(--brown-dark)">₹{{ "{:,.0f}".format(order.total_amount) }}</strong>
-      </div>
-      {% if order.advance_amount %}
-      <div style="display:flex;justify-content:space-between;padding-top:6px;font-size:13px;color:var(--text-muted)">
-        <span>Advance</span>
-        <span>₹{{ "{:,.0f}".format(order.advance_amount) }}</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;padding-top:4px;font-size:13px;color:var(--text-muted)">
-        <span>Remaining on delivery</span>
-        <span>₹{{ "{:,.0f}".format(order.total_amount - order.advance_amount) }}</span>
-      </div>
-      {% endif %}
     </div>
 
-    <!-- Payment Proofs -->
-    {% if order.advance_proof or order.final_proof %}
+    <!-- Payment proof -->
+    {% if o.advance_proof %}
     <div class="admin-card" style="margin-bottom:16px">
-      <div class="admin-card-header">Payment Proofs</div>
-      {% if order.advance_proof %}
-      <div style="margin-bottom:12px">
-        <p class="info-label" style="margin-bottom:6px">Advance Payment Screenshot</p>
-        <a href="{{ order.advance_proof }}" target="_blank">
-          <img src="{{ order.advance_proof }}"
-               style="max-width:100%;max-height:240px;border-radius:var(--radius);border:1px solid var(--border);cursor:zoom-in">
+      <div class="admin-card-header"><h3>Advance Payment Screenshot</h3></div>
+      <div style="padding:16px 20px">
+        <a href="{{ o.advance_proof }}" target="_blank">
+          <img src="{{ o.advance_proof }}" style="max-width:100%;max-height:280px;border-radius:var(--r);border:1.5px solid var(--border);cursor:zoom-in">
         </a>
+        <p style="font-size:11px;color:var(--muted);margin-top:6px">Click to view full size</p>
       </div>
-      {% endif %}
     </div>
     {% endif %}
 
-    <!-- Tracking History -->
+    <!-- Tracking history -->
     <div class="admin-card">
-      <div class="admin-card-header">Tracking History</div>
-      {% if events %}
-      <div class="tracking-timeline">
-        {% for event in events|reverse %}
-        <div class="tracking-step completed">
-          <div class="tracking-step-dot"></div>
-          <div class="tracking-step-title">{{ STATUS_ICONS.get(event.status,'📋') }} {{ STATUS_LABELS.get(event.status, event.status) }}</div>
-          <div class="tracking-step-time">{{ event.created_at.strftime('%d %b %Y, %I:%M %p') }}
-            {% if event.actor %} · by {{ event.actor.full_name }}{% endif %}
+      <div class="admin-card-header"><h3>Tracking History</h3></div>
+      <div style="padding:16px 20px">
+        {% if events %}
+        <div class="timeline">
+          {% for e in events|reverse %}
+          <div class="tl-step">
+            <div class="tl-left">
+              <div class="tl-dot done">✓</div>
+              {% if not loop.last %}<div class="tl-line filled"></div>{% endif %}
+            </div>
+            <div class="tl-content">
+              <div class="tl-name" style="font-size:16px">{{ STATUS_LABELS.get(e.status, e.status) }}</div>
+              <div class="tl-time">{{ e.created_at.strftime('%d %b %Y, %I:%M %p') }}</div>
+              {% if e.note %}<div class="tl-note">{{ e.note }}</div>{% endif %}
+            </div>
           </div>
-          {% if event.note %}<div class="tracking-step-note">{{ event.note }}</div>{% endif %}
+          {% endfor %}
         </div>
-        {% endfor %}
+        {% else %}
+        <p style="color:var(--muted);font-size:13px">No tracking events yet.</p>
+        {% endif %}
       </div>
-      {% else %}
-      <p style="color:var(--text-muted);font-size:13px">No tracking events yet.</p>
-      {% endif %}
     </div>
   </div>
 
-  <!-- RIGHT: Status Update Panel -->
-  <div style="position:sticky;top:80px">
-    <!-- Current Status -->
-    <div class="admin-card" style="margin-bottom:16px;text-align:center;padding:20px">
-      <p class="info-label" style="margin-bottom:8px">Current Status</p>
-      <span class="status-badge status-{{ order.status }}" style="font-size:14px;padding:8px 16px">
-        {{ order.status_icon }} {{ order.status_label }}
-      </span>
-      <div style="margin-top:12px;font-size:12px;color:var(--text-muted)">
-        Created {{ order.created_at.strftime('%d %b %Y') }}
-      </div>
+  <!-- RIGHT: Status control -->
+  <div style="position:sticky;top:68px">
+    <!-- Current status -->
+    <div class="admin-card" style="margin-bottom:14px;text-align:center;padding:20px">
+      <p style="font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">Current Status</p>
+      <span class="status-pill s-{{ o.status }}" style="font-size:14px;padding:8px 18px">{{ STATUS_ICONS.get(o.status,'📋') }} {{ STATUS_LABELS.get(o.status,o.status) }}</span>
+      <p style="font-size:12px;color:var(--muted);margin-top:10px">{{ o.created_at.strftime('%d %b %Y at %I:%M %p') }}</p>
     </div>
 
-    <!-- ── NEW WORKFLOW ACTIONS ── -->
+    <!-- Update form -->
     <div class="admin-card">
-      <div class="admin-card-header">Update Order</div>
-      <form method="POST" action="{{ url_for('admin.order_update_status', order_id=order.id) }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="admin-card-header"><h3>Update Order</h3></div>
+      <div style="padding:20px">
+        <form method="POST" action="{{ url_for('admin.order_update', oid=o.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-        {% if order.status == 'draft' %}
-        <!-- STEP: Review → Request Advance Payment -->
-        <div style="background:rgba(196,154,60,0.08);border:1px solid rgba(196,154,60,0.2);border-radius:var(--radius);padding:14px;margin-bottom:16px;font-size:13px;color:var(--text-secondary)">
-          <strong>Action Required:</strong> Review this order and set the advance amount. The customer will receive an email with your UPI QR to pay.
-        </div>
-        <div class="form-group">
-          <label class="form-label">Advance Amount (₹) *</label>
-          <input type="number" name="advance_amount" class="form-input" placeholder="e.g. 500"
-                 value="{{ (order.total_amount * 0.3)|round|int }}" required min="1" step="1">
-          <p style="font-size:11px;color:var(--text-muted);margin-top:4px">Suggested: 30% = ₹{{ (order.total_amount * 0.3)|round|int }}</p>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Note to Customer (optional)</label>
-          <textarea name="admin_note" class="form-textarea" rows="2" placeholder="Any message for the customer..."></textarea>
-        </div>
-        <input type="hidden" name="status" value="advance_requested">
-        <button type="submit" class="btn btn-primary btn-full">
-          💌 Request Advance Payment & Email Customer
-        </button>
-        <button type="submit" name="status" value="cancelled" class="btn btn-full" style="margin-top:8px;background:rgba(192,97,74,0.1);color:var(--error);border:1px solid rgba(192,97,74,0.2)">
-          ❌ Decline Order
-        </button>
+          {% if o.status == 'placed' %}
+          <!-- Step: Review → Request advance -->
+          <div style="background:rgba(184,134,11,.08);border:1px solid rgba(184,134,11,.2);border-radius:var(--r);padding:12px;margin-bottom:16px;font-size:13px;color:var(--text)">
+            <strong>Review this order.</strong> Set the advance amount and click below — the customer will receive an email with your UPI QR.
+          </div>
+          <div class="form-group">
+            <label class="form-label">Advance Amount (₹) *</label>
+            <input type="number" name="advance" class="form-input" placeholder="e.g. 500" required min="1" step="1"
+                   value="{{ ((o.total_amount|float) * 0.3)|round|int }}">
+            <p style="font-size:11px;color:var(--muted);margin-top:4px">Suggested 30% = ₹{{ ((o.total_amount|float)*0.3)|round|int }}</p>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Note to Customer (optional)</label>
+            <textarea name="note" class="form-textarea" rows="2" placeholder="Any message for the customer..."></textarea>
+          </div>
+          <input type="hidden" name="status" value="advance_requested">
+          <button type="submit" class="btn btn-clay btn-full">💌 Request Advance & Email Customer</button>
+          <div style="margin-top:10px">
+            <button type="submit" name="status" value="cancelled" class="btn btn-full btn-sm" style="background:rgba(181,58,42,.08);color:var(--error);border:1px solid rgba(181,58,42,.2)">❌ Decline Order</button>
+          </div>
 
-        {% elif order.status == 'advance_paid' %}
-        <!-- STEP: Confirm Advance -->
-        <div style="background:rgba(106,155,110,0.08);border:1px solid rgba(106,155,110,0.2);border-radius:var(--radius);padding:14px;margin-bottom:16px;font-size:13px;color:var(--text-secondary)">
-          <strong>Customer has paid advance!</strong> Check the screenshot above, then confirm to officially accept the order.
-        </div>
-        <div class="form-group">
-          <label class="form-label">Note to Customer (optional)</label>
-          <textarea name="admin_note" class="form-textarea" rows="2" placeholder="e.g. Thank you! We'll start work soon."></textarea>
-        </div>
-        <input type="hidden" name="status" value="advance_confirmed">
-        <button type="submit" class="btn btn-primary btn-full" style="background:var(--success)">
-          ✅ Confirm Advance & Accept Order
-        </button>
-        <button type="submit" name="status" value="advance_requested" class="btn btn-full" style="margin-top:8px;border:1px solid var(--border)">
-          🔄 Re-request Payment (wrong amount?)
-        </button>
+          {% elif o.status == 'advance_paid' %}
+          <!-- Step: Confirm advance -->
+          <div style="background:rgba(74,124,89,.08);border:1px solid rgba(74,124,89,.2);border-radius:var(--r);padding:12px;margin-bottom:16px;font-size:13px;color:var(--text)">
+            <strong>Customer has paid!</strong> Check the screenshot above, then confirm to officially start crafting.
+          </div>
+          <div class="form-group">
+            <label class="form-label">Note (optional)</label>
+            <textarea name="note" class="form-textarea" rows="2" placeholder="e.g. Thank you! We'll start work soon."></textarea>
+          </div>
+          <input type="hidden" name="status" value="advance_confirmed">
+          <button type="submit" class="btn btn-full" style="background:var(--success);color:#fff;padding:12px;border-radius:var(--r);font-size:13px;font-weight:500;cursor:pointer;border:none;font-family:var(--sans)">✅ Confirm Advance & Begin Crafting</button>
+          <div style="margin-top:8px">
+            <button type="submit" name="status" value="advance_requested" class="btn btn-secondary btn-full btn-sm">🔄 Re-request Payment</button>
+          </div>
 
-        {% else %}
-        <!-- REGULAR WORKFLOW STEPS -->
-        <div class="form-group">
-          <label class="form-label">New Status</label>
-          <select name="status" class="form-select">
-            <option value="">— Select next step —</option>
-            {% for key, label, icon in ORDER_STATUSES %}
-            {% if key not in ['draft','pending_review','advance_requested','advance_paid'] %}
-            <option value="{{ key }}" {% if key == STATUS_KEYS[order.status_index + 1] if order.status_index < STATUS_KEYS|length - 1 else '' %}selected{% endif %}>
-              {{ icon }} {{ label }}
-            </option>
-            {% endif %}
-            {% endfor %}
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Note to Customer (optional)</label>
-          <textarea name="admin_note" class="form-textarea" rows="3"
-                    placeholder="e.g. Shipped via India Post. Tracking: AB123456789IN"></textarea>
-        </div>
-        <button type="submit" class="btn btn-primary btn-full">
-          Update Status & Send Email
-        </button>
-        {% endif %}
-      </form>
-    </div>
-
-    <!-- Customer Actions -->
-    <div class="admin-card" style="margin-top:16px">
-      <div class="admin-card-header">Quick Info</div>
-      <div style="font-size:13px;color:var(--text-secondary);display:flex;flex-direction:column;gap:8px">
-        <div>📧 <a href="mailto:{{ order.customer.email }}" style="color:var(--brown-accent)">{{ order.customer.email }}</a></div>
-        {% if order.customer.phone %}<div>📞 {{ order.customer.phone }}</div>{% endif %}
-        <div>🗓 Ordered {{ order.created_at.strftime('%d %b %Y at %I:%M %p') }}</div>
-        {% if order.delivered_at %}<div>🌸 Delivered {{ order.delivered_at.strftime('%d %b %Y') }}</div>{% endif %}
+          {% else %}
+          <!-- Regular status flow -->
+          <div class="form-group">
+            <label class="form-label">New Status</label>
+            <select name="status" class="form-select">
+              <option value="">— Select —</option>
+              {% for key, label, icon in STATUSES %}
+              {% if key not in ('placed','advance_requested','advance_paid') %}
+              <option value="{{ key }}">{{ icon }} {{ label }}</option>
+              {% endif %}
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Note to Customer (optional)</label>
+            <textarea name="note" class="form-textarea" rows="3" placeholder="e.g. Shipped via India Post. Tracking: AB123456789IN"></textarea>
+          </div>
+          <button type="submit" class="btn btn-clay btn-full">Update & Send Email</button>
+          {% endif %}
+        </form>
       </div>
     </div>
   </div>
 </div>
+
+<style>
+@media(max-width:900px){ .admin-content > div[style*="grid-template-columns:1fr 360px"]{grid-template-columns:1fr !important} div[style*="position:sticky;top:68px"]{position:static !important} }
+</style>
 {% endblock %}

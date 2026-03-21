@@ -1,97 +1,75 @@
 {% extends "base.html" %}
-{% block title %}Track Order #{{ "%04d"|format(order.id) }} — {{ store_name }}{% endblock %}
-
-{% block head %}
-<style>
-.track-wrap { max-width:760px; margin:0 auto; padding:48px 20px 80px; }
-.timeline { position:relative; padding:8px 0; }
-.timeline::before { content:''; position:absolute; left:27px; top:0; bottom:0; width:2px; background:var(--border); z-index:0; }
-.tl-step { display:flex; gap:20px; position:relative; z-index:1; margin-bottom:0; }
-.tl-dot-col { display:flex; flex-direction:column; align-items:center; flex-shrink:0; }
-.tl-dot { width:56px; height:56px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:22px; border:2px solid var(--border); background:white; box-shadow:var(--shadow-sm); transition:all 0.4s ease; }
-.tl-dot.completed { background:var(--brown-accent); border-color:var(--brown-accent); filter:none; }
-.tl-dot.current { background:var(--brown-dark); border-color:var(--brown-dark); box-shadow:0 0 0 5px rgba(44,24,16,0.1); }
-.tl-dot.pending { opacity:0.4; }
-.tl-connector { width:2px; flex:1; min-height:20px; background:var(--border); }
-.tl-connector.filled { background:var(--brown-accent); }
-.tl-content { padding:10px 0 28px; flex:1; }
-.tl-label { font-size:10px; font-weight:600; letter-spacing:1.5px; text-transform:uppercase; color:var(--text-muted); margin-bottom:2px; }
-.tl-title { font-family:var(--font-display); font-size:20px; margin-bottom:2px; }
-.tl-note { margin-top:8px; padding:10px 14px; background:rgba(139,94,60,0.06); border-left:3px solid var(--brown-accent); border-radius:0 var(--radius) var(--radius) 0; font-size:13px; color:var(--text-secondary); }
-</style>
-{% endblock %}
-
+{% block title %}Track Order #{{ "%04d"|format(o.id) }} — {{ store_name }}{% endblock %}
 {% block content %}
-<div class="page-header"><h1>Track Order</h1><p>Live updates every step of the way</p></div>
+<div class="page-header"><h1>Track Order</h1><p>#{{ "%04d"|format(o.id) }}</p></div>
 
-<div class="track-wrap">
-  <!-- Order Header -->
-  <div style="background:white;border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px 28px;margin-bottom:28px">
+<div class="container" style="max-width:760px;padding-top:40px;padding-bottom:80px">
+
+  <!-- Header card -->
+  <div style="background:white;border:1.5px solid var(--border);border-radius:var(--rl);padding:24px 28px;margin-bottom:24px">
     <div style="display:flex;flex-wrap:wrap;gap:20px;justify-content:space-between;align-items:center">
       <div>
-        <p style="font-size:11px;color:var(--text-muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px">Order</p>
-        <p style="font-size:20px;font-weight:600">#{{ "%04d"|format(order.id) }}</p>
-        <p style="font-size:13px;color:var(--text-muted)">{{ order.created_at.strftime('%d %b %Y') }}</p>
+        <p style="font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px">Order ID</p>
+        <p style="font-size:20px;font-weight:500;color:var(--ink)">#{{ "%04d"|format(o.id) }}</p>
+        <p style="font-size:12px;color:var(--muted)">{{ o.created_at.strftime('%d %b %Y') }}</p>
       </div>
-      <div>
-        <p style="font-size:11px;color:var(--text-muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px">Total</p>
-        <p style="font-family:var(--font-display);font-size:24px;color:var(--brown-dark)">₹{{ "{:,.0f}".format(order.total_amount) }}</p>
-        {% if order.advance_amount %}
-        <p style="font-size:12px;color:var(--text-muted)">Advance: ₹{{ "{:,.0f}".format(order.advance_amount) }}</p>
+      <div style="text-align:center">
+        <p style="font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px">Total</p>
+        <p style="font-family:var(--serif);font-size:26px;color:var(--ink)">₹{{ "{:,.0f}".format(o.total_amount|float) }}</p>
+        {% if o.advance_amount %}
+        <p style="font-size:12px;color:var(--muted)">Advance: ₹{{ "{:,.0f}".format(o.advance_amount|float) }}</p>
         {% endif %}
       </div>
       <div>
-        <p style="font-size:11px;color:var(--text-muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">Status</p>
-        <span class="status-badge status-{{ order.status }}">{{ order.status_icon }} {{ order.status_label }}</span>
+        <p style="font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px">Status</p>
+        <span class="status-pill s-{{ o.status }}">{{ STATUS_ICONS.get(o.status,'📋') }} {{ STATUS_LABELS.get(o.status, o.status) }}</span>
       </div>
     </div>
-    {% if order.admin_note %}
-    <div style="margin-top:16px;padding:12px 16px;background:var(--cream);border-radius:var(--radius);border-left:3px solid var(--brown-accent);font-size:13px;color:var(--text-secondary)">
-      <strong>Note from our team:</strong> {{ order.admin_note }}
+    {% if o.admin_note %}
+    <div style="margin-top:16px;padding:12px 16px;background:var(--parchment);border-radius:var(--r);border-left:3px solid var(--clay);font-size:13px;color:var(--text)">
+      <strong>Note from our team:</strong> {{ o.admin_note }}
     </div>
     {% endif %}
   </div>
 
-  <!-- Pay Advance CTA -->
-  {% if order.status == 'advance_requested' %}
-  <div style="background:rgba(139,94,60,0.08);border:2px solid var(--brown-accent);border-radius:var(--radius-lg);padding:20px 24px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+  <!-- Advance payment CTA -->
+  {% if o.status == 'advance_requested' %}
+  <div style="background:white;border:2px solid var(--clay);border-radius:var(--rl);padding:20px 24px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px">
     <div>
-      <p style="font-size:15px;font-weight:600;color:var(--brown-dark);margin-bottom:4px">💌 Action Required — Pay Advance</p>
-      <p style="font-size:13px;color:var(--text-secondary)">Pay ₹{{ "{:,.0f}".format(order.advance_amount) }} via UPI to confirm your order and begin crafting.</p>
+      <p style="font-size:15px;font-weight:500;color:var(--ink);margin-bottom:4px">💌 Action Required — Pay Advance</p>
+      <p style="font-size:13px;color:var(--muted)">Pay ₹{{ "{:,.0f}".format(o.advance_amount|float) }} via UPI to confirm your order and begin crafting.</p>
     </div>
-    <a href="{{ url_for('orders.pay_advance', order_id=order.id) }}" class="btn btn-accent btn-lg">Pay Now →</a>
+    <a href="{{ url_for('orders.pay_advance', oid=o.id) }}" class="btn btn-clay btn-lg">Pay Now →</a>
   </div>
   {% endif %}
 
-  <!-- Tracking Timeline -->
-  <div style="background:white;border:1px solid var(--border);border-radius:var(--radius-lg);padding:28px;margin-bottom:24px">
-    <h3 style="font-family:var(--font-display);font-size:22px;margin-bottom:28px">Order Journey</h3>
+  <!-- Timeline -->
+  <div style="background:white;border:1.5px solid var(--border);border-radius:var(--rl);padding:28px;margin-bottom:24px">
+    <h3 style="font-family:var(--serif);font-size:22px;margin-bottom:28px">Order Journey</h3>
     <div class="timeline">
-      {% set status_list = ORDER_STATUSES|selectattr(0, 'ne', 'cancelled')|list %}
-      {% set current_idx = namespace(val=0) %}
-      {% for key, label, icon in status_list %}
-        {% if key == order.status %}{% set current_idx.val = loop.index0 %}{% endif %}
-      {% endfor %}
+      {% set visible = STATUSES | rejectattr(0, 'equalto', 'cancelled') | list %}
+      {% set current_idx = namespace(v=0) %}
+      {% for key, label, icon in visible %}{% if key == o.status %}{% set current_idx.v = loop.index0 %}{% endif %}{% endfor %}
 
-      {% for key, label, icon in status_list %}
+      {% for key, label, icon in visible %}
       {% set idx = loop.index0 %}
-      {% set is_done = idx < current_idx.val or (idx == current_idx.val and order.status != 'draft') %}
-      {% set is_current = key == order.status %}
-      {% set event = event_map.get(key) %}
+      {% set is_done    = idx < current_idx.v %}
+      {% set is_current = key == o.status %}
+      {% set event      = event_map.get(key) %}
       <div class="tl-step">
-        <div class="tl-dot-col">
-          <div class="tl-dot {{ 'completed' if is_done and not is_current else 'current' if is_current else 'pending' }}">
+        <div class="tl-left">
+          <div class="tl-dot {{ 'done' if is_done and not is_current else 'current' if is_current else 'pending' }}">
             {{ '✓' if (is_done and not is_current) else icon }}
           </div>
           {% if not loop.last %}
-          <div class="tl-connector {{ 'filled' if is_done and not is_current else '' }}"></div>
+          <div class="tl-line {{ 'filled' if is_done and not is_current else '' }}"></div>
           {% endif %}
         </div>
         <div class="tl-content">
           <div class="tl-label">{{ 'Completed' if (is_done and not is_current) else 'Current Step' if is_current else 'Upcoming' }}</div>
-          <div class="tl-title" style="color:{{ 'var(--brown-dark)' if is_current else 'var(--brown-mid)' if is_done else 'var(--text-muted)' }}">{{ label }}</div>
+          <div class="tl-name" style="color:{{ 'var(--ink)' if is_current else 'var(--text)' if is_done else 'var(--muted)' }}">{{ label }}</div>
           {% if event %}
-          <div style="font-size:12px;color:var(--text-muted)">{{ event.created_at.strftime('%d %b %Y, %I:%M %p') }}</div>
+          <div class="tl-time">{{ event.created_at.strftime('%d %b %Y, %I:%M %p') }}</div>
           {% if event.note %}<div class="tl-note">{{ event.note }}</div>{% endif %}
           {% endif %}
         </div>
@@ -101,30 +79,30 @@
   </div>
 
   <!-- Items -->
-  <div style="background:white;border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;margin-bottom:24px">
-    <h3 style="font-family:var(--font-display);font-size:20px;margin-bottom:16px">Items</h3>
-    {% for item in order.items %}
-    <div style="display:flex;gap:14px;padding:10px 0;border-bottom:1px solid var(--sand);align-items:center">
-      <div style="width:48px;height:48px;border-radius:var(--radius);overflow:hidden;background:var(--sand);flex-shrink:0">
+  <div style="background:white;border:1.5px solid var(--border);border-radius:var(--rl);padding:24px;margin-bottom:24px">
+    <h3 style="font-family:var(--serif);font-size:20px;margin-bottom:16px">Items</h3>
+    {% for item in items %}
+    <div style="display:flex;gap:14px;padding:10px 0;border-bottom:1px solid var(--mist);align-items:center">
+      <div style="width:48px;height:48px;border-radius:var(--r);overflow:hidden;background:var(--mist);flex-shrink:0">
         {% if item.image_snap %}<img src="{{ item.image_snap }}" style="width:100%;height:100%;object-fit:cover">
-        {% else %}<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:18px">🎨</div>{% endif %}
+        {% else %}<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center">🎨</div>{% endif %}
       </div>
       <div style="flex:1">
-        <p style="font-size:14px;font-weight:500">{{ item.title_snap or 'Product' }}</p>
-        <p style="font-size:12px;color:var(--text-muted)">Qty: {{ item.quantity }} × ₹{{ "{:,.0f}".format(item.unit_price) }}</p>
+        <p style="font-size:14px;font-weight:500">{{ item.title_snap or item.prod_title or 'Product' }}</p>
+        <p style="font-size:12px;color:var(--muted)">Qty: {{ item.quantity }} × ₹{{ "{:,.0f}".format(item.unit_price|float) }}</p>
       </div>
-      <strong>₹{{ "{:,.0f}".format(item.subtotal) }}</strong>
+      <strong>₹{{ "{:,.0f}".format((item.unit_price|float) * item.quantity) }}</strong>
     </div>
     {% endfor %}
   </div>
 
   <!-- Address -->
-  <div style="background:white;border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px">
-    <h3 style="font-family:var(--font-display);font-size:20px;margin-bottom:12px">Delivery Address</h3>
-    <p style="font-size:14px;color:var(--text-secondary);line-height:1.8">
-      {{ order.addr_name }}<br>{{ order.addr_street }}<br>
-      {{ order.addr_city }}, {{ order.addr_state }} — {{ order.addr_pin }}<br>
-      📞 {{ order.addr_phone }}
+  <div style="background:white;border:1.5px solid var(--border);border-radius:var(--rl);padding:24px">
+    <h3 style="font-family:var(--serif);font-size:20px;margin-bottom:12px">Delivery Address</h3>
+    <p style="font-size:14px;color:var(--text);line-height:1.8">
+      {{ o.addr_name }}<br>{{ o.addr_street }}<br>
+      {{ o.addr_city }}, {{ o.addr_state }} — {{ o.addr_pin }}<br>
+      📞 {{ o.addr_phone }}
     </p>
   </div>
 </div>

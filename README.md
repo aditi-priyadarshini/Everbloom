@@ -1,217 +1,147 @@
-# 🌸 Everbloom — Flask + Supabase + Vercel
+# 🌿 Everbloom — Flask + Supabase + Vercel
 
-Serverless Flask e-commerce store for handcrafted art.  
-**Stack:** Flask · psycopg2 · Supabase (Postgres + Storage) · Flask-Mail · Vercel
-
----
-
-## 🔄 Order Workflow
-
-```
-📋  Customer places order  →  Email: "We'll review it soon"
-💌  Admin reviews + sets advance amount  →  Email with UPI QR sent to customer
-💳  Customer pays + uploads screenshot
-✅  Admin confirms screenshot  →  Email: "Advance confirmed, crafting begins!"
-🎨  accepted → 🪵 material_sourced → ✂️ crafting → 🔍 quality_check
-📦  packed → 🚚 shipped → 🌸 delivered
-```
+Handcrafted art & craft e-commerce store. Serverless-ready, fully tested.
 
 ---
 
-## 🚀 Deploy to Vercel in 5 Steps
+## ✨ Order Workflow
 
-### Step 1 — Create Supabase Project
-
-1. Go to [supabase.com](https://supabase.com) → **New Project**
-2. Note down your project **ref** (e.g. `abcdefghij`)
-3. Go to **Settings → Database → Connection String**
-4. Select **"Transaction"** pooler mode (port **6543**) — required for serverless!
-5. Copy the URI — it looks like:
-   ```
-   postgresql://postgres.abcdefghij:PASSWORD@aws-0-ap-south-1.pooler.supabase.com:6543/postgres
-   ```
-
-### Step 2 — Create Supabase Storage Buckets
-
-In Supabase → **Storage** → New Bucket:
-
-| Bucket name | Public? | Purpose |
-|---|---|---|
-| `product-images` | ✅ Yes | Product photos |
-| `payment-proofs` | ❌ No | Customer payment screenshots |
-| `qr-codes` | ✅ Yes | UPI QR code |
-
-### Step 3 — Initialise the Database
-
-After deploying (Step 5), visit:
 ```
-https://your-app.vercel.app/_init?secret=YOUR_INIT_SECRET
+📋 Customer places order  →  No payment yet
+💌 Admin reviews & sets advance amount  →  Email with UPI QR sent to customer
+💳 Customer pays & uploads screenshot
+✅ Admin confirms screenshot  →  Email: crafting begins!
+🎨 Crafting  →  🔍 Quality Check  →  🚚 Shipped  →  🌿 Delivered
 ```
-This creates all tables and seeds the 6 default categories.  
-Set `INIT_SECRET` as an env var in Vercel (any random string).
 
-### Step 4 — Push to GitHub
+---
 
+## 🚀 Deploy in 5 Steps
+
+### 1. Supabase Setup
+- Create project at [supabase.com](https://supabase.com)
+- **Settings → Database → Connection String → Transaction pooler (port 6543)** — copy this URI
+- Create 3 Storage buckets:
+  - `product-images` → Public
+  - `payment-proofs` → Private
+  - `qr-codes` → Public
+
+### 2. Push to GitHub
 ```bash
-git init
-git add .
-git commit -m "Initial commit"
+git init && git add . && git commit -m "init"
 git remote add origin https://github.com/yourname/everbloom.git
 git push -u origin main
 ```
 
-### Step 5 — Deploy on Vercel
+### 3. Deploy on Vercel
+- Import repo at [vercel.com](https://vercel.com)
+- Add these environment variables:
 
-1. Go to [vercel.com](https://vercel.com) → **New Project** → Import your GitHub repo
-2. Go to **Settings → Environment Variables** and add all of these:
+| Variable | Where to find |
+|---|---|
+| `SECRET_KEY` | Any long random string |
+| `DATABASE_URL` | Supabase → Settings → Database → Transaction pooler URI (port 6543) |
+| `SUPABASE_URL` | Supabase → Settings → API → Project URL |
+| `SUPABASE_SERVICE_KEY` | Supabase → Settings → API → service_role key |
+| `MAIL_SERVER` | `smtp.gmail.com` |
+| `MAIL_PORT` | `587` |
+| `MAIL_USE_TLS` | `true` |
+| `MAIL_USERNAME` | your Gmail address |
+| `MAIL_PASSWORD` | Gmail App Password (16 chars — see below) |
+| `MAIL_SENDER` | `Everbloom <you@gmail.com>` |
+| `STORE_NAME` | `Everbloom` |
+| `SITE_URL` | `https://your-app.vercel.app` |
+| `UPI_ID` | `yourname@upi` |
+| `INIT_SECRET` | Any random string (keep it secret) |
 
-| Variable | Value | Where to find |
-|---|---|---|
-| `SECRET_KEY` | Any long random string | Generate: `python3 -c "import secrets; print(secrets.token_hex(32))"` |
-| `DATABASE_URL` | Supabase Transaction pooler URI | Supabase → Settings → Database |
-| `SUPABASE_URL` | `https://xxxx.supabase.co` | Supabase → Settings → API |
-| `SUPABASE_KEY` | anon public key | Supabase → Settings → API |
-| `SUPABASE_SERVICE_KEY` | service_role key | Supabase → Settings → API |
-| `MAIL_SERVER` | `smtp.gmail.com` | — |
-| `MAIL_PORT` | `587` | — |
-| `MAIL_USE_TLS` | `true` | — |
-| `MAIL_USERNAME` | your Gmail address | — |
-| `MAIL_PASSWORD` | Gmail App Password (16 chars) | Google Account → Security → App Passwords |
-| `MAIL_DEFAULT_SENDER` | `Everbloom <you@gmail.com>` | — |
-| `STORE_NAME` | `Everbloom` | — |
-| `SITE_URL` | `https://your-app.vercel.app` | Your Vercel deployment URL |
-| `UPI_ID` | `yourname@upi` | Your UPI app |
-| `INIT_SECRET` | Any random string | Keep secret — for `/_ init` route |
+### 4. Initialise Database
+After deploying, visit once:
+```
+https://your-app.vercel.app/_init?secret=YOUR_INIT_SECRET
+```
+This creates all tables and seeds the 6 categories.
 
-3. Click **Deploy**
-4. After deploy, visit `https://your-app.vercel.app/_init?secret=YOUR_INIT_SECRET` once
-
----
-
-## 👤 Create First Admin User
-
+### 5. Create Admin User
 1. Sign up at `/auth/signup`
-2. In Supabase → **SQL Editor**, run:
+2. In Supabase → SQL Editor, run:
 ```sql
 UPDATE users SET role = 'admin' WHERE email = 'your@email.com';
 ```
-3. Log out and back in → you'll land on `/admin/`
+3. Log out and back in — you'll see the **Admin** button in the nav
 
 ---
 
-## 💳 Set Up UPI Payment
-
-Go to **Admin → Settings** and:
-1. Upload your UPI QR code image (from GPay / PhonePe / Paytm → Receive Money → Share QR)
-2. Enter your UPI ID
-
-The QR image is stored in Supabase Storage and shown on the advance payment page.
-
----
-
-## 📁 Project Structure
-
-```
-everbloom-vercel/
-├── app.py              ← Flask factory + Vercel entrypoint
-├── db.py               ← psycopg2 connection pool (no SQLAlchemy)
-├── models.py           ← SQL query helpers for all tables
-├── emails.py           ← All transactional email functions
-├── storage.py          ← Supabase Storage upload helpers
-├── vercel.json         ← Vercel routing config
-├── requirements.txt
-├── .env.example        ← Copy to .env for local dev
-├── .gitignore
-│
-├── routes/
-│   ├── shop.py         ← Home, shop, product, cart, checkout, notifications
-│   ├── auth.py         ← Login, signup, logout, profile
-│   ├── orders.py       ← My orders, track, advance payment upload
-│   └── admin.py        ← Dashboard, orders, products, customers, settings
-│
-├── templates/
-│   ├── base.html                ← Nav, footer, flash, mobile nav
-│   ├── admin/
-│   │   ├── base.html            ← Admin sidebar layout
-│   │   ├── dashboard.html       ← Stats cards + recent orders
-│   │   ├── orders.html          ← Orders list + filter tabs
-│   │   ├── order_detail.html    ← Manage order, confirm advance, update status
-│   │   ├── products.html        ← Products table
-│   │   ├── product_form.html    ← Add/edit product + image upload
-│   │   ├── customers.html
-│   │   └── settings.html        ← QR code + UPI ID
-│   ├── shop/
-│   │   ├── home.html
-│   │   ├── shop.html
-│   │   ├── product.html
-│   │   ├── cart.html
-│   │   ├── checkout.html
-│   │   ├── orders.html
-│   │   ├── track.html
-│   │   ├── pay_advance.html     ← UPI QR + screenshot upload
-│   │   └── _product_card.html
-│   ├── auth/
-│   │   ├── login.html
-│   │   ├── signup.html
-│   │   └── profile.html
-│   └── errors/
-│       ├── 404.html
-│       └── 500.html
-│
-└── static/
-    ├── css/style.css
-    ├── css/admin.css
-    └── js/main.js
-```
-
----
-
-## 💻 Local Development
-
-```bash
-python -m venv venv
-source venv/bin/activate     # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-cp .env.example .env         # Fill in your values
-python app.py
-```
-
-Then visit `http://localhost:5000/_init` once to create tables.
-
----
-
-## ⚠️ Why No SQLite / SQLAlchemy?
-
-Vercel is **serverless** — each request runs in a fresh container with no persistent filesystem. SQLite files vanish between requests. This app uses:
-
-- **psycopg2** → direct PostgreSQL connection (no ORM overhead)
-- **Supabase Transaction Pooler** (port 6543) → handles connection pooling for serverless
-- **Supabase Storage** → stores all uploaded images (no local disk writes)
-
----
-
-## 📧 Gmail App Password Setup
+## 💳 Gmail App Password Setup
 
 1. Enable 2-Step Verification on your Google Account
-2. Go to **Security → App passwords**
-3. Create one for "Mail" → copy the 16-character password
-4. Use it as `MAIL_PASSWORD` in Vercel env vars
-
-For production volume, switch to [Resend](https://resend.com), [Mailgun](https://mailgun.com), or [SendGrid](https://sendgrid.com) SMTP.
+2. Go to **myaccount.google.com → Security → App passwords**
+3. Generate one for "Mail"
+4. Use the 16-character password as `MAIL_PASSWORD`
 
 ---
 
-## 📊 Order Status Reference
+## 🗂️ Project Structure
 
-| Status | Triggered by | Email |
-|---|---|---|
-| `draft` | Customer places order | ✅ |
-| `advance_requested` | Admin sets advance amount | ✅ with UPI QR |
-| `advance_paid` | Customer uploads screenshot | — |
-| `advance_confirmed` | Admin confirms payment | ✅ |
-| `accepted` → `delivered` | Admin updates | ✅ each step |
-| `cancelled` | Admin | ✅ |
+```
+everbloom/
+├── app.py              ← Flask factory + Vercel entrypoint
+├── db.py               ← psycopg2 connection pool
+├── models.py           ← All DB query helpers
+├── emails.py           ← Transactional email functions
+├── storage.py          ← Supabase Storage uploads
+├── vercel.json         ← Vercel routing config
+├── requirements.txt
+├── .env.example
+│
+├── routes/
+│   ├── auth.py         ← Login, signup, logout, profile
+│   ├── shop.py         ← Home, shop, product, cart, checkout
+│   ├── orders.py       ← My orders, tracking, advance payment
+│   └── admin.py        ← Dashboard, order mgmt, products, settings
+│
+├── templates/
+│   ├── base.html
+│   ├── admin/          ← dashboard, orders, order_detail, products, settings
+│   ├── shop/           ← home, shop, product, cart, checkout, track, orders
+│   ├── auth/           ← login, signup, profile
+│   └── errors/         ← 404, 500
+│
+└── static/
+    ├── css/main.css    ← Full design system (Playfair + DM Sans, earthy tones)
+    └── js/main.js      ← Mobile nav, notifications, helpers
+```
 
 ---
 
-*Built with 🌸 — Everbloom Vercel Edition*
+## 🎨 Design
+
+- **Fonts** — Playfair Display (headings) + DM Sans (body)
+- **Palette** — Ink `#1C0A00` · Clay `#8B4513` · Terracotta `#C1440E` · Gold `#D4A96A` · Cream `#FDF8F3`
+- **Style** — Earthy, artisan, warm — designed specifically for a handcraft store
+
+---
+
+## 🔒 Security
+
+| What | How |
+|---|---|
+| Passwords | `werkzeug.security` PBKDF2-SHA256 |
+| Forms | CSRF on every POST via Flask-WTF |
+| Auth | Flask-Login `@login_required` |
+| Admin | `@admin_only` decorator on all admin routes |
+| Files | `secure_filename` + type whitelist |
+| Secrets | Environment variables only |
+| Login | Always redirects to homepage (never auto-opens admin) |
+
+---
+
+## ⚠️ Why psycopg2, not SQLAlchemy?
+
+Vercel is serverless — no persistent disk, no SQLite. This app uses:
+- **psycopg2** — direct Postgres, no ORM
+- **Supabase Transaction Pooler (port 6543)** — handles connection pooling for serverless
+- **Supabase Storage** — all uploaded images stored in cloud, not local disk
+
+---
+
+*Built with 🌿 for handcrafted art lovers*
