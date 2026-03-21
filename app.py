@@ -16,6 +16,9 @@ def create_app():
     )
     app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-me")
     app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
+    # Ensure static files work on Vercel
+    app.config["APPLICATION_ROOT"] = "/"
+    app.config["PREFERRED_URL_SCHEME"] = "https"
 
     # Mail config
     app.config["MAIL_SERVER"] = "smtp.gmail.com"
