@@ -24,18 +24,11 @@
         </div>
       </div>
       <div class="form-section">
-        <h3>Coupon / Gift Card</h3>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Coupon Code</label>
-            <input type="text" name="coupon_code" placeholder="e.g. SAVE20" class="coupon-input">
-          </div>
-          <div class="form-group">
-            <label>Gift Card Code</label>
-            <input type="text" name="gift_card_code" placeholder="e.g. GIFT-ABC123" class="coupon-input">
-          </div>
+        <h3>Coupon Code</h3>
+        <div class="coupon-row">
+          <input type="text" name="coupon_code" placeholder="Enter coupon code" class="coupon-input">
+          {% if coupon_error %}<p class="form-error">{{ coupon_error }}</p>{% endif %}
         </div>
-        {% if coupon_error %}<p class="form-error">{{ coupon_error }}</p>{% endif %}
       </div>
       <button type="submit" class="btn-primary btn-full">Place Order</button>
       <p class="checkout-note">No payment at checkout — we'll contact you for advance details.</p>
