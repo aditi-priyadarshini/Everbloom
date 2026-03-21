@@ -38,45 +38,7 @@ def track(oid):
     return render_template("shop/track.html", order=order, tracking=tracking)
 
 
-@orders_bp.route("/<oid>/detail")
-@login_required
-def order_detail(oid):
-    order = models.get_order(oid)
-    if not order or str(order["user_id"]) != session["user_id"]:
-        flash("Order not found.", "error")
-        return redirect(url_for("orders.orders_list"))
-    items = models.get_order_items(oid)
-    return render_template("shop/order_detail.html", order=order, items=items)
-
-
-@orders_bp.route("/<oid>/return", methods=["GET", "POST"])
-@login_required
-def request_return(oid):
-    order = models.get_order(oid)
-    if not order or str(order["user_id"]) != session["user_id"]:
-        flash("Order not found.", "error")
-        return redirect(url_for("orders.orders_list"))
-    if order["status"] != "delivered":
-        flash("Returns are only available for delivered orders.", "info")
-        return redirect(url_for("orders.order_detail", oid=oid))
-
-    if request.method == "POST":
-        image_url = None
-        img = request.files.get("image")
-        if img and img.filename:
-            path = f"returns/{uuid.uuid4()}-{img.filename}"
-            image_url = supa.upload_file("products", path, img.read(), img.content_type)
-        models.create_return({
-            "order_id": oid,
-            "user_id": session["user_id"],
-            "reason": request.form.get("reason", ""),
-            "description": request.form.get("description", ""),
-            "image_url": image_url,
-        })
-        flash("Return request submitted. We'll review it shortly.", "success")
-        return redirect(url_for("orders.order_detail", oid=oid))
-
-    return render_template("shop/return_request.html", order=order)
+@orders_bp.route("/<oid>/pay-advance", methods=["GET", "POST"])
 @login_required
 def pay_advance(oid):
     order = models.get_order(oid)
