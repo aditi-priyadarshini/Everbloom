@@ -1,30 +1,9 @@
-{% extends "admin/base_admin.html" %}
-{% block title %}Returns{% endblock %}
-{% block page_title %}Return Requests{% endblock %}
+{% extends "base.html" %}
+{% block title %}Coming Soon{% endblock %}
 {% block content %}
-<div class="filter-tabs">
-  <a href="{{ url_for('admin.returns') }}" class="tab {% if not selected_status %}active{% endif %}">All</a>
-  {% for s in ['pending','reviewing','approved','rejected'] %}
-  <a href="{{ url_for('admin.returns') }}?status={{ s }}" class="tab {% if selected_status == s %}active{% endif %}">{{ s|capitalize }}</a>
-  {% endfor %}
-</div>
-<div class="admin-table-wrap">
-  <table class="admin-table">
-    <thead><tr><th>Return ID</th><th>Order</th><th>Reason</th><th>Status</th><th>Date</th><th></th></tr></thead>
-    <tbody>
-      {% for r in returns %}
-      <tr>
-        <td>#{{ r.id }}</td>
-        <td><code>{{ r.order_id[:8]|upper if r.order_id else '—' }}</code></td>
-        <td>{{ r.reason }}</td>
-        <td><span class="status-pill status-{{ r.status }}">{{ r.status|capitalize }}</span></td>
-        <td>{{ r.created_at[:10] }}</td>
-        <td><a href="{{ url_for('admin.return_detail', rid=r.id) }}" class="table-action">Review →</a></td>
-      </tr>
-      {% else %}
-      <tr><td colspan="6" class="empty-row">No return requests.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<div class="page-wrap" style="text-align:center;padding:6rem 2rem;">
+  <h1 class="page-title">Coming Soon</h1>
+  <p style="color:var(--text-soft);margin-bottom:2rem;">This page is under construction.</p>
+  <a href="{{ url_for('shop.index') }}" class="btn-primary">Back to Home</a>
 </div>
 {% endblock %}

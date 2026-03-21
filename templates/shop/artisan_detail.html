@@ -1,23 +1,9 @@
 {% extends "base.html" %}
-{% block title %}{{ artisan.name }}{% endblock %}
+{% block title %}Coming Soon{% endblock %}
 {% block content %}
-<div class="page-wrap narrow">
-  <a href="{{ url_for('shop.artisans') }}" class="back-link">← All Artisans</a>
-  <div class="artisan-detail-card">
-    {% if artisan.image_url %}
-    <img src="{{ artisan.image_url }}" alt="{{ artisan.name }}" class="artisan-detail-img">
-    {% else %}
-    <div class="artisan-detail-ph">{{ artisan.name[0] }}</div>
-    {% endif %}
-    <h1 class="page-title" style="margin-top:1.5rem;">{{ artisan.name }}</h1>
-    {% if artisan.speciality %}<p class="artisan-spec">{{ artisan.speciality }}</p>{% endif %}
-    {% if artisan.location %}<p class="artisan-loc">📍 {{ artisan.location }}</p>{% endif %}
-    {% if artisan.bio %}<p class="artisan-bio">{{ artisan.bio }}</p>{% endif %}
-    {% if artisan.instagram %}
-    <a href="https://instagram.com/{{ artisan.instagram }}" target="_blank" class="artisan-ig">
-      @{{ artisan.instagram }}
-    </a>
-    {% endif %}
-  </div>
+<div class="page-wrap" style="text-align:center;padding:6rem 2rem;">
+  <h1 class="page-title">Coming Soon</h1>
+  <p style="color:var(--text-soft);margin-bottom:2rem;">This page is under construction.</p>
+  <a href="{{ url_for('shop.index') }}" class="btn-primary">Back to Home</a>
 </div>
 {% endblock %}

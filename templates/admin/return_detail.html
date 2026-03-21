@@ -1,51 +1,9 @@
-{% extends "admin/base_admin.html" %}
-{% block title %}Return #{{ ret.id }}{% endblock %}
-{% block page_title %}Return Request #{{ ret.id }}{% endblock %}
+{% extends "base.html" %}
+{% block title %}Coming Soon{% endblock %}
 {% block content %}
-<div class="order-detail-layout">
-  <div class="order-detail-main">
-    <div class="admin-card">
-      <h3>Details</h3>
-      <p><strong>Reason:</strong> {{ ret.reason }}</p>
-      <p style="margin-top:.8rem;"><strong>Description:</strong></p>
-      <div class="readonly-block">{{ ret.description or 'No description provided.' }}</div>
-      {% if ret.image_url %}
-      <div style="margin-top:1rem;">
-        <label>Photo</label>
-        <a href="{{ ret.image_url }}" target="_blank">
-          <img src="{{ ret.image_url }}" class="screenshot-preview" alt="Return photo">
-        </a>
-      </div>
-      {% endif %}
-      {% if order %}
-      <p style="margin-top:1rem;"><strong>Order:</strong>
-        <a href="{{ url_for('admin.order_detail', oid=order.id) }}" class="table-action">#{{ order.id[:8]|upper }} →</a>
-      </p>
-      {% endif %}
-      <p class="muted" style="margin-top:.8rem;">Submitted {{ ret.created_at[:10] }}</p>
-    </div>
-  </div>
-  <div class="order-detail-side">
-    <div class="admin-card">
-      <h3>Update Status</h3>
-      <form method="post">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="form-group">
-          <label>Status</label>
-          <select name="status">
-            {% for s in ['pending','reviewing','approved','rejected'] %}
-            <option value="{{ s }}" {% if ret.status == s %}selected{% endif %}>{{ s|capitalize }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Admin Note</label>
-          <textarea name="admin_note" rows="3">{{ ret.admin_note or '' }}</textarea>
-        </div>
-        <button type="submit" class="btn-primary btn-full">Save</button>
-      </form>
-    </div>
-    <a href="{{ url_for('admin.returns') }}" class="btn-outline btn-full">← Back</a>
-  </div>
+<div class="page-wrap" style="text-align:center;padding:6rem 2rem;">
+  <h1 class="page-title">Coming Soon</h1>
+  <p style="color:var(--text-soft);margin-bottom:2rem;">This page is under construction.</p>
+  <a href="{{ url_for('shop.index') }}" class="btn-primary">Back to Home</a>
 </div>
 {% endblock %}

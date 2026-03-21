@@ -1,55 +1,9 @@
-{% extends "admin/base_admin.html" %}
-{% block title %}Gift Cards{% endblock %}
-{% block page_title %}Gift Cards{% endblock %}
+{% extends "base.html" %}
+{% block title %}Coming Soon{% endblock %}
 {% block content %}
-<div class="admin-card" style="margin-bottom:1.5rem;">
-  <h3>Create New Gift Card</h3>
-  <form method="post" action="{{ url_for('admin.gift_card_new') }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div class="form-row-4">
-      <div class="form-group">
-        <label>Code (leave blank to auto-generate)</label>
-        <input type="text" name="code" placeholder="GIFT-XYZ" style="text-transform:uppercase;">
-      </div>
-      <div class="form-group">
-        <label>Amount (₹)</label>
-        <input type="number" name="amount" value="500" min="1" required>
-      </div>
-      <div class="form-group">
-        <label>Issued To (email/name)</label>
-        <input type="text" name="issued_to" placeholder="customer@email.com">
-      </div>
-      <div class="form-group">
-        <label>Expires At</label>
-        <input type="datetime-local" name="expires_at">
-      </div>
-    </div>
-    <button type="submit" class="btn-primary">Create Gift Card</button>
-  </form>
-</div>
-<div class="admin-table-wrap">
-  <table class="admin-table">
-    <thead><tr><th>Code</th><th>Amount</th><th>Balance</th><th>Issued To</th><th>Expires</th><th>Active</th><th></th></tr></thead>
-    <tbody>
-      {% for c in cards %}
-      <tr>
-        <td><code>{{ c.code }}</code></td>
-        <td>₹{{ "%.0f"|format(c.amount) }}</td>
-        <td>₹{{ "%.0f"|format(c.balance) }}</td>
-        <td>{{ c.issued_to or '—' }}</td>
-        <td>{{ c.expires_at[:10] if c.expires_at else '—' }}</td>
-        <td>{% if c.active %}<span class="badge-yes">Active</span>{% else %}<span style="color:#999;font-size:.75rem;">Used</span>{% endif %}</td>
-        <td>
-          <form method="post" action="{{ url_for('admin.gift_card_delete', gid=c.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="table-action danger" onclick="return confirm('Delete?')">Delete</button>
-          </form>
-        </td>
-      </tr>
-      {% else %}
-      <tr><td colspan="7" class="empty-row">No gift cards yet.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<div class="page-wrap" style="text-align:center;padding:6rem 2rem;">
+  <h1 class="page-title">Coming Soon</h1>
+  <p style="color:var(--text-soft);margin-bottom:2rem;">This page is under construction.</p>
+  <a href="{{ url_for('shop.index') }}" class="btn-primary">Back to Home</a>
 </div>
 {% endblock %}

@@ -1,37 +1,9 @@
-{% extends "admin/base_admin.html" %}
-{% block title %}Artisans{% endblock %}
-{% block page_title %}Artisans{% endblock %}
+{% extends "base.html" %}
+{% block title %}Coming Soon{% endblock %}
 {% block content %}
-<div class="admin-section-header">
-  <div></div>
-  <a href="{{ url_for('admin.artisan_new') }}" class="btn-primary">+ Add Artisan</a>
-</div>
-<div class="admin-table-wrap">
-  <table class="admin-table">
-    <thead><tr><th>Photo</th><th>Name</th><th>Speciality</th><th>Location</th><th>Active</th><th></th></tr></thead>
-    <tbody>
-      {% for a in artisans %}
-      <tr>
-        <td>
-          {% if a.image_url %}<img src="{{ a.image_url }}" class="item-thumb" alt="">
-          {% else %}<div class="item-thumb-ph"></div>{% endif %}
-        </td>
-        <td>{{ a.name }}</td>
-        <td>{{ a.speciality or '—' }}</td>
-        <td>{{ a.location or '—' }}</td>
-        <td>{% if a.active %}<span class="badge-yes">Yes</span>{% else %}—{% endif %}</td>
-        <td class="table-actions">
-          <a href="{{ url_for('admin.artisan_edit', aid=a.id) }}" class="table-action">Edit</a>
-          <form method="post" action="{{ url_for('admin.artisan_delete', aid=a.id) }}" style="display:inline;">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="table-action danger" onclick="return confirm('Delete?')">Delete</button>
-          </form>
-        </td>
-      </tr>
-      {% else %}
-      <tr><td colspan="6" class="empty-row">No artisans yet. <a href="{{ url_for('admin.artisan_new') }}">Add one →</a></td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<div class="page-wrap" style="text-align:center;padding:6rem 2rem;">
+  <h1 class="page-title">Coming Soon</h1>
+  <p style="color:var(--text-soft);margin-bottom:2rem;">This page is under construction.</p>
+  <a href="{{ url_for('shop.index') }}" class="btn-primary">Back to Home</a>
 </div>
 {% endblock %}

@@ -1,19 +1,9 @@
 {% extends "base.html" %}
-{% block title %}My Wishlist{% endblock %}
+{% block title %}Coming Soon{% endblock %}
 {% block content %}
-<div class="page-wrap">
-  <h1 class="page-title">My Wishlist</h1>
-  {% if items %}
-  <div class="products-grid">
-    {% for p in items %}
-    {% include "shop/_product_card.html" %}
-    {% endfor %}
-  </div>
-  {% else %}
-  <div class="empty-state">
-    <p>Your wishlist is empty.</p>
-    <a href="{{ url_for('shop.shop') }}" class="btn-primary">Browse Products</a>
-  </div>
-  {% endif %}
+<div class="page-wrap" style="text-align:center;padding:6rem 2rem;">
+  <h1 class="page-title">Coming Soon</h1>
+  <p style="color:var(--text-soft);margin-bottom:2rem;">This page is under construction.</p>
+  <a href="{{ url_for('shop.index') }}" class="btn-primary">Back to Home</a>
 </div>
 {% endblock %}
