@@ -8,8 +8,14 @@ csrf = CSRFProtect()
 
 
 def create_app():
-    app = Flask(__name__)
+    app = Flask(
+        __name__,
+        static_folder=os.path.join(os.path.dirname(__file__), "static"),
+        static_url_path="/static",
+        template_folder=os.path.join(os.path.dirname(__file__), "templates"),
+    )
     app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-me")
+    app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 
     # Mail config
     app.config["MAIL_SERVER"] = "smtp.gmail.com"
