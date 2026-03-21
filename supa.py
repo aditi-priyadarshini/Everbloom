@@ -1,12 +1,21 @@
 import os
 import requests
 
+
 def _get_url():
     return os.environ.get("SUPABASE_URL", "").rstrip("/")
 
+
 def _get_key():
-    # Support both SUPABASE_KEY and SUPABASE_ANON_KEY
     return os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_ANON_KEY", "")
+
+
+def _get_service_key():
+    # Service role key bypasses RLS — needed for Storage uploads
+    return (os.environ.get("SUPABASE_SERVICE_KEY")
+            or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+            or _get_key())
+
 
 def _headers():
     key = _get_key()
@@ -16,6 +25,7 @@ def _headers():
         "Content-Type": "application/json",
         "Prefer": "return=representation",
     }
+
 
 def _url(table):
     return f"{_get_url()}/rest/v1/{table}"
@@ -57,12 +67,8 @@ def insert(table, data):
     if r.status_code in (200, 201):
         result = r.json()
         return result[0] if isinstance(result, list) else result
-    # Log the actual Supabase error so you can debug
-    try:
-        import sys
-        print(f"[supa.insert ERROR] table={table} status={r.status_code} body={r.text}", file=sys.stderr)
-    except Exception:
-        pass
+    import sys
+    print(f"[supa.insert ERROR] table={table} status={r.status_code} body={r.text}", file=sys.stderr)
     return None
 
 
@@ -76,11 +82,8 @@ def update(table, filters, data):
             return r.json()
         except Exception:
             return True
-    try:
-        import sys
-        print(f"[supa.update ERROR] table={table} status={r.status_code} body={r.text}", file=sys.stderr)
-    except Exception:
-        pass
+    import sys
+    print(f"[supa.update ERROR] table={table} status={r.status_code} body={r.text}", file=sys.stderr)
     return None
 
 
@@ -107,22 +110,19 @@ def rpc(func_name, params=None):
 
 def upload_file(bucket, path, file_bytes, content_type="image/jpeg"):
     import sys
-    key = _get_key()
+    key = _get_service_key()
     base_url = _get_url()
-
-    # Try POST first (new file)
     url = f"{base_url}/storage/v1/object/{bucket}/{path}"
     headers = {
         "apikey": key,
         "Authorization": f"Bearer {key}",
         "Content-Type": content_type,
-        "x-upsert": "true",   # overwrite if exists
+        "x-upsert": "true",
     }
     r = requests.post(url, headers=headers, data=file_bytes)
     if r.status_code in (200, 201):
         return f"{base_url}/storage/v1/object/public/{bucket}/{path}"
-
-    print(f"[supa.upload_file ERROR] bucket={bucket} path={path} status={r.status_code} body={r.text}", file=sys.stderr)
+    print(f"[supa.upload_file ERROR] status={r.status_code} body={r.text}", file=sys.stderr)
     return None
 
 
