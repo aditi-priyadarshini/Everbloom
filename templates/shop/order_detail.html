@@ -56,9 +56,6 @@
           {% if order.status == 'advance_requested' %}
           <a href="{{ url_for('orders.pay_advance', oid=order.id) }}" class="btn-outline btn-full">Pay Advance ₹{{ "%.0f"|format(order.advance_amount) }}</a>
           {% endif %}
-          {% if order.status == 'delivered' %}
-          <a href="{{ url_for('orders.request_return', oid=order.id) }}" class="btn-outline btn-full">Request Return</a>
-          {% endif %}
         </div>
         <div style="margin-top:1.2rem;padding-top:1.2rem;border-top:1px solid var(--rose);">
           <p style="font-size:.76rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-soft);margin-bottom:.6rem;">Order Date</p>

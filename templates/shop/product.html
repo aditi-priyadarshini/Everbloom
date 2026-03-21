@@ -40,7 +40,7 @@
     <div class="product-title-row">
       <h1 class="product-info-title">{{ product.title }}</h1>
       {% if session.user_id %}
-      <form method="post" action="{{ url_for('shop.wishlist_toggle', pid=product.id) }}" class="wishlist-form">
+
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="wishlist-btn {% if wishlisted %}wishlisted{% endif %}" title="{% if wishlisted %}Remove from wishlist{% else %}Add to wishlist{% endif %}">
           {% if wishlisted %}♥{% else %}♡{% endif %}

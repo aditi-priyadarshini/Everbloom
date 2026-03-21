@@ -27,7 +27,7 @@
           <a href="{{ url_for('orders.pay_advance', oid=o.id) }}" class="btn-primary-sm">Pay Advance</a>
           {% endif %}
           {% if o.status == 'delivered' %}
-          <a href="{{ url_for('orders.request_return', oid=o.id) }}" class="btn-outline-sm">Return</a>
+
           {% endif %}
           <a href="{{ url_for('orders.track', oid=o.id) }}" class="btn-outline-sm">Track</a>
         </div>
