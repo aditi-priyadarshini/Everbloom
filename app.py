@@ -7,66 +7,64 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-mail = Mail()
-login_manager = LoginManager()
-csrf = CSRFProtect()
+mail   = Mail()
+login  = LoginManager()
+csrf   = CSRFProtect()
 
 
 def create_app():
     app = Flask(__name__)
 
-    # Config
     app.config.update(
-        SECRET_KEY        = os.environ.get("SECRET_KEY", "dev-key-change-me"),
-        MAIL_SERVER       = os.environ.get("MAIL_SERVER", "smtp.gmail.com"),
-        MAIL_PORT         = int(os.environ.get("MAIL_PORT", 587)),
-        MAIL_USE_TLS      = os.environ.get("MAIL_USE_TLS", "true").lower() == "true",
-        MAIL_USERNAME     = os.environ.get("MAIL_USERNAME"),
-        MAIL_PASSWORD     = os.environ.get("MAIL_PASSWORD"),
-        MAIL_DEFAULT_SENDER = os.environ.get("MAIL_SENDER", "Everbloom <noreply@everbloom.store>"),
-        STORE_NAME        = os.environ.get("STORE_NAME", "Everbloom"),
-        SITE_URL          = os.environ.get("SITE_URL", "http://localhost:5000").rstrip("/"),
-        UPI_ID            = os.environ.get("UPI_ID", "yourname@upi"),
-        SUPABASE_URL      = os.environ.get("SUPABASE_URL", ""),
-        SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", ""),
-        QR_URL            = os.environ.get("QR_URL", ""),
+        SECRET_KEY          = os.environ.get("SECRET_KEY", "dev-key"),
+        MAIL_SERVER         = "smtp.gmail.com",
+        MAIL_PORT           = 587,
+        MAIL_USE_TLS        = True,
+        MAIL_USERNAME       = os.environ.get("MAIL_USERNAME"),
+        MAIL_PASSWORD       = os.environ.get("MAIL_PASSWORD"),
+        MAIL_DEFAULT_SENDER = os.environ.get("MAIL_SENDER", os.environ.get("MAIL_USERNAME")),
+        STORE_NAME          = os.environ.get("STORE_NAME", "Everbloom"),
+        SITE_URL            = os.environ.get("SITE_URL", "http://localhost:5000").rstrip("/"),
+        UPI_ID              = os.environ.get("UPI_ID", "yourname@upi"),
+        QR_URL              = os.environ.get("QR_URL", ""),
+        SUPABASE_URL        = os.environ.get("SUPABASE_URL", ""),
+        SUPABASE_KEY        = os.environ.get("SUPABASE_KEY", ""),
+        SUPABASE_SERVICE_KEY= os.environ.get("SUPABASE_SERVICE_KEY", os.environ.get("SUPABASE_KEY", "")),
     )
 
     mail.init_app(app)
     csrf.init_app(app)
-    login_manager.init_app(app)
-    login_manager.login_view = "auth.login"
-    login_manager.login_message = "Please log in to continue."
+    login.init_app(app)
+    login.login_view = "auth.login"
+    login.login_message = "Please log in to continue."
 
     from models import User
 
-    @login_manager.user_loader
+    @login.user_loader
     def load_user(uid):
         return User.get(int(uid))
 
     # Blueprints
-    from routes.shop   import bp as shop_bp
     from routes.auth   import bp as auth_bp
+    from routes.shop   import bp as shop_bp
     from routes.orders import bp as orders_bp
     from routes.admin  import bp as admin_bp
 
     app.register_blueprint(shop_bp)
-    app.register_blueprint(auth_bp,    url_prefix="/auth")
-    app.register_blueprint(orders_bp,  url_prefix="/orders")
-    app.register_blueprint(admin_bp,   url_prefix="/admin")
+    app.register_blueprint(auth_bp,   url_prefix="/auth")
+    app.register_blueprint(orders_bp, url_prefix="/orders")
+    app.register_blueprint(admin_bp,  url_prefix="/admin")
 
-    # Context
     @app.context_processor
     def ctx():
         from flask_login import current_user
         from flask import session
         cart = session.get("cart", {})
-        cart_count = sum(i["qty"] for i in cart.values())
         return dict(
-            store_name = app.config["STORE_NAME"],
-            cart_count = cart_count,
+            store_name   = app.config["STORE_NAME"],
+            cart_count   = sum(i["qty"] for i in cart.values()),
             current_user = current_user,
-            config = app.config,
+            config       = app.config,
         )
 
     @app.errorhandler(404)
@@ -74,15 +72,6 @@ def create_app():
 
     @app.errorhandler(500)
     def e500(e): return render_template("errors/500.html"), 500
-
-    # DB init route
-    @app.route("/_init")
-    def init():
-        secret = request.args.get("secret","")
-        if secret != app.config.get("INIT_SECRET", os.environ.get("INIT_SECRET","")):
-            from flask import abort; abort(403)
-        from db import init_db; init_db()
-        return "✓ Done", 200
 
     return app
 
