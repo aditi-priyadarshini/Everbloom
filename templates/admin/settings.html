@@ -2,29 +2,43 @@
 {% block title %}Settings{% endblock %}
 {% block page_title %}Settings{% endblock %}
 {% block content %}
-<div class="form-page-wrap narrow">
-  <form method="post" enctype="multipart/form-data" class="settings-form">
+<div class="form-page-wrap" style="max-width:640px;">
+  <form method="post" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
     <div class="admin-card">
-      <h3>UPI Payment Settings</h3>
+      <h3>Store Identity</h3>
+      <div class="form-group">
+        <label>Store Name</label>
+        <input type="text" name="store_name" value="{{ s.get('store_name','Everbloom') }}">
+      </div>
+      <div class="form-group">
+        <label>Tagline</label>
+        <input type="text" name="store_tagline" value="{{ s.get('store_tagline','Handcrafted with Love') }}">
+      </div>
+      <div class="form-group">
+        <label>Instagram Handle (without @)</label>
+        <input type="text" name="instagram_handle" value="{{ s.get('instagram_handle','') }}" placeholder="everbloom.in">
+      </div>
+      <div class="form-group">
+        <label>WhatsApp Number (with country code, no spaces)</label>
+        <input type="text" name="whatsapp_number" value="{{ s.get('whatsapp_number','') }}" placeholder="919876543210">
+      </div>
+    </div>
+    <div class="admin-card">
+      <h3>UPI Payment</h3>
       <div class="form-group">
         <label>UPI ID</label>
-        <input type="text" name="upi_id" value="{{ upi_id or '' }}" placeholder="yourname@upi">
+        <input type="text" name="upi_id" value="{{ s.get('upi_id','') }}" placeholder="yourname@upi">
       </div>
       <div class="form-group">
-        <label>UPI QR Code Image</label>
-        {% if upi_qr_url %}
-        <div style="margin-bottom:1rem;">
-          <img src="{{ upi_qr_url }}" alt="UPI QR" style="width:160px;border-radius:8px;border:1px solid var(--rose);">
-          <p class="muted" style="font-size:.8rem;margin-top:.4rem;">Current QR code</p>
-        </div>
+        <label>UPI QR Code</label>
+        {% if s.get('upi_qr_url') %}
+        <img src="{{ s['upi_qr_url'] }}" alt="UPI QR" style="width:140px;border-radius:8px;border:1px solid #e8c4b8;margin-bottom:.8rem;display:block;">
         {% endif %}
         <input type="file" name="upi_qr" accept="image/*" class="file-input">
-        <p class="form-hint">Upload a new QR to replace the current one.</p>
       </div>
-      <button type="submit" class="btn-primary">Save Settings</button>
     </div>
+    <button type="submit" class="btn-primary">Save All Settings</button>
   </form>
 </div>
 {% endblock %}

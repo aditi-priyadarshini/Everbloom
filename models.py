@@ -274,6 +274,204 @@ def set_setting(key, value):
     return supa.update("settings", {"key": f"eq.{key}"}, {"value": value})
 
 
+def get_all_settings():
+    rows = supa.select("settings") or []
+    return {r["key"]: r["value"] for r in rows}
+
+
+# ── Variants ──────────────────────────────────────────────
+
+def get_variants(product_id):
+    return supa.select("variants", {"product_id": f"eq.{product_id}"}, order="name.asc")
+
+
+def create_variant(data):
+    return supa.insert("variants", data)
+
+
+def update_variant(vid, data):
+    return supa.update("variants", {"id": f"eq.{vid}"}, data)
+
+
+def delete_variant(vid):
+    return supa.delete("variants", {"id": f"eq.{vid}"})
+
+
+def delete_variants_for_product(product_id):
+    return supa.delete("variants", {"product_id": f"eq.{product_id}"})
+
+
+# ── Wishlist ──────────────────────────────────────────────
+
+def get_wishlist(user_id):
+    rows = supa.select("wishlists", {"user_id": f"eq.{user_id}"}, order="created_at.desc")
+    pids = [r["product_id"] for r in rows]
+    products = []
+    for pid in pids:
+        p = get_product(pid)
+        if p:
+            products.append(p)
+    return products
+
+
+def is_wishlisted(user_id, product_id):
+    rows = supa.select("wishlists", {"user_id": f"eq.{user_id}", "product_id": f"eq.{product_id}"})
+    return bool(rows)
+
+
+def toggle_wishlist(user_id, product_id):
+    if is_wishlisted(user_id, product_id):
+        supa.delete("wishlists", {"user_id": f"eq.{user_id}", "product_id": f"eq.{product_id}"})
+        return False
+    else:
+        supa.insert("wishlists", {"user_id": user_id, "product_id": product_id})
+        return True
+
+
+# ── Back in Stock Alerts ──────────────────────────────────
+
+def add_back_in_stock_alert(product_id, email, user_id=None):
+    try:
+        return supa.insert("back_in_stock_alerts", {
+            "product_id": product_id, "email": email, "user_id": user_id
+        })
+    except Exception:
+        return None
+
+
+def get_alerts_for_product(product_id):
+    return supa.select("back_in_stock_alerts", {
+        "product_id": f"eq.{product_id}", "notified": "eq.false"
+    })
+
+
+def mark_alerts_notified(product_id):
+    return supa.update("back_in_stock_alerts",
+                       {"product_id": f"eq.{product_id}", "notified": "eq.false"},
+                       {"notified": True})
+
+
+def get_low_stock_products(threshold=5):
+    all_products = supa.select("products", {"stock": f"lte.{threshold}"}, order="stock.asc") or []
+    return [p for p in all_products if p.get("stock", 0) >= 0]
+
+
+# ── Gift Cards ────────────────────────────────────────────
+
+def get_gift_card(code):
+    rows = supa.select("gift_cards", {"code": f"eq.{code.upper()}", "active": "eq.true"})
+    return rows[0] if rows else None
+
+
+def get_all_gift_cards():
+    return supa.select("gift_cards", order="created_at.desc")
+
+
+def create_gift_card(data):
+    data["code"] = data["code"].upper()
+    data["balance"] = data["amount"]
+    return supa.insert("gift_cards", data)
+
+
+def use_gift_card(code, amount):
+    gc = get_gift_card(code)
+    if not gc:
+        return False
+    new_bal = float(gc["balance"]) - float(amount)
+    if new_bal < 0:
+        return False
+    supa.update("gift_cards", {"code": f"eq.{code.upper()}"},
+                {"balance": new_bal, "active": new_bal > 0})
+    return True
+
+
+def delete_gift_card(gid):
+    return supa.delete("gift_cards", {"id": f"eq.{gid}"})
+
+
+# ── Returns ───────────────────────────────────────────────
+
+def get_returns(status=None):
+    filters = {}
+    if status:
+        filters["status"] = f"eq.{status}"
+    return supa.select("returns", filters, order="created_at.desc")
+
+
+def get_return(rid):
+    rows = supa.select("returns", {"id": f"eq.{rid}"})
+    return rows[0] if rows else None
+
+
+def get_returns_for_user(user_id):
+    return supa.select("returns", {"user_id": f"eq.{user_id}"}, order="created_at.desc")
+
+
+def create_return(data):
+    return supa.insert("returns", data)
+
+
+def update_return(rid, data):
+    return supa.update("returns", {"id": f"eq.{rid}"}, data)
+
+
+# ── Artisans ──────────────────────────────────────────────
+
+def get_artisans(active_only=True):
+    filters = {"active": "eq.true"} if active_only else {}
+    return supa.select("artisans", filters, order="name.asc")
+
+
+def get_artisan(aid):
+    rows = supa.select("artisans", {"id": f"eq.{aid}"})
+    return rows[0] if rows else None
+
+
+def create_artisan(data):
+    return supa.insert("artisans", data)
+
+
+def update_artisan(aid, data):
+    return supa.update("artisans", {"id": f"eq.{aid}"}, data)
+
+
+def delete_artisan(aid):
+    return supa.delete("artisans", {"id": f"eq.{aid}"})
+
+
+# ── FAQs ──────────────────────────────────────────────────
+
+def get_faqs(active_only=True):
+    filters = {"active": "eq.true"} if active_only else {}
+    return supa.select("faqs", filters, order="sort_order.asc")
+
+
+def get_all_faqs():
+    return supa.select("faqs", order="sort_order.asc")
+
+
+def create_faq(data):
+    return supa.insert("faqs", data)
+
+
+def update_faq(fid, data):
+    return supa.update("faqs", {"id": f"eq.{fid}"}, data)
+
+
+def delete_faq(fid):
+    return supa.delete("faqs", {"id": f"eq.{fid}"})
+
+
+# ── Broadcasts ────────────────────────────────────────────
+
+def log_broadcast(subject, body, sent_to):
+    return supa.insert("broadcasts", {"subject": subject, "body": body, "sent_to": sent_to})
+
+
+def get_broadcasts():
+    return supa.select("broadcasts", order="created_at.desc")
+
+
 # ── Dashboard Stats ───────────────────────────────────────
 
 def get_stats():
@@ -282,6 +480,23 @@ def get_stats():
     all_products = supa.select("products") or []
     pending = [o for o in all_orders if o["status"] not in ("delivered", "cancelled")]
     revenue = sum(float(o.get("total", 0)) for o in all_orders if o["status"] == "delivered")
+    # Monthly revenue (last 6 months)
+    from datetime import datetime, timezone, timedelta
+    now = datetime.now(timezone.utc)
+    monthly = {}
+    for i in range(5, -1, -1):
+        d = now - timedelta(days=30 * i)
+        key = d.strftime("%b")
+        monthly[key] = 0
+    for o in all_orders:
+        if o["status"] == "delivered" and o.get("created_at"):
+            try:
+                dt = datetime.fromisoformat(o["created_at"].replace("Z", "+00:00"))
+                key = dt.strftime("%b")
+                if key in monthly:
+                    monthly[key] += float(o.get("total", 0))
+            except Exception:
+                pass
     return {
         "total_orders": len(all_orders),
         "pending_orders": len(pending),
@@ -291,4 +506,5 @@ def get_stats():
         "placed": len([o for o in all_orders if o["status"] == "placed"]),
         "advance_paid": len([o for o in all_orders if o["status"] == "advance_paid"]),
         "shipped": len([o for o in all_orders if o["status"] == "shipped"]),
+        "monthly_revenue": monthly,
     }

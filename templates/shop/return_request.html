@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Return Request{% endblock %}
+{% block content %}
+<div class="page-wrap narrow">
+  <a href="{{ url_for('orders.order_detail', oid=order.id) }}" class="back-link">← Order #{{ order.id[:8]|upper }}</a>
+  <h1 class="page-title">Request a Return</h1>
+  <p class="subtitle">Returns accepted within 7 days of delivery for damaged or defective items.</p>
+  <form method="post" enctype="multipart/form-data" class="profile-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group">
+      <label>Reason for Return *</label>
+      <select name="reason" required>
+        <option value="">Select a reason</option>
+        <option>Item arrived damaged</option>
+        <option>Item is defective</option>
+        <option>Wrong item received</option>
+        <option>Item not as described</option>
+        <option>Other</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Description *</label>
+      <textarea name="description" rows="4" placeholder="Please describe the issue in detail…" required></textarea>
+    </div>
+    <div class="form-group">
+      <label>Upload Photo (optional)</label>
+      <input type="file" name="image" accept="image/*" class="file-input">
+    </div>
+    <button type="submit" class="btn-primary">Submit Return Request</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Our Artisans{% endblock %}
+{% block content %}
+<div class="page-wrap">
+  <div class="section-tag">The Makers</div>
+  <h1 class="page-title">Meet our <em>Artisans</em></h1>
+  <p class="subtitle">Every piece is crafted by hand by these talented makers.</p>
+  {% if artisans %}
+  <div class="artisan-grid">
+    {% for a in artisans %}
+    <a href="{{ url_for('shop.artisan_detail', aid=a.id) }}" class="artisan-card">
+      <div class="artisan-img-wrap">
+        {% if a.image_url %}
+        <img src="{{ a.image_url }}" alt="{{ a.name }}">
+        {% else %}
+        <div class="artisan-img-ph">{{ a.name[0] }}</div>
+        {% endif %}
+      </div>
+      <div class="artisan-info">
+        <h3>{{ a.name }}</h3>
+        <p class="artisan-spec">{{ a.speciality or '' }}</p>
+        <p class="artisan-loc">{% if a.location %}📍 {{ a.location }}{% endif %}</p>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state"><p>Artisan profiles coming soon!</p></div>
+  {% endif %}
+</div>
+{% endblock %}

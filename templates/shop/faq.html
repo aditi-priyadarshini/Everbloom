@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}FAQ{% endblock %}
+{% block content %}
+<div class="page-wrap narrow">
+  <div class="section-tag">Help</div>
+  <h1 class="page-title">Frequently Asked <em>Questions</em></h1>
+  {% set categories = faqs|map(attribute='category')|unique|list %}
+  {% for cat in categories %}
+  <div class="faq-group">
+    <h3 class="faq-cat">{{ cat|capitalize }}</h3>
+    {% for f in faqs if f.category == cat %}
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+      <div class="faq-q">{{ f.question }}<span class="faq-icon">+</span></div>
+      <div class="faq-a">{{ f.answer }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
