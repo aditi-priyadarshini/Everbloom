@@ -7,8 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}?v=2">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}?v=2">
+<link rel="stylesheet" href="/static/css/main.css">
+<link rel="stylesheet" href="/static/css/admin.css">
 </head>
 <body class="admin-body">
 <div class="admin-layout">
@@ -70,7 +70,7 @@
     </div>
   </div>
 </div>
-<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+<script src="/static/js/main.js"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>
