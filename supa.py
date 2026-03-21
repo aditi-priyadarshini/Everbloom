@@ -5,7 +5,8 @@ def _get_url():
     return os.environ.get("SUPABASE_URL", "").rstrip("/")
 
 def _get_key():
-    return os.environ.get("SUPABASE_KEY", "")
+    # Support both SUPABASE_KEY and SUPABASE_ANON_KEY
+    return os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_ANON_KEY", "")
 
 def _headers():
     key = _get_key()
