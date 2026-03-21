@@ -1,46 +1,52 @@
 {% extends "base.html" %}
-{% block title %}Pay Advance — Order #{{ "%04d"|format(o.id) }}{% endblock %}
+{% block title %}Pay Advance{% endblock %}
 {% block content %}
-<div class="page-header"><h1>Pay Advance</h1><p>Order #{{ "%04d"|format(o.id) }}</p></div>
+<div class="page-wrap narrow">
+  <a href="{{ url_for('orders.orders_list') }}" class="back-link">← My Orders</a>
+  <h1 class="page-title">Pay Advance</h1>
+  <p class="subtitle">Order #{{ order.id[:8]|upper }}</p>
 
-<div class="container" style="max-width:520px;padding-top:48px;padding-bottom:80px">
-  <div style="background:white;border:1.5px solid var(--border);border-radius:var(--rl);padding:32px;margin-bottom:20px;text-align:center">
-    <p style="font-size:11px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">Amount Due</p>
-    <p style="font-family:var(--serif);font-size:52px;color:var(--ink);margin-bottom:4px">₹{{ "{:,.0f}".format(o.advance_amount|float) }}</p>
-    <p style="font-size:13px;color:var(--muted)">Order Total: ₹{{ "{:,.0f}".format(o.total_amount|float) }} · Balance on delivery: ₹{{ "{:,.0f}".format((o.total_amount|float) - (o.advance_amount|float)) }}</p>
-
-    <div style="margin:28px auto;width:200px;height:200px;background:var(--parchment);border-radius:var(--rl);border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;overflow:hidden">
-      {% if config.get('QR_URL') %}
-      <img src="{{ config.QR_URL }}" alt="UPI QR" style="width:100%;height:100%;object-fit:contain">
-      {% else %}
-      <div style="text-align:center;padding:20px">
-        <div style="font-size:40px;margin-bottom:8px">📱</div>
-        <p style="font-size:11px;color:var(--muted)">Upload QR in<br>Admin → Settings</p>
-      </div>
-      {% endif %}
+  <div class="pay-advance-card">
+    <div class="advance-amount">
+      <span class="amount-label">Advance Due</span>
+      <span class="amount-value">₹{{ "%.0f"|format(order.advance_amount) }}</span>
     </div>
 
-    <p style="font-size:14px;color:var(--text);margin-bottom:4px">UPI ID: <strong>{{ config.get('UPI_ID', 'yourname@upi') }}</strong></p>
-    <p style="font-size:12px;color:var(--muted)">Open any UPI app → Send Money → Enter UPI ID → Pay</p>
-  </div>
+    {% if upi_qr_url %}
+    <div class="upi-qr-wrap">
+      <img src="{{ upi_qr_url }}" alt="UPI QR Code" class="upi-qr">
+    </div>
+    {% endif %}
 
-  <div style="background:white;border:1.5px solid var(--border);border-radius:var(--rl);padding:28px">
-    <h3 style="font-family:var(--serif);font-size:20px;margin-bottom:16px">Upload Payment Screenshot</h3>
-    <form method="POST" enctype="multipart/form-data">
+    {% if upi_id %}
+    <div class="upi-id-wrap">
+      <span class="upi-label">UPI ID</span>
+      <span class="upi-value" id="upiId">{{ upi_id }}</span>
+      <button class="copy-btn" onclick="copyUPI()">Copy</button>
+    </div>
+    {% endif %}
+
+    <div class="pay-steps">
+      <p>1. Open any UPI app (GPay, PhonePe, Paytm)</p>
+      <p>2. Scan the QR or pay to UPI ID above</p>
+      <p>3. Take a screenshot and upload below</p>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" class="screenshot-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-      <div class="upload-area" id="upload-area" onclick="document.getElementById('proof-file').click()">
-        <div id="upload-prompt">
-          <div style="font-size:40px;margin-bottom:10px">📸</div>
-          <p style="font-size:14px;color:var(--text);margin-bottom:4px">Click to upload payment screenshot</p>
-          <p style="font-size:12px;color:var(--muted)">JPG, PNG, WebP — max 5MB</p>
-        </div>
-        <input type="file" id="proof-file" name="proof" accept="image/*" style="display:none" onchange="previewProof(this)" required>
+      <div class="form-group">
+        <label>Upload Payment Screenshot</label>
+        <input type="file" name="screenshot" accept="image/*" required class="file-input">
       </div>
-      <div id="proof-preview" style="margin-top:12px"></div>
-
-      <button type="submit" class="btn btn-clay btn-full btn-lg" style="margin-top:20px">Submit Payment Proof →</button>
+      <button type="submit" class="btn-primary btn-full">Submit Screenshot</button>
     </form>
   </div>
 </div>
+<script>
+function copyUPI() {
+  navigator.clipboard.writeText(document.getElementById('upiId').textContent);
+  event.target.textContent = 'Copied!';
+  setTimeout(() => event.target.textContent = 'Copy', 2000);
+}
+</script>
 {% endblock %}

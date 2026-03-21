@@ -1,93 +1,118 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}Admin — {{ store_name }}{% endblock %}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
-  {% block head %}{% endblock %}
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}Everbloom{% endblock %} — Handcrafted with Love</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+{% block head %}{% endblock %}
 </head>
 <body>
-<div class="admin-layout">
-
-  <!-- Sidebar -->
-  <aside class="admin-sidebar" id="admin-sidebar">
-    <div class="admin-sidebar-logo">
-      <h2>🌿 {{ store_name }}</h2>
-      <span>Admin Panel</span>
-    </div>
-    <nav class="admin-nav">
-      <div class="admin-nav-section">Overview</div>
-      <a href="{{ url_for('admin.dashboard') }}" class="admin-nav-link {% if request.endpoint=='admin.dashboard' %}active{% endif %}">
-        <span class="icon">📊</span> Dashboard
-      </a>
-      <div class="admin-nav-section">Orders</div>
-      <a href="{{ url_for('admin.orders') }}" class="admin-nav-link {% if request.endpoint in ['admin.orders','admin.order_detail'] %}active{% endif %}">
-        <span class="icon">📦</span> All Orders
-      </a>
-      <a href="{{ url_for('admin.orders', status='placed') }}" class="admin-nav-link {% if request.args.get('status')=='placed' %}active{% endif %}">
-        <span class="icon">👀</span> New Orders
-      </a>
-      <a href="{{ url_for('admin.orders', status='advance_paid') }}" class="admin-nav-link {% if request.args.get('status')=='advance_paid' %}active{% endif %}">
-        <span class="icon">💳</span> Confirm Advance
-      </a>
-      <div class="admin-nav-section">Catalogue</div>
-      <a href="{{ url_for('admin.products') }}" class="admin-nav-link {% if request.endpoint in ['admin.products','admin.product_new','admin.product_edit'] %}active{% endif %}">
-        <span class="icon">🎨</span> Products
-      </a>
-      <a href="{{ url_for('admin.product_new') }}" class="admin-nav-link">
-        <span class="icon">➕</span> Add Product
-      </a>
-      <div class="admin-nav-section">People</div>
-      <a href="{{ url_for('admin.customers') }}" class="admin-nav-link {% if request.endpoint=='admin.customers' %}active{% endif %}">
-        <span class="icon">👥</span> Customers
-      </a>
-      <div class="admin-nav-section">Settings</div>
-      <a href="{{ url_for('admin.settings') }}" class="admin-nav-link {% if request.endpoint=='admin.settings' %}active{% endif %}">
-        <span class="icon">⚙️</span> QR & UPI
-      </a>
-      <a href="{{ url_for('shop.home') }}" class="admin-nav-link">
-        <span class="icon">🏪</span> View Store
-      </a>
-      <a href="{{ url_for('auth.logout') }}" class="admin-nav-link">
-        <span class="icon">🚪</span> Logout
-      </a>
-    </nav>
-  </aside>
-
-  <!-- Main -->
-  <main class="admin-main">
-    <div class="admin-topbar">
-      <div style="display:flex;align-items:center;gap:10px">
-        <button class="admin-hamburger" onclick="toggleAdminSidebar()">☰</button>
-        <h1 style="font-family:var(--serif);font-size:22px;font-weight:400">{% block page_title %}{% endblock %}</h1>
-      </div>
-      <div style="display:flex;align-items:center;gap:12px">
-        <span style="font-size:13px;color:var(--muted)">{{ current_user.full_name }}</span>
-        {% block topbar %}{% endblock %}
+<nav class="navbar">
+  <a class="nav-logo" href="{{ url_for('shop.index') }}">Ever<span>bloom</span></a>
+  <ul class="nav-links">
+    <li><a href="{{ url_for('shop.shop') }}">Shop</a></li>
+    <li><a href="{{ url_for('shop.shop') }}?category=1">Paintings</a></li>
+    <li><a href="{{ url_for('shop.shop') }}?category=2">DIY Kits</a></li>
+    <li><a href="{{ url_for('shop.shop') }}?category=3">Sculptures</a></li>
+    <li><a href="{{ url_for('shop.custom_order') }}">Custom Order</a></li>
+  </ul>
+  <div class="nav-actions">
+    {% if session.user_id %}
+    <div class="notif-wrap">
+      <button class="notif-btn" id="notifBtn" aria-label="Notifications">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span class="notif-badge" id="notifBadge" style="display:none">0</span>
+      </button>
+      <div class="notif-dropdown" id="notifDropdown">
+        <div class="notif-header">Notifications</div>
+        <div id="notifList"><p class="notif-empty">All caught up!</p></div>
       </div>
     </div>
-
-    {% with msgs = get_flashed_messages(with_categories=true) %}
-    {% if msgs %}
-    <div style="padding:16px 28px 0">
-      {% for cat, msg in msgs %}
-      <div class="flash flash-{{ cat }}" style="margin-bottom:8px">
-        <span>{{ msg }}</span>
-        <button class="flash-close" onclick="this.parentElement.remove()">×</button>
-      </div>
-      {% endfor %}
-    </div>
+    <a href="{{ url_for('orders.orders_list') }}" class="nav-icon-link">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/></svg>
+    </a>
+    <a href="{{ url_for('auth.profile') }}" class="nav-user">{{ session.user_name or 'Profile' }}</a>
+    <a href="{{ url_for('auth.logout') }}" class="nav-link-subtle">Logout</a>
+    {% if session.is_admin %}
+    <a href="{{ url_for('admin.dashboard') }}" class="btn-admin">Admin</a>
     {% endif %}
-    {% endwith %}
+    {% else %}
+    <a href="{{ url_for('auth.login') }}" class="nav-link-subtle">Login</a>
+    <a href="{{ url_for('auth.signup') }}" class="btn-primary-sm">Sign up</a>
+    {% endif %}
+    <a href="{{ url_for('shop.cart') }}" class="btn-cart">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+      Cart {% if cart_count %}({{ cart_count }}){% endif %}
+    </a>
+    <button class="hamburger" id="hamburger">&#9776;</button>
+  </div>
+</nav>
 
-    <div class="admin-content">{% block content %}{% endblock %}</div>
-  </main>
+<div class="mobile-nav" id="mobileNav">
+  <a href="{{ url_for('shop.shop') }}">Shop</a>
+  <a href="{{ url_for('shop.custom_order') }}">Custom Order</a>
+  <a href="{{ url_for('shop.cart') }}">Cart ({{ cart_count }})</a>
+  {% if session.user_id %}
+  <a href="{{ url_for('orders.orders_list') }}">My Orders</a>
+  <a href="{{ url_for('auth.profile') }}">Profile</a>
+  <a href="{{ url_for('auth.logout') }}">Logout</a>
+  {% else %}
+  <a href="{{ url_for('auth.login') }}">Login</a>
+  <a href="{{ url_for('auth.signup') }}">Sign up</a>
+  {% endif %}
+  {% if session.is_admin %}
+  <a href="{{ url_for('admin.dashboard') }}">Admin Panel</a>
+  {% endif %}
 </div>
 
-<div id="admin-overlay" onclick="toggleAdminSidebar()"></div>
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="flash-wrap">
+  {% for cat, msg in messages %}
+  <div class="flash flash-{{ cat }}">{{ msg }}
+    <button onclick="this.parentElement.remove()">&times;</button>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+<main>{% block content %}{% endblock %}</main>
+
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <span class="footer-logo">Ever<span>bloom</span></span>
+      <p>Handcrafted pieces made with love by Indian artisans.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Shop</h4>
+      <a href="{{ url_for('shop.shop') }}">All Products</a>
+      <a href="{{ url_for('shop.custom_order') }}">Custom Order</a>
+    </div>
+    <div class="footer-col">
+      <h4>Help</h4>
+      <a href="{{ url_for('shop.custom_order') }}">Contact Us</a>
+      <a href="#">Shipping Policy</a>
+    </div>
+    <div class="footer-col">
+      <h4>Account</h4>
+      {% if session.user_id %}
+      <a href="{{ url_for('orders.orders_list') }}">My Orders</a>
+      <a href="{{ url_for('auth.profile') }}">Profile</a>
+      {% else %}
+      <a href="{{ url_for('auth.login') }}">Login</a>
+      <a href="{{ url_for('auth.signup') }}">Sign up</a>
+      {% endif %}
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <p>&copy; 2025 Everbloom. Made with ♡ in India.</p>
+  </div>
+</footer>
+
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 {% block scripts %}{% endblock %}
 </body>

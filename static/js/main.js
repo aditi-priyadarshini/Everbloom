@@ -1,162 +1,142 @@
-// Everbloom — main.js
+// Everbloom main.js
 
-// ── Mobile nav ────────────────────────────────────────────────
-function openMobileNav() {
-  document.getElementById('mobile-nav')?.classList.add('open');
-  document.getElementById('nav-overlay')?.classList.add('open');
-  document.body.style.overflow = 'hidden';
-}
-function closeMobileNav() {
-  document.getElementById('mobile-nav')?.classList.remove('open');
-  document.getElementById('nav-overlay')?.classList.remove('open');
-  document.body.style.overflow = '';
-}
-
-// ── Admin sidebar ─────────────────────────────────────────────
-function toggleAdminSidebar() {
-  document.querySelector('.admin-sidebar')?.classList.toggle('open');
-  document.getElementById('admin-overlay')?.classList.toggle('open');
-}
-
-// ── Notification bell ─────────────────────────────────────────
-const notifWrap = () => document.getElementById('notif-dd');
-
-function toggleNotif() {
-  const dd = notifWrap();
-  if (!dd) return;
-  const open = dd.classList.toggle('open');
-  if (open) loadNotifs();
-}
-
-async function loadNotifs() {
-  const list = document.getElementById('notif-list');
-  if (!list) return;
-  try {
-    const data = await fetch('/api/notifications').then(r => r.json());
-    if (!data.length) {
-      list.innerHTML = '<div class="notif-empty">No notifications yet</div>';
-      return;
+// ── Mobile nav ──────────────────────────────────────────
+const hamburger = document.getElementById('hamburger');
+const mobileNav = document.getElementById('mobileNav');
+if (hamburger && mobileNav) {
+  hamburger.addEventListener('click', () => mobileNav.classList.toggle('open'));
+  document.addEventListener('click', e => {
+    if (!hamburger.contains(e.target) && !mobileNav.contains(e.target)) {
+      mobileNav.classList.remove('open');
     }
-    list.innerHTML = data.map(n => `
-      <div class="notif-item ${n.is_read ? '' : 'unread'}" onclick="readNotif(${n.id}, ${n.order_id || 'null'})">
-        <div class="notif-item-title">${n.title}</div>
-        <div class="notif-item-msg">${n.message}</div>
-        <div class="notif-item-time">${n.time}</div>
-      </div>`).join('');
-  } catch(e) {
-    list.innerHTML = '<div class="notif-empty">Could not load notifications</div>';
+  });
+}
+
+// ── Notifications ────────────────────────────────────────
+const notifBtn      = document.getElementById('notifBtn');
+const notifDropdown = document.getElementById('notifDropdown');
+const notifBadge    = document.getElementById('notifBadge');
+const notifList     = document.getElementById('notifList');
+
+if (notifBtn) {
+  notifBtn.addEventListener('click', async e => {
+    e.stopPropagation();
+    notifDropdown.classList.toggle('open');
+    if (notifDropdown.classList.contains('open')) {
+      await loadNotifications();
+      await markRead();
+    }
+  });
+  document.addEventListener('click', e => {
+    if (!notifBtn.contains(e.target) && !notifDropdown.contains(e.target)) {
+      notifDropdown.classList.remove('open');
+    }
+  });
+
+  async function loadNotifications() {
+    try {
+      const res = await fetch('/api/notifications');
+      const data = await res.json();
+      if (data.unread > 0) {
+        notifBadge.textContent = data.unread;
+        notifBadge.style.display = 'flex';
+      } else {
+        notifBadge.style.display = 'none';
+      }
+      if (data.notifications && data.notifications.length > 0) {
+        notifList.innerHTML = data.notifications.map(n => `
+          <a href="${n.link || '#'}" class="notif-item">${n.message}</a>
+        `).join('');
+      } else {
+        notifList.innerHTML = '<p class="notif-empty">All caught up!</p>';
+      }
+    } catch (e) {}
   }
+
+  async function markRead() {
+    try {
+      await fetch('/api/notifications/read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRF() }
+      });
+      notifBadge.style.display = 'none';
+    } catch (e) {}
+  }
+
+  // Poll for new notifications every 30s
+  setInterval(async () => {
+    try {
+      const res = await fetch('/api/notifications');
+      const data = await res.json();
+      if (data.unread > 0) {
+        notifBadge.textContent = data.unread;
+        notifBadge.style.display = 'flex';
+      }
+    } catch (e) {}
+  }, 30000);
 }
 
-async function readNotif(id, orderId) {
-  await fetch(`/api/notifications/read/${id}`, {method:'POST'});
-  if (orderId) location.href = `/orders/${orderId}/track`;
-  else loadNotifs();
+// ── CSRF helper ──────────────────────────────────────────
+function getCSRF() {
+  const el = document.querySelector('input[name="csrf_token"]');
+  return el ? el.value : '';
 }
 
-async function readAllNotifs() {
-  await fetch('/api/notifications/read-all', {method:'POST'});
-  document.getElementById('notif-badge').style.display = 'none';
-  loadNotifs();
-}
-
-async function pollNotifs() {
-  const badge = document.getElementById('notif-badge');
-  if (!badge) return;
-  try {
-    const d = await fetch('/api/notifications/count').then(r => r.json());
-    const n = d.n || 0;
-    badge.textContent = n;
-    badge.style.display = n > 0 ? 'flex' : 'none';
-  } catch(e) {}
-}
-
-// Close notif dropdown on outside click
-document.addEventListener('click', e => {
-  const wrap = document.getElementById('notif-wrap');
-  if (wrap && !wrap.contains(e.target)) notifWrap()?.classList.remove('open');
+// ── Add to cart feedback ─────────────────────────────────
+document.querySelectorAll('.btn-add-cart:not(.disabled)').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const orig = btn.textContent;
+    btn.textContent = '✓ Added';
+    btn.style.background = '#5c3d3d';
+    btn.style.color = '#fdf6f0';
+    setTimeout(() => {
+      btn.textContent = orig;
+      btn.style.background = '';
+      btn.style.color = '';
+    }, 1600);
+  });
 });
 
-// ── Flash auto-dismiss ────────────────────────────────────────
-function initFlash() {
-  document.querySelectorAll('.flash').forEach(el => {
-    setTimeout(() => {
-      el.style.transition = 'opacity .3s';
-      el.style.opacity = '0';
-      setTimeout(() => el.remove(), 300);
-    }, 4000);
-  });
-}
+// ── Auto-dismiss flash messages ──────────────────────────
+document.querySelectorAll('.flash').forEach(el => {
+  setTimeout(() => {
+    el.style.opacity = '0';
+    el.style.transition = 'opacity .4s';
+    setTimeout(() => el.remove(), 400);
+  }, 4000);
+});
 
-// ── Image upload preview ──────────────────────────────────────
-function initUploadArea() {
-  const area  = document.getElementById('upload-area');
-  const input = document.getElementById('img-input');
-  const grid  = document.getElementById('img-preview-grid');
-  if (!area || !input || !grid) return;
-
-  area.addEventListener('click', () => input.click());
-  area.addEventListener('dragover', e => { e.preventDefault(); area.classList.add('drag'); });
-  area.addEventListener('dragleave', () => area.classList.remove('drag'));
-  area.addEventListener('drop', e => {
-    e.preventDefault(); area.classList.remove('drag');
-    addFiles(e.dataTransfer.files);
-  });
-  input.addEventListener('change', () => addFiles(input.files));
-
-  function addFiles(files) {
-    Array.from(files).forEach((f, i) => {
-      if (!f.type.startsWith('image/')) return;
-      const url = URL.createObjectURL(f);
-      const idx = grid.children.length;
-      grid.insertAdjacentHTML('beforeend', `
-        <div class="img-thumb" id="thumb-${idx}">
-          <img src="${url}">
-          ${idx === 0 ? '<span style="position:absolute;bottom:3px;left:3px;background:var(--clay);color:#fff;font-size:9px;padding:1px 5px;border-radius:2px">Main</span>' : ''}
-          <button class="img-thumb-rm" onclick="removeThumb(${idx})" type="button">×</button>
-        </div>`);
+// ── Scroll-triggered fade-up animations ─────────────────
+const fadeEls = document.querySelectorAll('.fade-up');
+if (fadeEls.length) {
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) e.target.classList.add('visible');
     });
-  }
+  }, { threshold: 0.1 });
+  fadeEls.forEach(el => observer.observe(el));
 }
 
-function removeThumb(idx) {
-  document.getElementById(`thumb-${idx}`)?.remove();
-}
-
-// ── Final price calculator (product form) ─────────────────────
-function calcFinal() {
-  const price = parseFloat(document.getElementById('price-input')?.value) || 0;
-  const disc  = parseFloat(document.getElementById('disc-input')?.value) || 0;
-  const el    = document.getElementById('final-display');
-  if (el) el.textContent = '₹' + (price * (1 - disc/100)).toLocaleString('en-IN', {maximumFractionDigits: 0});
-}
-
-// ── Qty controls ──────────────────────────────────────────────
-function changeQty(delta) {
-  const input = document.getElementById('qty-input');
-  if (!input) return;
-  const max = parseInt(input.max) || 999;
-  input.value = Math.max(1, Math.min(max, parseInt(input.value || 1) + delta));
-}
-
-// ── Payment screenshot preview ────────────────────────────────
-function previewProof(input) {
-  const f = input.files[0];
-  if (!f) return;
-  const url = URL.createObjectURL(f);
-  const el  = document.getElementById('proof-preview');
-  if (el) {
-    el.innerHTML = `<img src="${url}" style="max-width:100%;max-height:200px;border-radius:var(--r);border:1.5px solid var(--border)">
-      <p style="font-size:12px;color:var(--success);margin-top:6px;text-align:center">✓ Screenshot selected</p>`;
-  }
-  document.getElementById('upload-prompt')?.style && (document.getElementById('upload-prompt').style.display = 'none');
-}
-
-// ── Init ──────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  initFlash();
-  initUploadArea();
-  pollNotifs();
-  setInterval(pollNotifs, 30000);
-  calcFinal();
+// ── Image preview before upload ──────────────────────────
+document.querySelectorAll('input[type="file"][accept*="image"]').forEach(input => {
+  input.addEventListener('change', () => {
+    const prev = input.parentElement.querySelector('.img-preview-row');
+    if (prev) prev.remove();
+    if (!input.files.length) return;
+    const row = document.createElement('div');
+    row.className = 'img-preview-row';
+    row.style.cssText = 'display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.6rem;';
+    Array.from(input.files).forEach(file => {
+      if (!file.type.startsWith('image/')) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        const img = document.createElement('img');
+        img.src = e.target.result;
+        img.style.cssText = 'width:64px;height:64px;object-fit:cover;border-radius:4px;border:1px solid #e8c4b8;';
+        row.appendChild(img);
+      };
+      reader.readAsDataURL(file);
+    });
+    input.parentElement.appendChild(row);
+  });
 });

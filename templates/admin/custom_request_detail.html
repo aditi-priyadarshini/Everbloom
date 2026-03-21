@@ -1,0 +1,49 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Custom Request{% endblock %}
+{% block page_title %}Custom Request #{{ req.id }}{% endblock %}
+{% block content %}
+<div class="order-detail-layout">
+  <div class="order-detail-main">
+    <div class="admin-card">
+      <h3>Request Details</h3>
+      <p><strong>From:</strong> {{ req.name }} ({{ req.email }}) {% if req.phone %}| {{ req.phone }}{% endif %}</p>
+      <p><strong>Budget:</strong> {{ req.budget or 'Not specified' }}</p>
+      <div class="form-group" style="margin-top:1rem;">
+        <label>Description</label>
+        <div class="readonly-block">{{ req.description }}</div>
+      </div>
+      {% if req.reference_image_url %}
+      <div class="form-group">
+        <label>Reference Image</label>
+        <a href="{{ req.reference_image_url }}" target="_blank">
+          <img src="{{ req.reference_image_url }}" class="screenshot-preview" alt="Reference">
+        </a>
+      </div>
+      {% endif %}
+      <p class="muted">Submitted {{ req.created_at[:10] }}</p>
+    </div>
+  </div>
+  <div class="order-detail-side">
+    <div class="admin-card">
+      <h3>Update Status</h3>
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+          <label>Status</label>
+          <select name="status">
+            {% for s in ['pending','reviewing','quoted','accepted','rejected'] %}
+            <option value="{{ s }}" {% if req.status == s %}selected{% endif %}>{{ s|capitalize }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Admin Note</label>
+          <textarea name="admin_note" rows="4">{{ req.admin_note or '' }}</textarea>
+        </div>
+        <button type="submit" class="btn-primary btn-full">Save</button>
+      </form>
+    </div>
+    <a href="{{ url_for('admin.custom_requests') }}" class="btn-outline btn-full">← Back to Requests</a>
+  </div>
+</div>
+{% endblock %}

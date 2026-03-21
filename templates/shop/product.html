@@ -1,118 +1,155 @@
 {% extends "base.html" %}
-{% block title %}{{ p.title }} — {{ store_name }}{% endblock %}
+{% block title %}{{ product.title }}{% endblock %}
 {% block content %}
+<div class="product-detail-wrap">
+  <!-- Gallery -->
+  <div class="product-gallery">
+    {% set imgs = product.images or [] %}
+    {% if imgs %}
+    <div class="gallery-main" id="galleryMain">
+      <img src="{{ imgs[0] }}" alt="{{ product.title }}" id="mainImg">
+    </div>
+    {% if imgs|length > 1 %}
+    <div class="gallery-thumbs">
+      {% for img in imgs %}
+      <img src="{{ img }}" alt="" class="thumb {% if loop.first %}active{% endif %}" onclick="setMain('{{ img }}', this)">
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="gallery-placeholder">
+      <svg viewBox="0 0 300 300" fill="none" width="200">
+        <circle cx="150" cy="150" r="120" fill="#f5e6e0" opacity="0.5"/>
+        <ellipse cx="120" cy="145" rx="38" ry="30" fill="#e8c4b8"/>
+        <ellipse cx="170" cy="138" rx="30" ry="36" fill="#c8d8c0"/>
+        <ellipse cx="210" cy="155" rx="24" ry="20" fill="#c9a96e" opacity="0.7"/>
+        <text x="200" y="85" font-size="22" fill="#c9a96e" opacity="0.5">✦</text>
+      </svg>
+    </div>
+    {% endif %}
+  </div>
 
-<!-- Breadcrumb -->
-<div style="background:white;border-bottom:1px solid var(--border);padding:12px 0">
-  <div class="container" style="font-size:13px;color:var(--muted)">
-    <a href="{{ url_for('shop.home') }}" style="color:var(--muted)">Home</a> ›
-    <a href="{{ url_for('shop.shop') }}" style="color:var(--muted)">Shop</a>
-    {% if p.cat_name %} › <a href="{{ url_for('shop.shop', cat=p.cat_slug) }}" style="color:var(--muted)">{{ p.cat_name }}</a>{% endif %}
-    › <span style="color:var(--text)">{{ p.title }}</span>
+  <!-- Info -->
+  <div class="product-info">
+    <div class="product-info-cat">
+      {% if product.category_id == 1 %}Paintings
+      {% elif product.category_id == 2 %}DIY Kits
+      {% elif product.category_id == 3 %}Sculptures
+      {% else %}Craft{% endif %}
+    </div>
+    <h1 class="product-info-title">{{ product.title }}</h1>
+
+    <!-- Rating -->
+    {% if avg_rating > 0 %}
+    <div class="product-rating">
+      {% for i in range(1, 6) %}
+      <span class="star {% if i <= avg_rating|round %}filled{% endif %}">★</span>
+      {% endfor %}
+      <span class="rating-count">({{ reviews|length }} review{{ 's' if reviews|length != 1 }})</span>
+    </div>
+    {% endif %}
+
+    <!-- Price -->
+    <div class="product-price-wrap">
+      {% set final_price = discounted_price(product) %}
+      <span class="price-big">₹{{ "%.0f"|format(final_price) }}</span>
+      {% if product.discount_percent and product.discount_percent > 0 %}
+      <span class="price-orig">₹{{ "%.0f"|format(product.price) }}</span>
+      <span class="price-badge">{{ product.discount_percent }}% off</span>
+      {% endif %}
+    </div>
+
+    {% if product.is_flash_sale and is_flash_active(product) %}
+    <div class="flash-banner">⚡ Flash Sale — Limited time offer!</div>
+    {% endif %}
+
+    <div class="product-meta">
+      <span class="{% if product.stock > 0 %}in-stock{% else %}out-stock{% endif %}">
+        {% if product.stock > 0 %}✓ In Stock ({{ product.stock }} left){% else %}Out of Stock{% endif %}
+      </span>
+      {% if product.crafting_days %}
+      <span class="crafting-info">Ready in approx. {{ product.crafting_days }} days</span>
+      {% endif %}
+    </div>
+
+    {% if product.description %}
+    <p class="product-desc">{{ product.description }}</p>
+    {% endif %}
+
+    {% if product.stock > 0 %}
+    <form method="post" action="{{ url_for('shop.cart_add', pid=product.id) }}" class="add-to-cart-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="qty-wrap">
+        <label>Qty</label>
+        <input type="number" name="qty" value="1" min="1" max="{{ product.stock }}" class="qty-input">
+      </div>
+      <button type="submit" class="btn-primary btn-full">Add to Cart</button>
+    </form>
+    {% else %}
+    <button class="btn-primary btn-full disabled" disabled>Out of Stock</button>
+    {% endif %}
+
+    <a href="{{ url_for('shop.custom_order') }}" class="custom-order-link">Want something custom? →</a>
   </div>
 </div>
 
-<div class="container" style="padding-top:48px;padding-bottom:80px">
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:start">
+<!-- Reviews -->
+<div class="reviews-section">
+  <h2>Customer Reviews</h2>
 
-    <!-- Images -->
-    <div style="position:sticky;top:84px">
-      {% set imgs = p.images.split(',') | map('trim') | select | list if p.images else [] %}
-      <div style="aspect-ratio:1;background:var(--mist);border-radius:var(--rl);overflow:hidden;margin-bottom:12px;cursor:zoom-in" id="main-img-wrap">
-        {% if imgs %}
-        <img src="{{ imgs[0] }}" alt="{{ p.title }}" id="main-img" style="width:100%;height:100%;object-fit:cover;transition:transform .5s ease">
-        {% else %}
-        <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:80px;color:var(--sand)">{{ p.cat_icon or '🎨' }}</div>
-        {% endif %}
-      </div>
-      {% if imgs|length > 1 %}
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        {% for img in imgs %}
-        <div onclick="document.getElementById('main-img').src='{{ img }}';document.querySelectorAll('.thumb-img').forEach(t=>t.classList.remove('active'));this.querySelector('img').classList.add('active')"
-             style="width:66px;height:66px;border-radius:var(--r);overflow:hidden;cursor:pointer;border:2px solid {% if loop.first %}var(--clay){% else %}var(--border){% endif %};transition:border-color var(--t)">
-          <img src="{{ img }}" class="thumb-img {% if loop.first %}active{% endif %}" style="width:100%;height:100%;object-fit:cover">
-        </div>
+  {% if session.user_id %}
+  <div class="review-form-wrap">
+    <h3>{{ 'Edit Your Review' if user_review else 'Leave a Review' }}</h3>
+    <form method="post" action="{{ url_for('shop.submit_review', pid=product.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="star-select" id="starSelect">
+        {% for i in range(1, 6) %}
+        <input type="radio" name="rating" value="{{ i }}" id="star{{ i }}" {% if user_review and user_review.rating == i %}checked{% elif not user_review and i == 5 %}checked{% endif %}>
+        <label for="star{{ i }}">★</label>
         {% endfor %}
       </div>
-      {% endif %}
-    </div>
-
-    <!-- Details -->
-    <div>
-      <p style="font-size:11px;font-weight:500;letter-spacing:2px;text-transform:uppercase;color:var(--clay);margin-bottom:10px">
-        {{ p.cat_icon or '' }} {{ p.cat_name or 'Art' }}
-      </p>
-      <h1 style="font-family:var(--serif);font-size:42px;font-weight:400;line-height:1.1;margin-bottom:20px;color:var(--ink)">{{ p.title }}</h1>
-
-      <!-- Price -->
-      {% set fp = (p.price|float) * (1 - (p.discount_percent or 0) / 100) %}
-      <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:24px;flex-wrap:wrap">
-        <span style="font-size:34px;font-weight:500;color:var(--ink)">₹{{ "{:,.0f}".format(fp) }}</span>
-        {% if p.discount_percent > 0 %}
-        <span style="font-size:18px;color:var(--muted);text-decoration:line-through">₹{{ "{:,.0f}".format(p.price|float) }}</span>
-        <span style="background:var(--sage);color:#fff;padding:4px 10px;border-radius:99px;font-size:12px;font-weight:500">{{ p.discount_percent }}% off</span>
-        {% endif %}
-      </div>
-
-      {% if p.description %}
-      <p style="font-size:15px;color:var(--text);line-height:1.8;margin-bottom:24px">{{ p.description }}</p>
-      {% endif %}
-
-      <!-- Stock -->
-      <p style="font-size:13px;margin-bottom:24px;font-weight:500;color:{% if p.stock_qty > 0 %}var(--success){% else %}var(--error){% endif %}">
-        {% if p.stock_qty > 0 %}✓ In Stock ({{ p.stock_qty }} available){% else %}✕ Out of Stock{% endif %}
-      </p>
-
-      {% if p.stock_qty > 0 %}
-      <form method="POST" action="{{ url_for('shop.cart_add') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="pid" value="{{ p.id }}">
-        <div style="display:flex;gap:14px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
-          <div class="qty-wrap">
-            <button type="button" class="qty-btn" onclick="changeQty(-1)">−</button>
-            <input class="qty-val" type="number" name="qty" id="qty-input" value="1" min="1" max="{{ p.stock_qty }}">
-            <button type="button" class="qty-btn" onclick="changeQty(1)">+</button>
-          </div>
-          <button type="submit" class="btn btn-clay btn-lg" style="flex:1;min-width:180px">🛒 Add to Cart</button>
-        </div>
-      </form>
-      {% else %}
-      <button class="btn btn-full btn-lg" style="background:var(--mist);color:var(--muted);cursor:not-allowed" disabled>Out of Stock</button>
-      {% endif %}
-
-      <!-- Trust -->
-      <div style="display:flex;gap:20px;margin-top:28px;padding-top:24px;border-top:1px solid var(--border);flex-wrap:wrap">
-        <span style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px">🎨 Handcrafted</span>
-        <span style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px">💌 Pay advance only</span>
-        <span style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px">📧 Live updates</span>
-        <span style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px">📦 Carefully packed</span>
-      </div>
-
-      {% if p.tags %}
-      <div style="margin-top:20px;display:flex;gap:8px;flex-wrap:wrap">
-        {% for tag in p.tags.split(',') %}{% set t = tag.strip() %}{% if t %}
-        <span style="padding:4px 12px;background:var(--parchment);border:1px solid var(--border);border-radius:99px;font-size:12px;color:var(--muted)">{{ t }}</span>
-        {% endif %}{% endfor %}
-      </div>
-      {% endif %}
-    </div>
+      <textarea name="comment" placeholder="Share your experience…" rows="3">{{ user_review.comment if user_review else '' }}</textarea>
+      <button type="submit" class="btn-primary">{{ 'Update Review' if user_review else 'Submit Review' }}</button>
+    </form>
   </div>
+  {% endif %}
+
+  {% if reviews %}
+  <div class="reviews-list">
+    {% for r in reviews %}
+    <div class="review-item">
+      <div class="review-header">
+        <div class="review-stars">
+          {% for i in range(1, 6) %}<span class="star {% if i <= r.rating %}filled{% endif %}">★</span>{% endfor %}
+        </div>
+        <span class="review-date">{{ r.created_at[:10] }}</span>
+      </div>
+      {% if r.comment %}<p class="review-comment">{{ r.comment }}</p>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="no-reviews">No reviews yet. Be the first!</p>
+  {% endif %}
 </div>
 
 <!-- Related -->
 {% if related %}
-<section class="section" style="background:var(--parchment)">
-  <div class="container">
-    <div class="sec-header"><p class="sec-tag">You may also like</p><h2 class="sec-title">Related Pieces</h2></div>
-    <div class="grid-4">{% for p in related %}{% include 'shop/_card.html' %}{% endfor %}</div>
+<div class="related-section">
+  <h2>You might also like</h2>
+  <div class="products-grid">
+    {% for p in related %}
+    {% include "shop/_product_card.html" %}
+    {% endfor %}
   </div>
-</section>
+</div>
 {% endif %}
 
-<style>
-@media(max-width:768px){
-  .container > div[style*="grid-template-columns:1fr 1fr"] { grid-template-columns:1fr !important; gap:32px !important; }
-  div[style*="position:sticky;top:84px"] { position:static !important; }
+<script>
+function setMain(src, el) {
+  document.getElementById('mainImg').src = src;
+  document.querySelectorAll('.thumb').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
 }
-</style>
+</script>
 {% endblock %}

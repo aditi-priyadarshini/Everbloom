@@ -1,0 +1,30 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Custom Requests{% endblock %}
+{% block page_title %}Custom Order Requests{% endblock %}
+{% block content %}
+<div class="filter-tabs">
+  <a href="{{ url_for('admin.custom_requests') }}" class="tab {% if not selected_status %}active{% endif %}">All</a>
+  {% for s in ['pending','reviewing','quoted','accepted','rejected'] %}
+  <a href="{{ url_for('admin.custom_requests') }}?status={{ s }}" class="tab {% if selected_status == s %}active{% endif %}">{{ s|capitalize }}</a>
+  {% endfor %}
+</div>
+<div class="admin-table-wrap">
+  <table class="admin-table">
+    <thead><tr><th>Name</th><th>Email</th><th>Budget</th><th>Status</th><th>Date</th><th></th></tr></thead>
+    <tbody>
+      {% for r in requests %}
+      <tr>
+        <td>{{ r.name }}</td>
+        <td>{{ r.email }}</td>
+        <td>{{ r.budget or '—' }}</td>
+        <td><span class="status-pill status-{{ r.status }}">{{ r.status|capitalize }}</span></td>
+        <td>{{ r.created_at[:10] }}</td>
+        <td><a href="{{ url_for('admin.custom_request_detail', rid=r.id) }}" class="table-action">Review →</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="empty-row">No custom requests yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

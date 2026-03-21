@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Custom Order{% endblock %}
+{% block content %}
+<div class="page-wrap narrow">
+  <div class="section-tag">Personalised</div>
+  <h1 class="page-title">Custom Order Request</h1>
+  <p class="subtitle">Tell us what you have in mind — our artisans will bring it to life.</p>
+
+  {% if success %}
+  <div class="success-card">
+    <div class="success-icon">✓</div>
+    <h3>Request Received!</h3>
+    <p>We'll review your request and get back to you within 2–3 business days.</p>
+    <a href="{{ url_for('shop.index') }}" class="btn-primary">Back to Home</a>
+  </div>
+  {% else %}
+  <form method="post" enctype="multipart/form-data" class="custom-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Your Name *</label>
+        <input type="text" name="name" value="{{ session.user_name or '' }}" required>
+      </div>
+      <div class="form-group">
+        <label>Email *</label>
+        <input type="email" name="email" required>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Phone</label>
+      <input type="tel" name="phone">
+    </div>
+    <div class="form-group">
+      <label>Describe what you want *</label>
+      <textarea name="description" rows="5" placeholder="Tell us the type of craft, size, colour preferences, occasion, etc." required></textarea>
+    </div>
+    <div class="form-group">
+      <label>Budget Range</label>
+      <select name="budget">
+        <option value="">Select a range</option>
+        <option>Under ₹500</option>
+        <option>₹500 – ₹1,000</option>
+        <option>₹1,000 – ₹3,000</option>
+        <option>₹3,000 – ₹5,000</option>
+        <option>Above ₹5,000</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Reference Image (optional)</label>
+      <input type="file" name="reference_image" accept="image/*" class="file-input">
+    </div>
+    <button type="submit" class="btn-primary btn-full">Submit Request</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}
