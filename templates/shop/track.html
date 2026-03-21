@@ -43,6 +43,9 @@
         </div>
       </div>
       {% endfor %}
+      {% if not tracking %}
+      <p style="color:var(--text-soft);font-size:.9rem;">No updates yet.</p>
+      {% endif %}
     </div>
   </div>
 </div>

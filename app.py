@@ -52,6 +52,7 @@ def create_app():
         ORDER_STATUSES=models.ORDER_STATUSES,
         STATUS_LABELS=models.STATUS_LABELS,
         SITE_URL=os.environ.get("SITE_URL", "http://localhost:5000"),
+        get_setting=models.get_setting,
     )
 
     return app
@@ -61,3 +62,15 @@ app = create_app()
 
 if __name__ == "__main__":
     app.run(debug=True)
+
+
+# Show real errors on Vercel instead of blank 500
+@app.errorhandler(500)
+def internal_error(e):
+    import traceback
+    return f"<pre>500 Error:\n{traceback.format_exc()}</pre>", 500
+
+@app.errorhandler(Exception)
+def unhandled(e):
+    import traceback
+    return f"<pre>Unhandled Exception:\n{traceback.format_exc()}</pre>", 500

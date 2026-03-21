@@ -26,6 +26,9 @@
           {% if o.status == 'advance_requested' %}
           <a href="{{ url_for('orders.pay_advance', oid=o.id) }}" class="btn-primary-sm">Pay Advance</a>
           {% endif %}
+          {% if o.status == 'delivered' %}
+
+          {% endif %}
           <a href="{{ url_for('orders.track', oid=o.id) }}" class="btn-outline-sm">Track</a>
         </div>
       </div>

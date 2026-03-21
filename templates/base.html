@@ -15,9 +15,6 @@
   <a class="nav-logo" href="{{ url_for('shop.index') }}">Ever<span>bloom</span></a>
   <ul class="nav-links">
     <li><a href="{{ url_for('shop.shop') }}">Shop</a></li>
-    <li><a href="{{ url_for('shop.shop') }}?category=1">Paintings</a></li>
-    <li><a href="{{ url_for('shop.shop') }}?category=2">DIY Kits</a></li>
-    <li><a href="{{ url_for('shop.shop') }}?category=3">Sculptures</a></li>
     <li><a href="{{ url_for('shop.custom_order') }}">Custom Order</a></li>
   </ul>
   <div class="nav-actions">
@@ -97,7 +94,6 @@
     <div class="footer-col">
       <h4>Help</h4>
       <a href="{{ url_for('shop.custom_order') }}">Contact Us</a>
-      <a href="#">Shipping Policy</a>
     </div>
     <div class="footer-col">
       <h4>Account</h4>

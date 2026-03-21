@@ -533,14 +533,17 @@ def variant_delete(vid):
     return redirect(url_for("admin.product_edit", pid=pid))
 
 
+
 # ── Settings ─────────────────────────────────────────────
 
 @admin_bp.route("/settings", methods=["GET", "POST"])
 @admin_only
 def settings():
     if request.method == "POST":
-        upi_id = request.form.get("upi_id", "").strip()
-        models.set_setting("upi_id", upi_id)
+        for key in ["upi_id", "whatsapp_number", "instagram_handle", "store_name", "store_tagline"]:
+            val = request.form.get(key, "").strip()
+            if val:
+                models.set_setting(key, val)
         qr_file = request.files.get("upi_qr")
         if qr_file and qr_file.filename:
             path = f"settings/upi_qr_{uuid.uuid4()}.png"
@@ -549,6 +552,5 @@ def settings():
                 models.set_setting("upi_qr_url", url)
         flash("Settings saved!", "success")
         return redirect(url_for("admin.settings"))
-    upi_id = models.get_setting("upi_id")
-    upi_qr_url = models.get_setting("upi_qr_url")
-    return render_template("admin/settings.html", upi_id=upi_id, upi_qr_url=upi_qr_url)
+    s = models.get_all_settings()
+    return render_template("admin/settings.html", s=s)
