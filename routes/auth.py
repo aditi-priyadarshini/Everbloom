@@ -18,7 +18,7 @@ def login():
         if user and user.check_password(password):
             login_user(user, remember=remember)
             nxt = request.args.get("next")
-            return redirect(nxt or (url_for("admin.dashboard") if user.is_admin else url_for("shop.home")))
+            return redirect(nxt or url_for("shop.home"))
         flash("Invalid email or password.", "error")
     return render_template("auth/login.html")
 
