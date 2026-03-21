@@ -55,13 +55,32 @@ def order_detail(oid):
 
         if action == "set_advance":
             advance = request.form.get("advance_amount", "0")
+            shipping = request.form.get("shipping_charge", "0")
             try:
                 advance = float(advance)
             except Exception:
                 advance = 0
-            models.update_order(oid, {"advance_amount": advance, "status": "advance_requested"})
-            models.add_tracking(oid, "advance_requested", f"Advance of ₹{advance} requested.")
+            try:
+                shipping = float(shipping)
+            except Exception:
+                shipping = 0
+            # Add shipping to order total
+            new_total = float(order.get("total", 0)) + shipping
+            update_data = {
+                "advance_amount": advance,
+                "status": "advance_requested",
+                "shipping_charge": shipping,
+            }
+            if shipping > 0:
+                update_data["total"] = new_total
+            models.update_order(oid, update_data)
+            note = f"Advance of ₹{advance} requested."
+            if shipping > 0:
+                note += f" Shipping charge: ₹{shipping}."
+            models.add_tracking(oid, "advance_requested", note)
             if user:
+                emails.send_advance_requested(user["email"], {**order, "advance_amount": advance, "shipping_charge": shipping, "total": new_total if shipping > 0 else order.get("total",0)},
+                                              upi_id, upi_qr_url, site_url)
                 emails.send_advance_requested(user["email"], {**order, "advance_amount": advance},
                                               upi_id, upi_qr_url, site_url)
                 models.create_notification(order["user_id"],
@@ -531,7 +550,6 @@ def variant_delete(vid):
     models.delete_variant(vid)
     flash("Variant deleted.", "success")
     return redirect(url_for("admin.product_edit", pid=pid))
-
 
 
 # ── Settings ─────────────────────────────────────────────
