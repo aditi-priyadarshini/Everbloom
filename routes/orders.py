@@ -6,6 +6,8 @@ from routes.auth import login_required
 
 orders_bp = Blueprint("orders", __name__, url_prefix="/orders")
 
+BUCKET = "everbloom"
+
 
 @orders_bp.route("/")
 @login_required
@@ -55,17 +57,28 @@ def pay_advance(oid):
     if request.method == "POST":
         screenshot = request.files.get("screenshot")
         if screenshot and screenshot.filename:
-            path = f"payments/{uuid.uuid4()}-{screenshot.filename}"
-            url = supa.upload_file("products", path, screenshot.read(), screenshot.content_type)
+            safe_name = screenshot.filename.replace(" ", "_")
+            path = f"payments/{uuid.uuid4()}-{safe_name}"
+            url = supa.upload_file(BUCKET, path, screenshot.read(),
+                                   screenshot.content_type or "image/jpeg")
             if url:
-                models.update_order(oid, {"payment_screenshot_url": url, "status": "advance_paid"})
-                models.add_tracking(oid, "advance_paid", "Customer uploaded payment screenshot.")
-                models.create_notification(session["user_id"],
-                                           "Payment screenshot uploaded. Awaiting confirmation.",
-                                           url_for("orders.order_detail", oid=oid))
+                models.update_order(oid, {
+                    "payment_screenshot_url": url,
+                    "status": "advance_paid"
+                })
+                models.add_tracking(oid, "advance_paid",
+                                    "Customer uploaded payment screenshot.")
+                models.create_notification(
+                    session["user_id"],
+                    "Payment screenshot uploaded. Awaiting confirmation.",
+                    url_for("orders.order_detail", oid=oid)
+                )
                 flash("Screenshot uploaded! We'll confirm your payment shortly.", "success")
                 return redirect(url_for("orders.order_detail", oid=oid))
-        flash("Please upload a screenshot.", "error")
+            else:
+                flash("Upload failed — check Supabase Storage bucket 'everbloom' exists and is Public.", "error")
+        else:
+            flash("Please select a screenshot to upload.", "error")
 
     return render_template("shop/pay_advance.html",
                            order=order, upi_id=upi_id, upi_qr_url=upi_qr_url)

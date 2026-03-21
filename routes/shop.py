@@ -247,7 +247,7 @@ def custom_order():
         if ref_file and ref_file.filename:
             import uuid
             path = f"custom/{uuid.uuid4()}-{ref_file.filename}"
-            ref_url = supa.upload_file("products", path, ref_file.read(), ref_file.content_type)
+            ref_url = supa.upload_file("everbloom", path, ref_file.read(), ref_file.content_type)
         data = {
             "name": request.form.get("name", "").strip(),
             "email": request.form.get("email", "").strip(),

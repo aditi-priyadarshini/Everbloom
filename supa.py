@@ -105,16 +105,23 @@ def rpc(func_name, params=None):
 # ── Storage ──────────────────────────────────────────────
 
 def upload_file(bucket, path, file_bytes, content_type="image/jpeg"):
+    import sys
     key = _get_key()
-    url = f"{_get_url()}/storage/v1/object/{bucket}/{path}"
+    base_url = _get_url()
+
+    # Try POST first (new file)
+    url = f"{base_url}/storage/v1/object/{bucket}/{path}"
     headers = {
         "apikey": key,
         "Authorization": f"Bearer {key}",
         "Content-Type": content_type,
+        "x-upsert": "true",   # overwrite if exists
     }
     r = requests.post(url, headers=headers, data=file_bytes)
     if r.status_code in (200, 201):
-        return f"{_get_url()}/storage/v1/object/public/{bucket}/{path}"
+        return f"{base_url}/storage/v1/object/public/{bucket}/{path}"
+
+    print(f"[supa.upload_file ERROR] bucket={bucket} path={path} status={r.status_code} body={r.text}", file=sys.stderr)
     return None
 
 
