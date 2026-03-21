@@ -22,7 +22,7 @@ def create_app():
     # Zoho Mail SMTP
     mail_user = os.environ.get("MAIL_USERNAME", "")
     mail_pass = os.environ.get("MAIL_PASSWORD", "")
-    app.config["MAIL_SERVER"]         = "smtp.zoho.com"
+    app.config["MAIL_SERVER"]         = "smtp.zoho.in"
     app.config["MAIL_PORT"]           = 465
     app.config["MAIL_USE_TLS"]        = False
     app.config["MAIL_USE_SSL"]        = True
