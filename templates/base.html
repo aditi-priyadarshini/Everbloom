@@ -3,149 +3,107 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}{{ store_name }}{% endblock %}</title>
+  <title>{% block title %}Admin — {{ store_name }}{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
   {% block head %}{% endblock %}
 </head>
 <body>
+<div class="admin-layout">
 
-<!-- NAV -->
-<nav class="nav">
-  <a href="{{ url_for('shop.home') }}" class="nav-logo">🌸 {{ store_name }}</a>
+  <!-- Sidebar -->
+  <aside class="admin-sidebar" id="admin-sidebar">
+    <div class="admin-sidebar-logo">
+      <h2>🌸 {{ store_name }}</h2>
+      <span>Admin Panel</span>
+    </div>
+    <nav class="admin-nav">
+      <div class="admin-nav-section">Overview</div>
+      <a href="{{ url_for('admin.dashboard') }}" class="admin-nav-link {% if request.endpoint == 'admin.dashboard' %}active{% endif %}">
+        <span class="icon">📊</span> Dashboard
+      </a>
 
-  <ul class="nav-links">
-    <li><a href="{{ url_for('shop.home') }}" {% if request.endpoint == 'shop.home' %}class="active"{% endif %}>Home</a></li>
-    <li><a href="{{ url_for('shop.shop') }}" {% if request.endpoint == 'shop.shop' %}class="active"{% endif %}>Shop</a></li>
-    {% if current_user.is_authenticated %}
-    <li><a href="{{ url_for('orders.my_orders') }}" {% if request.blueprint == 'orders' %}class="active"{% endif %}>My Orders</a></li>
-    {% endif %}
-  </ul>
+      <div class="admin-nav-section">Orders</div>
+      <a href="{{ url_for('admin.orders') }}" class="admin-nav-link {% if request.endpoint in ['admin.orders','admin.order_detail'] %}active{% endif %}">
+        <span class="icon">📦</span> All Orders
+      </a>
+      <a href="{{ url_for('admin.orders', status='draft') }}" class="admin-nav-link {% if request.args.get('status') == 'draft' %}active{% endif %}">
+        <span class="icon">👀</span> Pending Review
+        {% set pending_count = pending_count|default(0) %}
+      </a>
+      <a href="{{ url_for('admin.orders', status='advance_paid') }}" class="admin-nav-link">
+        <span class="icon">💳</span> Confirm Advance
+      </a>
 
-  <div class="nav-actions">
-    {% if current_user.is_authenticated %}
-    <!-- Notification Bell -->
-    <div class="notif-wrap" id="notif-wrap">
-      <button class="nav-icon-btn" id="notif-btn" onclick="toggleNotifDropdown()" aria-label="Notifications">
-        🔔 <span class="badge" id="notif-badge" style="display:none">0</span>
-      </button>
-      <div class="notif-dropdown" id="notif-dropdown">
-        <div class="notif-header">
-          <span>Notifications</span>
-          <button onclick="markAllRead()">Mark all read</button>
-        </div>
-        <div id="notif-list"><div class="notif-empty">Loading...</div></div>
+      <div class="admin-nav-section">Catalog</div>
+      <a href="{{ url_for('admin.products') }}" class="admin-nav-link {% if request.endpoint in ['admin.products','admin.product_new','admin.product_edit'] %}active{% endif %}">
+        <span class="icon">🎨</span> Products
+      </a>
+      <a href="{{ url_for('admin.product_new') }}" class="admin-nav-link">
+        <span class="icon">➕</span> Add Product
+      </a>
+
+      <div class="admin-nav-section">People</div>
+      <a href="{{ url_for('admin.customers') }}" class="admin-nav-link {% if request.endpoint == 'admin.customers' %}active{% endif %}">
+        <span class="icon">👥</span> Customers
+      </a>
+
+      <div class="admin-nav-section">Settings</div>
+      <a href="{{ url_for('admin.settings') }}" class="admin-nav-link {% if request.endpoint == 'admin.settings' %}active{% endif %}">
+        <span class="icon">⚙️</span> Settings / QR
+      </a>
+      <a href="{{ url_for('shop.home') }}" class="admin-nav-link">
+        <span class="icon">🏪</span> View Store
+      </a>
+      <a href="{{ url_for('auth.logout') }}" class="admin-nav-link">
+        <span class="icon">🚪</span> Sign Out
+      </a>
+    </nav>
+  </aside>
+
+  <!-- Main -->
+  <main class="admin-main">
+    <div class="admin-topbar">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="admin-hamburger" onclick="toggleAdminSidebar()" aria-label="Menu">☰</button>
+        <h1 class="admin-page-title">{% block page_title %}Dashboard{% endblock %}</h1>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:13px;color:var(--text-muted)">{{ current_user.full_name }}</span>
+        {% block topbar_actions %}{% endblock %}
       </div>
     </div>
-    {% endif %}
 
-    <!-- Cart -->
-    <a href="{{ url_for('shop.cart') }}" class="nav-icon-btn" aria-label="Cart">
-      🛒 <span class="badge" id="cart-badge" {% if cart_count == 0 %}style="display:none"{% endif %}>{{ cart_count }}</span>
-    </a>
-
-    {% if current_user.is_authenticated %}
-    <div class="user-menu">
-      <span class="user-greeting">Hi, {{ current_user.full_name.split()[0] }}</span>
-      {% if current_user.is_admin %}
-      <a href="{{ url_for('admin.dashboard') }}" class="btn btn-accent btn-sm">Admin</a>
-      {% endif %}
-      <a href="{{ url_for('auth.logout') }}" class="btn btn-secondary btn-sm">Logout</a>
-    </div>
-    {% else %}
-    <div class="auth-nav-links">
-      <a href="{{ url_for('auth.login') }}" class="btn btn-secondary btn-sm">Login</a>
-      <a href="{{ url_for('auth.signup') }}" class="btn btn-primary btn-sm">Sign Up</a>
+    <!-- Flash messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div style="padding:0 32px;margin-top:16px">
+      {% for category, message in messages %}
+      <div class="flash flash-{{ category }}" style="margin-bottom:8px">
+        {{ message }}
+        <button onclick="this.parentElement.remove()" style="margin-left:12px;background:none;border:none;color:inherit;cursor:pointer;font-size:18px;line-height:1">×</button>
+      </div>
+      {% endfor %}
     </div>
     {% endif %}
+    {% endwith %}
 
-    <button class="nav-hamburger" onclick="toggleMobileNav()" aria-label="Menu">
-      <span></span><span></span><span></span>
-    </button>
-  </div>
-</nav>
-
-<!-- Mobile Nav Overlay -->
-<div id="nav-overlay" onclick="toggleMobileNav()"></div>
-<div class="mobile-nav" id="mobile-nav">
-  <button class="mobile-nav-close" onclick="toggleMobileNav()">×</button>
-  <a href="{{ url_for('shop.home') }}" onclick="toggleMobileNav()">Home</a>
-  <a href="{{ url_for('shop.shop') }}" onclick="toggleMobileNav()">Shop</a>
-  {% if current_user.is_authenticated %}
-  <a href="{{ url_for('orders.my_orders') }}" onclick="toggleMobileNav()">My Orders</a>
-  <a href="{{ url_for('shop.cart') }}" onclick="toggleMobileNav()">🛒 Cart</a>
-  {% if current_user.is_admin %}
-  <a href="{{ url_for('admin.dashboard') }}" onclick="toggleMobileNav()">⚙️ Admin</a>
-  {% endif %}
-  <a href="{{ url_for('auth.logout') }}" class="btn btn-secondary btn-full" style="margin-top:20px">Logout</a>
-  {% else %}
-  <a href="{{ url_for('shop.cart') }}" onclick="toggleMobileNav()">🛒 Cart</a>
-  <div style="margin-top:24px;display:flex;flex-direction:column;gap:10px">
-    <a href="{{ url_for('auth.login') }}" class="btn btn-secondary btn-full">Login</a>
-    <a href="{{ url_for('auth.signup') }}" class="btn btn-primary btn-full">Sign Up</a>
-  </div>
-  {% endif %}
+    <div class="admin-content">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
 </div>
 
-<!-- Flash Messages -->
-{% with messages = get_flashed_messages(with_categories=true) %}
-{% if messages %}
-<div class="flash-container">
-  {% for category, message in messages %}
-  <div class="flash flash-{{ category }}">
-    {{ message }}
-    <button onclick="this.parentElement.remove()" style="margin-left:12px;background:none;border:none;color:inherit;cursor:pointer;font-size:18px;line-height:1">×</button>
-  </div>
-  {% endfor %}
-</div>
-{% endif %}
-{% endwith %}
-
-<!-- Page Content -->
-{% block content %}{% endblock %}
-
-<!-- Footer -->
-{% block footer %}
-<footer class="footer">
-  <div class="container">
-    <div class="footer-grid">
-      <div>
-        <div class="footer-brand">🌸 {{ store_name }}</div>
-        <p class="footer-desc">Handcrafted art and craft pieces made with love. Every piece tells a unique story.</p>
-      </div>
-      <div>
-        <h4 class="footer-heading">Shop</h4>
-        <ul class="footer-links">
-          <li><a href="{{ url_for('shop.shop') }}">All Products</a></li>
-          <li><a href="{{ url_for('shop.shop', category='paintings') }}">Paintings</a></li>
-          <li><a href="{{ url_for('shop.shop', category='pottery') }}">Pottery</a></li>
-          <li><a href="{{ url_for('shop.shop', category='diy-kits') }}">DIY Kits</a></li>
-        </ul>
-      </div>
-      <div>
-        <h4 class="footer-heading">Account</h4>
-        <ul class="footer-links">
-          {% if current_user.is_authenticated %}
-          <li><a href="{{ url_for('orders.my_orders') }}">My Orders</a></li>
-          <li><a href="{{ url_for('auth.profile') }}">Profile</a></li>
-          <li><a href="{{ url_for('auth.logout') }}">Logout</a></li>
-          {% else %}
-          <li><a href="{{ url_for('auth.login') }}">Login</a></li>
-          <li><a href="{{ url_for('auth.signup') }}">Sign Up</a></li>
-          {% endif %}
-        </ul>
-      </div>
-    </div>
-    <div class="footer-bottom">
-      <span>© 2024 {{ store_name }}. All rights reserved.</span>
-      <span>Made with 🌸 for art lovers</span>
-    </div>
-  </div>
-</footer>
-{% endblock %}
+<div id="sidebar-overlay" onclick="toggleAdminSidebar()"></div>
 
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+<script>
+function toggleAdminSidebar() {
+  document.getElementById('admin-sidebar').classList.toggle('open');
+  document.getElementById('sidebar-overlay').classList.toggle('open');
+}
+</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>
