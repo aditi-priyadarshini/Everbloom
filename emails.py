@@ -1,137 +1,105 @@
 import os
 from flask import current_app, render_template_string
-from flask_mail import Mail, Message
+from flask_mail import Message
+from app import mail
 
-mail = Mail()
-
-BASE = """<!DOCTYPE html><html><head><meta charset="UTF-8">
+_BASE = """<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-body{margin:0;padding:0;background:#FAF6F1;font-family:Georgia,serif}
-.wrap{max-width:580px;margin:0 auto}
-.hdr{background:#2C1810;padding:24px 32px;text-align:center}
-.hdr h1{color:#F0E6D6;margin:0;font-size:24px;letter-spacing:3px;font-weight:300}
-.hdr p{color:#C4A882;margin:4px 0 0;font-size:11px;letter-spacing:2px}
-.sbar{background:#8B5E3C;padding:14px;text-align:center}
-.sbar h2{color:#fff;margin:0;font-size:18px}
-.sbar p{color:#F0E6D6;margin:3px 0 0;font-size:11px;letter-spacing:1px;text-transform:uppercase}
-.body{padding:24px 32px}
-.body p{color:#5C4033;font-size:15px;line-height:1.7}
-.box{background:#fff;border:1px solid #E8DDD4;border-radius:8px;padding:16px 20px;margin:16px 0}
-.box p{margin:4px 0;font-size:14px;color:#5C4033}
-.hl{background:#F0E6D6;border-left:4px solid #8B5E3C;padding:12px 16px;border-radius:0 6px 6px 0;margin:14px 0}
-.hl p{margin:0;font-size:14px;color:#5C4033}
-.upi{background:#2C1810;color:#F0E6D6;border-radius:8px;padding:16px;text-align:center;margin:14px 0}
-.upi .amt{font-size:32px;font-weight:600;color:#C4A882}
-.upi .uid{font-size:13px;margin-top:4px;color:#9E8E85}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#FDF8F3;font-family:Georgia,serif;color:#3D2B1F}
+.wrap{max-width:560px;margin:0 auto;background:#fff}
+.hdr{background:#1C0A00;padding:32px;text-align:center}
+.hdr-logo{font-size:28px;color:#F5E6D3;letter-spacing:4px;font-weight:400}
+.hdr-sub{font-size:10px;color:#B8916A;letter-spacing:3px;text-transform:uppercase;margin-top:6px}
+.status-bar{background:#8B4513;padding:18px 32px;text-align:center}
+.status-bar h2{color:#fff;font-size:20px;font-weight:400}
+.status-bar p{color:rgba(255,255,255,0.7);font-size:11px;letter-spacing:2px;text-transform:uppercase;margin-top:4px}
+.body{padding:32px}
+.body p{color:#4A3728;font-size:15px;line-height:1.8;margin-bottom:14px}
+.info-box{background:#FDF8F3;border:1px solid #E8D5C0;border-radius:6px;padding:18px;margin:18px 0}
+.info-box p{margin:5px 0;font-size:14px}
+.upi-box{background:#1C0A00;color:#F5E6D3;border-radius:6px;padding:22px;text-align:center;margin:18px 0}
+.upi-amount{font-size:36px;color:#D4A96A;margin:8px 0}
+.upi-id{font-size:13px;color:#B8916A;margin-top:6px}
+.note-box{background:#FFF8F0;border-left:4px solid #8B4513;padding:14px 18px;margin:16px 0;border-radius:0 6px 6px 0}
+.note-box p{margin:0;font-size:14px;color:#4A3728}
 .cta{text-align:center;margin:24px 0}
-.cta a{background:#8B5E3C;color:white;padding:12px 28px;text-decoration:none;border-radius:4px;font-size:13px;letter-spacing:1px;display:inline-block;font-family:sans-serif}
-.ftr{background:#2C1810;padding:18px 32px;text-align:center}
-.ftr p{color:rgba(196,168,130,0.6);margin:0;font-size:11px}
+.cta a{background:#8B4513;color:#fff;padding:13px 32px;text-decoration:none;border-radius:4px;font-size:13px;letter-spacing:1px;font-family:sans-serif;display:inline-block}
+.ftr{background:#1C0A00;padding:20px 32px;text-align:center}
+.ftr p{color:rgba(245,230,211,0.4);font-size:11px}
 </style></head><body><div class="wrap">
-<div class="hdr"><h1>🌸 EVERBLOOM</h1><p>HANDCRAFTED WITH LOVE</p></div>
-<div class="sbar"><p>Order Update</p><h2>{{ status_label }}</h2></div>
-<div class="body">{{ body | safe }}</div>
-<div class="ftr"><p>© Everbloom. All handcrafted with love.</p></div>
+<div class="hdr"><div class="hdr-logo">🌿 EVERBLOOM</div><div class="hdr-sub">Handcrafted with Love</div></div>
+<div class="status-bar"><p>Order Update</p><h2>{{ label }}</h2></div>
+<div class="body">{{ body|safe }}</div>
+<div class="ftr"><p>© Everbloom · Made with love for art lovers</p></div>
 </div></body></html>"""
 
 
-def _render(status_label, body):
-    return render_template_string(BASE, status_label=status_label, body=body)
+def _render(label, body):
+    return render_template_string(_BASE, label=label, body=body)
 
 
 def _send(to, subject, html):
     try:
-        msg = Message(subject=subject, recipients=[to], html=html)
-        mail.send(msg)
-        return True
+        mail.send(Message(subject=subject, recipients=[to], html=html))
     except Exception as e:
-        current_app.logger.error(f"Email failed to {to}: {e}")
-        return False
+        current_app.logger.error(f"Email error → {to}: {e}")
 
 
-def send_order_received(order):
-    body = f"""
-    <p>Dear {order['cust_name']},</p>
-    <p>We've received your order! Our team will review it shortly and send you an email with the advance payment details.</p>
-    <div class="box">
-      <p><strong>Order #{order['id']:04d}</strong></p>
-      <p>Total: ₹{float(order['total_amount']):,.0f}</p>
-    </div>
-    <p>No payment needed yet — we'll email you the advance amount after review.</p>
+def mail_order_placed(order):
+    body = f"""<p>Hi {order['cust_name']},</p>
+    <p>We've received your order! Our team will review it and get back to you with the advance payment details within 24 hours.</p>
+    <div class="info-box"><p><strong>Order #{order['id']:04d}</strong></p><p>Total: ₹{float(order['total_amount']):,.0f}</p><p>No payment needed yet.</p></div>
     <div class="cta"><a href="{current_app.config['SITE_URL']}/orders/{order['id']}/track">View Order →</a></div>"""
-    return _send(order['cust_email'],
-                 f"Everbloom — Order #{order['id']:04d} Received 📋",
-                 _render("Order Received", body))
+    _send(order['cust_email'], f"Order #{order['id']:04d} Received — Everbloom 📋", _render("Order Received!", body))
 
 
-def send_advance_request(order):
+def mail_advance_request(order):
     upi = current_app.config.get("UPI_ID", "yourname@upi")
-    body = f"""
-    <p>Dear {order['cust_name']},</p>
-    <p>We've reviewed your order and we're excited to craft your piece! 🎨 To confirm your order, please pay the advance amount below via UPI.</p>
-    <div class="upi">
-      <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9E8E85;margin-bottom:4px">Advance Amount</div>
-      <div class="amt">₹{float(order['advance_amount']):,.0f}</div>
-      <div class="uid">UPI ID: <strong>{upi}</strong></div>
+    body = f"""<p>Hi {order['cust_name']},</p>
+    <p>Wonderful news! We've reviewed your order and we'd love to create this piece for you. To confirm your order and begin work, please pay the advance amount below.</p>
+    <div class="upi-box">
+      <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#B8916A">Advance Amount Due</div>
+      <div class="upi-amount">₹{float(order['advance_amount']):,.0f}</div>
+      <div class="upi-id">UPI ID: <strong>{upi}</strong></div>
     </div>
-    <div class="hl"><p><strong>How to pay:</strong> Open GPay / PhonePe / Paytm → Send Money → Enter UPI ID above → Pay ₹{float(order['advance_amount']):,.0f}</p></div>
-    <p>After paying, upload your payment screenshot on the order page.</p>
-    <div class="cta"><a href="{current_app.config['SITE_URL']}/orders/{order['id']}/pay-advance">Pay & Upload Screenshot →</a></div>
-    <div class="box">
-      <p>Order Total: ₹{float(order['total_amount']):,.0f}</p>
-      <p>Advance: ₹{float(order['advance_amount']):,.0f} &nbsp;|&nbsp; Balance on delivery: ₹{float(order['total_amount']) - float(order['advance_amount']):,.0f}</p>
-    </div>"""
-    return _send(order['cust_email'],
-                 f"Everbloom — Pay Advance for Order #{order['id']:04d} 💌",
-                 _render("Advance Payment Requested", body))
+    <div class="note-box"><p><strong>How to pay:</strong> Open any UPI app → Send Money → Enter the UPI ID above → Pay ₹{float(order['advance_amount']):,.0f}</p></div>
+    <p>Once you've paid, please upload your payment screenshot on the link below so we can confirm and begin crafting!</p>
+    <div class="cta"><a href="{current_app.config['SITE_URL']}/orders/{order['id']}/pay-advance">Upload Payment Screenshot →</a></div>
+    <div class="info-box"><p>Order Total: ₹{float(order['total_amount']):,.0f}</p><p>Advance: ₹{float(order['advance_amount']):,.0f} &nbsp;|&nbsp; Remaining on delivery: ₹{float(order['total_amount'])-float(order['advance_amount']):,.0f}</p></div>"""
+    _send(order['cust_email'], f"Action Required: Pay Advance for Order #{order['id']:04d} — Everbloom 💌", _render("Advance Payment Requested", body))
 
 
-def send_advance_confirmed(order):
-    body = f"""
-    <p>Dear {order['cust_name']},</p>
-    <p>Your advance payment has been confirmed! ✅ Your order is now officially accepted and our artist will begin working on your piece soon.</p>
-    <div class="box">
-      <p>Advance Paid: ₹{float(order['advance_amount']):,.0f}</p>
-      <p>Remaining on delivery: ₹{float(order['total_amount']) - float(order['advance_amount']):,.0f}</p>
-    </div>
-    <p>You'll receive updates at every step of the crafting process.</p>
+def mail_advance_confirmed(order):
+    body = f"""<p>Hi {order['cust_name']},</p>
+    <p>Your advance payment has been confirmed! Your order is officially placed and our artisan will begin working on your piece very soon. 🎨</p>
+    <div class="info-box"><p>Advance paid: ₹{float(order['advance_amount']):,.0f}</p><p>Remaining (on delivery): ₹{float(order['total_amount'])-float(order['advance_amount']):,.0f}</p></div>
+    <p>You'll receive email updates at every step of the crafting process.</p>
     <div class="cta"><a href="{current_app.config['SITE_URL']}/orders/{order['id']}/track">Track Your Order →</a></div>"""
-    return _send(order['cust_email'],
-                 f"Everbloom — Advance Confirmed! Order #{order['id']:04d} ✅",
-                 _render("Advance Confirmed — Crafting Begins!", body))
+    _send(order['cust_email'], f"Advance Confirmed — Crafting Begins! Order #{order['id']:04d} ✅", _render("Advance Confirmed!", body))
 
 
-STATUS_MSGS = {
-    "accepted":         ("🎨 Your order has been accepted!", "Our artist has accepted your order and will begin sourcing materials."),
-    "material_sourced": ("🪵 Materials sourced for your piece", "Raw materials have been carefully gathered for your unique piece."),
-    "crafting":         ("✂️ Your piece is being handcrafted!", "Your piece is now being lovingly handcrafted. This is where the magic happens!"),
-    "quality_check":    ("🔍 Quality check underway!", "Your piece has completed crafting and is going through quality inspection."),
-    "packed":           ("📦 Packed and ready to ship!", "Your Everbloom piece has been carefully packed and is ready to be dispatched."),
-    "shipped":          ("🚚 Your order is on its way!", "Your order has been handed over to our delivery partner. Expect it soon!"),
-    "delivered":        ("🌸 Your order has been delivered!", "Your Everbloom piece has arrived! We hope you absolutely love it. 🌸"),
-    "cancelled":        ("Your order has been cancelled", "We're sorry, your order has been cancelled. Reply to this email if you have questions."),
+_STATUS_COPY = {
+    "crafting":      ("Being Crafted 🎨",    "Your piece is now being lovingly handcrafted by our artisan. This is where the magic happens!"),
+    "quality_check": ("Quality Check 🔍",     "Your piece has completed crafting and is going through our quality check. Almost there!"),
+    "shipped":       ("On Its Way! 🚚",       "Your Everbloom piece is on its way to you. Our delivery partner will have it at your door soon."),
+    "delivered":     ("Delivered! 🌸",        "Your Everbloom piece has been delivered! We hope you absolutely love it. Thank you for supporting handcrafted art."),
+    "cancelled":     ("Order Cancelled",      "Your order has been cancelled. If you have any questions, please reply to this email."),
 }
 
 
-def send_status_update(order, admin_note=""):
+def mail_status_update(order, note=""):
     status = order["status"]
-    subject_suffix, body_text = STATUS_MSGS.get(status, (f"Status updated: {status}", f"Your order status is now: {status}"))
-    note_html = f'<div class="hl"><p><strong>Note from our team:</strong> {admin_note}</p></div>' if admin_note else ""
-    body = f"""
-    <p>Dear {order['cust_name']},</p>
-    <p>{body_text}</p>
-    {note_html}
-    <div class="box"><p><strong>Order #{order['id']:04d}</strong> — ₹{float(order['total_amount']):,.0f}</p></div>
+    label, copy = _STATUS_COPY.get(status, (status.replace("_"," ").title(), f"Your order status has been updated to: {status.replace('_',' ').title()}"))
+    note_html = f'<div class="note-box"><p><strong>Note from our team:</strong> {note}</p></div>' if note else ""
+    body = f"""<p>Hi {order['cust_name']},</p><p>{copy}</p>{note_html}
+    <div class="info-box"><p><strong>Order #{order['id']:04d}</strong> · ₹{float(order['total_amount']):,.0f}</p></div>
     <div class="cta"><a href="{current_app.config['SITE_URL']}/orders/{order['id']}/track">Track Your Order →</a></div>"""
-    return _send(order['cust_email'],
-                 f"Everbloom — {subject_suffix}",
-                 _render(status.replace("_", " ").title(), body))
+    _send(order['cust_email'], f"Everbloom — {label}", _render(label, body))
 
 
-def send_welcome(user_row):
-    body = f"""
-    <p>Dear {user_row['full_name']},</p>
-    <p>Welcome to Everbloom! 🌸 Your account has been created successfully.</p>
-    <p>Start exploring our handcrafted collection and find something beautiful.</p>
-    <div class="cta"><a href="{current_app.config['SITE_URL']}/shop">Browse Collection →</a></div>"""
-    return _send(user_row['email'], "Welcome to Everbloom 🌸", _render("Welcome!", body))
+def mail_welcome(name, email):
+    body = f"""<p>Hi {name},</p>
+    <p>Welcome to Everbloom! We're so glad you're here. Explore our collection of handcrafted art pieces — each one made with love by our artisans.</p>
+    <div class="cta"><a href="{current_app.config['SITE_URL']}/shop">Browse the Collection →</a></div>"""
+    _send(email, "Welcome to Everbloom 🌿", _render("Welcome!", body))

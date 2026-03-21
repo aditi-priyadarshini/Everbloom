@@ -1,17 +1,13 @@
-"""
-app.py — Flask application factory.
-Vercel runs this file directly via @vercel/python.
-"""
 import os
-from flask import Flask
+from flask import Flask, render_template, request
 from flask_login import LoginManager
+from flask_mail import Mail
 from flask_wtf.csrf import CSRFProtect
 from dotenv import load_dotenv
 
 load_dotenv()
 
-from emails import mail
-
+mail = Mail()
 login_manager = LoginManager()
 csrf = CSRFProtect()
 
@@ -19,98 +15,78 @@ csrf = CSRFProtect()
 def create_app():
     app = Flask(__name__)
 
-    # ── Config ────────────────────────────────────────────────
-    app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-change-me")
+    # Config
+    app.config.update(
+        SECRET_KEY        = os.environ.get("SECRET_KEY", "dev-key-change-me"),
+        MAIL_SERVER       = os.environ.get("MAIL_SERVER", "smtp.gmail.com"),
+        MAIL_PORT         = int(os.environ.get("MAIL_PORT", 587)),
+        MAIL_USE_TLS      = os.environ.get("MAIL_USE_TLS", "true").lower() == "true",
+        MAIL_USERNAME     = os.environ.get("MAIL_USERNAME"),
+        MAIL_PASSWORD     = os.environ.get("MAIL_PASSWORD"),
+        MAIL_DEFAULT_SENDER = os.environ.get("MAIL_SENDER", "Everbloom <noreply@everbloom.store>"),
+        STORE_NAME        = os.environ.get("STORE_NAME", "Everbloom"),
+        SITE_URL          = os.environ.get("SITE_URL", "http://localhost:5000").rstrip("/"),
+        UPI_ID            = os.environ.get("UPI_ID", "yourname@upi"),
+        SUPABASE_URL      = os.environ.get("SUPABASE_URL", ""),
+        SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", ""),
+        QR_URL            = os.environ.get("QR_URL", ""),
+    )
 
-    # Mail
-    app.config["MAIL_SERVER"]         = os.environ.get("MAIL_SERVER", "smtp.gmail.com")
-    app.config["MAIL_PORT"]           = int(os.environ.get("MAIL_PORT", 587))
-    app.config["MAIL_USE_TLS"]        = os.environ.get("MAIL_USE_TLS", "true").lower() == "true"
-    app.config["MAIL_USERNAME"]       = os.environ.get("MAIL_USERNAME")
-    app.config["MAIL_PASSWORD"]       = os.environ.get("MAIL_PASSWORD")
-    app.config["MAIL_DEFAULT_SENDER"] = os.environ.get("MAIL_DEFAULT_SENDER", "Everbloom <noreply@everbloom.store>")
-
-    # Store
-    app.config["STORE_NAME"] = os.environ.get("STORE_NAME", "Everbloom")
-    app.config["SITE_URL"]   = os.environ.get("SITE_URL", "http://localhost:5000").rstrip("/")
-    app.config["UPI_ID"]     = os.environ.get("UPI_ID", "yourname@upi")
-
-    # ── Extensions ────────────────────────────────────────────
     mail.init_app(app)
-    login_manager.init_app(app)
     csrf.init_app(app)
-
+    login_manager.init_app(app)
     login_manager.login_view = "auth.login"
     login_manager.login_message = "Please log in to continue."
-    login_manager.login_message_category = "info"
 
-    # ── User loader ───────────────────────────────────────────
     from models import User
 
     @login_manager.user_loader
-    def load_user(user_id):
-        return User.get(int(user_id))
+    def load_user(uid):
+        return User.get(int(uid))
 
-    # ── Blueprints ────────────────────────────────────────────
-    from routes.shop   import shop_bp
-    from routes.auth   import auth_bp
-    from routes.admin  import admin_bp
-    from routes.orders import orders_bp
+    # Blueprints
+    from routes.shop   import bp as shop_bp
+    from routes.auth   import bp as auth_bp
+    from routes.orders import bp as orders_bp
+    from routes.admin  import bp as admin_bp
 
     app.register_blueprint(shop_bp)
     app.register_blueprint(auth_bp,    url_prefix="/auth")
-    app.register_blueprint(admin_bp,   url_prefix="/admin")
     app.register_blueprint(orders_bp,  url_prefix="/orders")
+    app.register_blueprint(admin_bp,   url_prefix="/admin")
 
-    # ── Context processors ────────────────────────────────────
+    # Context
     @app.context_processor
-    def globals():
+    def ctx():
         from flask_login import current_user
         from flask import session
         cart = session.get("cart", {})
         cart_count = sum(i["qty"] for i in cart.values())
         return dict(
-            store_name=app.config["STORE_NAME"],
-            cart_count=cart_count,
-            current_user=current_user,
-            config=app.config,
+            store_name = app.config["STORE_NAME"],
+            cart_count = cart_count,
+            current_user = current_user,
+            config = app.config,
         )
 
-    # ── Error handlers ────────────────────────────────────────
     @app.errorhandler(404)
-    def not_found(e):
-        from flask import render_template
-        return render_template("errors/404.html"), 404
+    def e404(e): return render_template("errors/404.html"), 404
 
     @app.errorhandler(500)
-    def server_error(e):
-        from flask import render_template
-        return render_template("errors/500.html"), 500
+    def e500(e): return render_template("errors/500.html"), 500
 
-    # ── DB init route (hit once after deploy) ─────────────────
+    # DB init route
     @app.route("/_init")
-    def init_db_route():
-        """
-        GET /_init  — creates all tables and seeds categories.
-        Protect this in production by checking a secret header or deleting after first use.
-        """
-        secret = request_secret()
-        if secret and secret != os.environ.get("INIT_SECRET", ""):
-            from flask import abort
-            abort(403)
-        from db import init_db
-        init_db()
-        return "✓ Database initialised", 200
+    def init():
+        secret = request.args.get("secret","")
+        if secret != app.config.get("INIT_SECRET", os.environ.get("INIT_SECRET","")):
+            from flask import abort; abort(403)
+        from db import init_db; init_db()
+        return "✓ Done", 200
 
     return app
 
 
-def request_secret():
-    from flask import request
-    return request.args.get("secret") or request.headers.get("X-Init-Secret")
-
-
-# ── Vercel entrypoint ─────────────────────────────────────────────────────────
 app = create_app()
 
 if __name__ == "__main__":

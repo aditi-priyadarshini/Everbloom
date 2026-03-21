@@ -1,8 +1,7 @@
 .env
 __pycache__/
 *.pyc
-.venv/
 venv/
+.vercel/
 *.db
 .DS_Store
-.vercel/

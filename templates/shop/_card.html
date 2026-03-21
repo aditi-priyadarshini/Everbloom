@@ -1,0 +1,35 @@
+<div class="product-card" onclick="location.href='{{ url_for('shop.product', pid=p.id) }}'">
+  <div class="product-img">
+    {% set imgs = p.images.split(',') if p.images else [] %}
+    {% set img = imgs[0].strip() if imgs else '' %}
+    {% if img %}
+      <img src="{{ img }}" alt="{{ p.title }}" loading="lazy">
+    {% else %}
+      <div class="product-img-ph">{{ p.cat_icon or '🎨' }}</div>
+    {% endif %}
+    {% if p.discount_percent > 0 %}<span class="product-badge badge-sale">{{ p.discount_percent }}% off</span>{% endif %}
+    {% if p.stock_qty == 0 %}<div class="sold-out-overlay"><span>Sold Out</span></div>{% endif %}
+  </div>
+  <div class="product-body">
+    <div class="product-cat">{{ p.cat_name or '' }}</div>
+    <div class="product-title">{{ p.title }}</div>
+    <div class="product-price">
+      {% set fp = (p.price | float) * (1 - (p.discount_percent or 0) / 100) %}
+      <span class="price-main">₹{{ "{:,.0f}".format(fp) }}</span>
+      {% if p.discount_percent > 0 %}
+        <span class="price-old">₹{{ "{:,.0f}".format(p.price | float) }}</span>
+        <span class="price-disc">-{{ p.discount_percent }}%</span>
+      {% endif %}
+    </div>
+    {% if p.stock_qty > 0 %}
+    <form method="POST" action="{{ url_for('shop.cart_add') }}" onclick="event.stopPropagation()">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="pid" value="{{ p.id }}">
+      <input type="hidden" name="qty" value="1">
+      <button type="submit" class="btn btn-primary btn-sm btn-full">Add to Cart</button>
+    </form>
+    {% else %}
+    <button class="btn btn-sm btn-full" style="background:var(--mist);color:var(--muted);cursor:not-allowed" disabled>Sold Out</button>
+    {% endif %}
+  </div>
+</div>

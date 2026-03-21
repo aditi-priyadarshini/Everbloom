@@ -1,85 +1,82 @@
 {% extends "base.html" %}
 {% block title %}Cart — {{ store_name }}{% endblock %}
-
 {% block content %}
 <div class="page-header"><h1>Your Cart</h1></div>
 
 <div class="container" style="padding-top:48px;padding-bottom:80px">
   {% if cart %}
-  <div style="display:grid;grid-template-columns:1fr 360px;gap:40px;align-items:start" class="cart-layout">
-
+  <div class="cart-layout">
     <!-- Items -->
     <div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-        <h2 style="font-family:var(--font-display);font-size:24px">{{ cart|length }} item{{ 's' if cart|length != 1 }}</h2>
-        <form method="POST" action="{{ url_for('shop.cart_clear') }}" onsubmit="return confirm('Clear cart?')">
+        <h2 style="font-family:var(--serif);font-size:24px">{{ cart|length }} item{{ 's' if cart|length != 1 }}</h2>
+        <form method="POST" action="{{ url_for('shop.cart_clear') }}" onsubmit="return confirm('Clear your cart?')">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button class="btn btn-sm" style="color:var(--error);border:1px solid rgba(192,97,74,0.2);background:rgba(192,97,74,0.06)">Clear cart</button>
+          <button style="font-size:13px;color:var(--error);background:none;border:none;cursor:pointer">Clear cart</button>
         </form>
       </div>
 
       {% for key, item in cart.items() %}
-      <div style="display:flex;gap:20px;padding:20px 0;border-bottom:1px solid var(--border);align-items:center">
-        <div style="width:90px;height:90px;border-radius:var(--radius);overflow:hidden;background:var(--sand);flex-shrink:0">
-          {% if item.image %}
-          <img src="{{ item.image }}" style="width:100%;height:100%;object-fit:cover">
-          {% else %}
-          <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:28px">🎨</div>
-          {% endif %}
+      <div class="cart-item">
+        <div class="cart-item-img">
+          {% if item.image %}<img src="{{ item.image }}" alt="{{ item.title }}">
+          {% else %}<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:28px">🎨</div>{% endif %}
         </div>
         <div style="flex:1">
-          <h4 style="font-family:var(--font-display);font-size:18px;margin-bottom:4px">{{ item.title }}</h4>
-          <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">₹{{ "{:,.0f}".format(item.price) }} each</p>
+          <h4 style="font-family:var(--serif);font-size:18px;margin-bottom:4px">{{ item.title }}</h4>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:12px">₹{{ "{:,.0f}".format(item.price) }} each</p>
           <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-            <form method="POST" action="{{ url_for('shop.cart_update') }}" style="display:flex;align-items:center;gap:0;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+            <form method="POST" action="{{ url_for('shop.cart_update') }}" style="display:flex">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <input type="hidden" name="product_id" value="{{ key }}">
-              <button type="submit" name="qty" value="{{ item.qty - 1 }}" class="qty-btn">−</button>
-              <span style="width:40px;height:36px;display:flex;align-items:center;justify-content:center;font-size:14px;border-left:1px solid var(--border);border-right:1px solid var(--border)">{{ item.qty }}</span>
-              <button type="submit" name="qty" value="{{ item.qty + 1 }}" class="qty-btn">+</button>
+              <input type="hidden" name="pid" value="{{ key }}">
+              <div class="qty-wrap">
+                <button type="submit" name="qty" value="{{ item.qty - 1 }}" class="qty-btn">−</button>
+                <span class="qty-val" style="display:flex;align-items:center;justify-content:center">{{ item.qty }}</span>
+                <button type="submit" name="qty" value="{{ item.qty + 1 }}" class="qty-btn">+</button>
+              </div>
             </form>
-            <form method="POST" action="{{ url_for('shop.cart_remove', product_id=key) }}">
+            <form method="POST" action="{{ url_for('shop.cart_remove', pid=key) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button style="font-size:12px;color:var(--error);background:none;border:none;cursor:pointer">Remove</button>
             </form>
           </div>
         </div>
         <div style="text-align:right;flex-shrink:0">
-          <p style="font-size:17px;font-weight:600;color:var(--brown-dark)">₹{{ "{:,.0f}".format(item.price * item.qty) }}</p>
+          <p style="font-size:18px;font-weight:500;color:var(--ink)">₹{{ "{:,.0f}".format(item.price * item.qty) }}</p>
         </div>
       </div>
       {% endfor %}
 
-      <a href="{{ url_for('shop.shop') }}" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--brown-accent);margin-top:20px">← Continue Shopping</a>
+      <a href="{{ url_for('shop.shop') }}" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--clay);margin-top:20px">← Continue Shopping</a>
     </div>
 
     <!-- Summary -->
-    <div style="background:white;border:1px solid var(--border);border-radius:var(--radius-lg);padding:28px;position:sticky;top:90px">
-      <h3 style="font-family:var(--font-display);font-size:22px;margin-bottom:20px">Order Summary</h3>
+    <div class="order-summary">
+      <h3 style="font-family:var(--serif);font-size:22px;margin-bottom:20px">Order Summary</h3>
       {% for key, item in cart.items() %}
       <div style="display:flex;justify-content:space-between;margin-bottom:10px">
-        <span style="font-size:13px;color:var(--text-secondary)">{{ item.title }} × {{ item.qty }}</span>
+        <span style="font-size:13px;color:var(--muted)">{{ item.title }} × {{ item.qty }}</span>
         <span style="font-size:13px">₹{{ "{:,.0f}".format(item.price * item.qty) }}</span>
       </div>
       {% endfor %}
-      <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:8px;display:flex;justify-content:space-between;align-items:baseline">
+      <div style="border-top:1.5px solid var(--border);padding-top:14px;margin-top:8px;display:flex;justify-content:space-between;align-items:baseline">
         <span style="font-size:15px;font-weight:500">Total</span>
-        <span style="font-family:var(--font-display);font-size:28px;color:var(--brown-dark)">₹{{ "{:,.0f}".format(total) }}</span>
+        <span style="font-family:var(--serif);font-size:28px;color:var(--ink)">₹{{ "{:,.0f}".format(total) }}</span>
       </div>
-      <a href="{{ url_for('shop.checkout') }}" class="btn btn-primary btn-full btn-lg" style="margin-top:20px">Proceed to Checkout →</a>
-      <div style="margin-top:16px;padding:14px;background:var(--cream);border-radius:var(--radius);font-size:12px;color:var(--text-muted);line-height:1.6">
-        <strong style="color:var(--text-secondary)">💌 How it works:</strong><br>
-        Place order → We review → You pay advance via UPI → We craft → Delivered to you!
+      <a href="{{ url_for('shop.checkout') }}" class="btn btn-clay btn-full btn-lg" style="margin-top:20px">Proceed to Checkout →</a>
+      <div style="margin-top:16px;padding:14px;background:var(--parchment);border-radius:var(--r);font-size:12px;color:var(--muted);line-height:1.7">
+        <strong style="color:var(--text)">💌 No payment at checkout!</strong><br>
+        We review your order first, then email you the advance UPI QR.
       </div>
     </div>
   </div>
 
   {% else %}
   <div class="empty-state">
-    <div class="empty-state-icon">🛒</div>
+    <div class="empty-icon">🛒</div>
     <h3>Your cart is empty</h3>
-    <p>Discover our handcrafted pieces and add something beautiful</p>
-    <a href="{{ url_for('shop.shop') }}" class="btn btn-primary btn-lg">Browse Shop</a>
+    <p>Discover our handcrafted pieces</p>
+    <a href="{{ url_for('shop.shop') }}" class="btn btn-clay btn-lg">Browse Shop</a>
   </div>
   {% endif %}
 </div>
