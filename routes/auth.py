@@ -66,9 +66,12 @@ def signup():
                 session["user_id"] = str(user["id"])
                 session["user_name"] = user.get("name", "")
                 session["is_admin"] = False
-                emails.send_welcome(email, name)
+                try:
+                    emails.send_welcome(email, name)
+                except Exception:
+                    pass  # Don't block signup if email fails
                 return redirect(url_for("shop.index"))
-            error = "Could not create account. Please try again."
+            error = "Could not create account. Check your Supabase URL/Key in .env and make sure Row Level Security is disabled (or insert policy exists) on the users table."
     return render_template("auth/signup.html", error=error)
 
 
