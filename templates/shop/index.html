@@ -84,8 +84,9 @@
     <div class="cat-grid">
       {% for cat in categories %}
       <a href="{{ url_for('shop.shop') }}?category={{ cat.id }}" class="cat-card">
-        {% if cat.image_url %}
-        <img src="{{ cat.image_url }}" alt="{{ cat.name }}" class="cat-img">
+        {% set img = cat_images.get(cat.id) or cat.image_url %}
+        {% if img %}
+        <img src="{{ img }}" alt="{{ cat.name }}" class="cat-img">
         {% else %}
         <div class="cat-placeholder cat-{{ cat.slug }}"></div>
         {% endif %}

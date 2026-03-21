@@ -32,10 +32,19 @@ def index():
     featured = models.get_products(featured=True, limit=6)
     categories = models.get_categories()
     flash_products = [p for p in models.get_products(flash=True) if models.is_flash_active(p)][:3]
+    cat_images = {}
+    for cat in categories:
+        prods = models.get_products(category_id=cat["id"], limit=4)
+        for p in prods:
+            imgs = p.get("images") or []
+            if imgs:
+                cat_images[cat["id"]] = imgs[0]
+                break
     return render_template("shop/index.html",
                            featured=featured,
                            categories=categories,
-                           flash_products=flash_products)
+                           flash_products=flash_products,
+                           cat_images=cat_images)
 
 
 @shop_bp.route("/shop")
