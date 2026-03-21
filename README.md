@@ -1,239 +1,251 @@
-# 🌸 Everbloom — Setup Guide
+# 🌸 Everbloom — Flask Edition
 
-A complete handcrafted art & craft e-commerce store with live order tracking, email notifications, and QR-based UPI payment.
-
----
-
-## 🚀 Quick Start (5 Steps)
-
-### Step 1 — Create Supabase Project
-
-1. Go to [supabase.com](https://supabase.com) → New Project
-2. Choose a name (e.g. `everbloom`), set a strong database password, select your region
-3. Wait ~2 minutes for the project to be ready
+A complete handcrafted art & craft e-commerce store built with **Flask + SQLAlchemy + Flask-Mail**.  
+Live order tracking, SMTP email notifications, and UPI/QR advance payment workflow.
 
 ---
 
-### Step 2 — Set Up the Database
+## ✨ New Order Workflow
 
-In your Supabase project → **SQL Editor**:
-
-1. Paste and run `supabase/schema.sql` (creates all tables + triggers)
-2. Paste and run `supabase/rls.sql` (sets up Row Level Security)
-
----
-
-### Step 3 — Create Storage Buckets
-
-Go to **Storage** in your Supabase dashboard and create:
-
-| Bucket Name | Public |
-|---|---|
-| `product-images` | ✅ Yes |
-| `payment-proofs` | ❌ No (private) |
-| `qr-code` | ✅ Yes |
-
----
-
-### Step 4 — Connect the Frontend
-
-Open `js/supabase.js` and replace these two values:
-
-```javascript
-const SUPABASE_URL = 'YOUR_SUPABASE_URL';        // Project Settings → API → Project URL
-const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY'; // Project Settings → API → anon public key
+```
+📋  Order Received          → Customer places order (no payment yet)
+ ↓  Admin reviews it
+💌  Advance Requested       → Admin sets advance amount → Email with UPI QR sent to customer
+ ↓  Customer pays via UPI
+💳  Advance Paid            → Customer uploads payment screenshot
+ ↓  Admin verifies screenshot
+✅  Advance Confirmed       → Admin confirms → Email: crafting begins!
+🎨  Accepted by Artist      → Email update
+🪵  Raw Material Sourced    → Email update
+✂️  Crafting in Progress    → Email update
+🔍  Quality Check           → Email update
+📦  Packed & Ready          → Email update
+🚚  Shipped                 → Email update
+🌸  Delivered               → Email update
 ```
 
+At **every step**: customer gets an email + in-app notification.
+
 ---
 
-### Step 5 — Set Up Email (Resend)
+## 🚀 Quick Start
 
-1. Sign up at [resend.com](https://resend.com) (free — 3,000 emails/month)
-2. Get your API key from the dashboard
-3. Verify your sending domain (or use `@resend.dev` for testing)
+### 1. Install dependencies
 
-Deploy the Edge Function:
 ```bash
-# Install Supabase CLI first
-npm install -g supabase
+cd everbloom-flask
 
-# Login and link to your project
-supabase login
-supabase link --project-ref YOUR_PROJECT_REF
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
 
-# Set secrets
-supabase secrets set RESEND_API_KEY=re_xxxxxxxxxxxx
-supabase secrets set SITE_URL=https://yourstore.com
-
-# Deploy
-supabase functions deploy order-notifications
+pip install -r requirements.txt
 ```
 
----
+### 2. Configure environment
 
-## 👤 Creating the First Admin User
-
-1. Sign up normally on the website (creates a customer account)
-2. In Supabase **SQL Editor**, run:
-
-```sql
-UPDATE profiles 
-SET role = 'admin' 
-WHERE email = 'your-admin@email.com';
+```bash
+cp .env.example .env
 ```
 
-3. Log out and log back in — you'll be redirected to the Admin Panel
+Edit `.env` with your values:
 
----
+```env
+SECRET_KEY=your-long-random-secret-key
 
-## 💳 Setting Up UPI Payment
+# Database (SQLite for dev, PostgreSQL for prod)
+DATABASE_URL=sqlite:///everbloom.db
 
-In `checkout.html`, replace the QR code placeholder:
+# Email — Gmail example (use App Password, not your real password)
+MAIL_SERVER=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USE_TLS=true
+MAIL_USERNAME=your-email@gmail.com
+MAIL_PASSWORD=your-16-char-app-password
+MAIL_DEFAULT_SENDER=Everbloom <your-email@gmail.com>
 
-```html
-<!-- Replace the emoji placeholder div with: -->
-<img src="YOUR_UPI_QR_CODE.png" style="width:200px;height:200px;border-radius:12px">
+# Store
+STORE_NAME=Everbloom
+SITE_URL=http://localhost:5000
+UPI_ID=yourname@upi
 ```
 
-Also update the UPI ID:
-```html
-<strong id="upi-id">yourname@upi</strong>
+### 3. Run the app
+
+```bash
+python app.py
 ```
 
-To generate a UPI QR code, use any UPI app (GPay, PhonePe, Paytm) → Receive Money → Share QR.
+Open **http://localhost:5000** in your browser.
+
+### 4. Create the first admin user
+
+1. Sign up at `/auth/signup`
+2. Open a Python shell:
+
+```bash
+python3 -c "
+from app import create_app, db
+from models import User
+app = create_app()
+with app.app_context():
+    u = User.query.filter_by(email='your@email.com').first()
+    u.role = 'admin'
+    db.session.commit()
+    print('Admin created!')
+"
+```
+
+3. Log back in — you'll be redirected to `/admin/`
+
+### 5. Upload your UPI QR code
+
+Go to **Admin → Settings** and upload your UPI QR image.  
+Or place it at `static/uploads/qr/upi_qr.png`.
 
 ---
 
 ## 📁 Project Structure
 
 ```
-everbloom/
-├── index.html          ← Home page
-├── shop.html           ← Product listing with filters
-├── product.html        ← Product detail + add to cart
-├── cart.html           ← Shopping cart
-├── checkout.html       ← Address + QR payment
-├── orders.html         ← Customer order history
-├── track.html          ← Live order tracking (9 steps)
-├── login.html          ← Login
-├── signup.html         ← Sign up
+everbloom-flask/
 │
-├── admin/
-│   ├── index.html      ← Dashboard with stats
-│   ├── products.html   ← Product CRUD + image upload
-│   └── orders.html     ← Order management + status updates
+├── app.py                    ← Flask app factory + config
+├── models.py                 ← SQLAlchemy models (User, Product, Order, etc.)
+├── emails.py                 ← All transactional email functions
+├── requirements.txt
+├── .env.example              ← Copy to .env and fill in
+├── .gitignore                ← Excludes .env, uploads, __pycache__
 │
-├── css/
-│   ├── style.css       ← Global styles + Everbloom theme
-│   └── admin.css       ← Admin panel styles
+├── routes/
+│   ├── shop.py               ← Home, shop, product, cart, checkout, notifications
+│   ├── auth.py               ← Login, signup, logout, profile
+│   ├── orders.py             ← My orders, tracking page, advance payment upload
+│   └── admin.py              ← Dashboard, order management, products, settings
 │
-├── js/
-│   ├── supabase.js     ← Client init + cart + helpers
-│   └── auth.js         ← Nav auth + notifications
+├── templates/
+│   ├── base.html             ← Nav, footer, flash messages, mobile nav
+│   ├── admin/
+│   │   ├── base.html         ← Admin layout with sidebar
+│   │   ├── dashboard.html    ← Stats + recent orders
+│   │   ├── orders.html       ← Orders list with filter tabs
+│   │   ├── order_detail.html ← THE KEY PAGE — manage status, confirm advance
+│   │   ├── products.html     ← Products list
+│   │   ├── product_form.html ← Add/edit product with image upload
+│   │   ├── customers.html    ← Customer list
+│   │   └── settings.html     ← QR code + UPI ID
+│   ├── shop/
+│   │   ├── home.html         ← Landing page
+│   │   ├── shop.html         ← Product listing + filters
+│   │   ├── product.html      ← Product detail + add to cart
+│   │   ├── cart.html         ← Shopping cart
+│   │   ├── checkout.html     ← Delivery address form
+│   │   ├── orders.html       ← Customer order history
+│   │   ├── track.html        ← Live order tracking timeline
+│   │   ├── pay_advance.html  ← UPI QR + screenshot upload
+│   │   └── _product_card.html ← Reusable product card partial
+│   ├── auth/
+│   │   ├── login.html
+│   │   ├── signup.html
+│   │   └── profile.html
+│   └── errors/
+│       ├── 404.html
+│       └── 500.html
 │
-└── supabase/
-    ├── schema.sql      ← Full database schema
-    ├── rls.sql         ← Row Level Security policies
-    └── functions/
-        └── order-notifications/
-            └── index.ts ← Email Edge Function (Resend)
+└── static/
+    ├── css/
+    │   ├── style.css         ← Global styles + Everbloom theme + mobile
+    │   └── admin.css         ← Admin panel styles
+    ├── js/
+    │   └── main.js           ← Mobile nav, notifications, helpers
+    └── uploads/
+        ├── products/         ← Product images (auto-created)
+        ├── payments/         ← Payment screenshots (private)
+        └── qr/               ← UPI QR code (upi_qr.png)
 ```
 
 ---
 
-## 🔄 Order Status Flow
+## 🔒 Security
 
-```
-🛒 placed → 💳 payment_confirmed → 🎨 accepted
-→ 🪵 material_sourced → ✂️ crafting → 🔍 quality_check
-→ 📦 packed → 🚚 shipped → 🌸 delivered
-```
-
-At **every step**, the customer receives:
-- In-app notification (bell icon)
-- Beautiful branded email via Resend
-
----
-
-## 🌐 Deployment
-
-This is a static site — deploy anywhere for free:
-
-- **[Netlify](https://netlify.com)**: Drag & drop the `everbloom/` folder
-- **[Vercel](https://vercel.com)**: `vercel --prod`
-- **[GitHub Pages](https://pages.github.com)**: Push to a repo, enable Pages
-- **[Cloudflare Pages](https://pages.cloudflare.com)**: Connect your repo
-
----
-
-## 📊 Free Tier Limits
-
-| Service | Limit | Covers |
-|---|---|---|
-| Supabase DB | 500 MB | Thousands of orders |
-| Supabase Storage | 1 GB | ~10,000 product images |
-| Supabase Edge Functions | 500K calls/mo | 55K order emails |
-| Resend | 3,000 emails/mo | ~333 orders (9 emails each) |
-
-**Perfectly sized for 50 orders/month with room to grow!**
-
----
-
-## 🎨 Brand Colors
-
-| Name | Hex |
+| What | How |
 |---|---|
-| Cream (bg) | `#FAF6F1` |
-| Brown Dark | `#2C1810` |
-| Brown Accent | `#8B5E3C` |
-| Brown Light | `#C4A882` |
-| Sage Green | `#8A9E7B` |
+| Passwords | Hashed with Werkzeug `generate_password_hash` (PBKDF2-SHA256) |
+| Forms | CSRF protection on every POST via Flask-WTF |
+| Auth | Flask-Login session management with `@login_required` |
+| Admin | `@admin_required` decorator on all admin routes |
+| Uploads | `secure_filename()` on all uploads, type whitelisting |
+| Secrets | All in `.env` file — never in source code |
+| Payment proofs | Served only through authenticated admin route |
 
 ---
 
-*Built with love for handcrafted art. 🌸*
+## 📧 Email Setup (Gmail)
+
+1. Go to your Google Account → **Security → 2-Step Verification** (enable it)
+2. Then **Security → App passwords** → Generate one for "Mail"
+3. Use that 16-character password as `MAIL_PASSWORD` in `.env`
+
+For production, use **Mailgun**, **SendGrid**, or **Resend** SMTP — all have free tiers.
 
 ---
 
-## 🔒 Security — Environment Variables
+## 🌐 Production Deployment
 
-All sensitive config lives in **`js/env.js`**. 
-
-### Never commit real credentials to Git!
-
-Add this to `.gitignore`:
-```
-js/env.js
-```
-
-Copy `js/env.js.example` → `js/env.js` and fill in your values.
-
-### Deploying to Netlify / Vercel
-
-Use their environment variable dashboard and a build script to inject values:
+### Gunicorn + Nginx (VPS)
 
 ```bash
-# netlify.toml or vercel.json build command:
-node -e "
-const fs = require('fs');
-const env = \`window.ENV = {
-  SUPABASE_URL: '${SUPABASE_URL}',
-  SUPABASE_ANON_KEY: '${SUPABASE_ANON_KEY}',
-  SITE_URL: '${SITE_URL}',
-  UPI_ID: '${UPI_ID}',
-  QR_CODE_IMAGE: 'assets/qr-code.png',
-};\`;
-fs.writeFileSync('js/env.js', env);
-"
+pip install gunicorn
+gunicorn -w 4 -b 0.0.0.0:8000 "app:create_app()"
 ```
 
-Set `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SITE_URL`, `UPI_ID` as environment variables in your hosting dashboard.
+### Railway / Render (free hosting)
 
-### What's in env.js (never expose these):
-| Variable | Where to find it |
-|---|---|
-| `SUPABASE_URL` | Supabase → Settings → API → Project URL |
-| `SUPABASE_ANON_KEY` | Supabase → Settings → API → anon public key |
-| `SITE_URL` | Your live domain e.g. `https://everbloom.store` |
-| `UPI_ID` | Your UPI handle e.g. `name@okicici` |
+1. Push to GitHub
+2. Connect repo to Railway or Render
+3. Set all `.env` variables in the dashboard
+4. Set start command: `gunicorn "app:create_app()"`
 
+### PostgreSQL for production
+
+```env
+DATABASE_URL=postgresql://user:password@host:5432/everbloom
+```
+
+---
+
+## 📊 Order Status Reference
+
+| Status | Triggered by | Email sent |
+|---|---|---|
+| `draft` | Customer places order | ✅ "Order received" |
+| `advance_requested` | Admin reviews + sets amount | ✅ "Pay advance" with UPI QR |
+| `advance_paid` | Customer uploads screenshot | ❌ (admin notified via dashboard) |
+| `advance_confirmed` | Admin confirms screenshot | ✅ "Advance confirmed, crafting begins" |
+| `accepted` | Admin updates | ✅ |
+| `material_sourced` | Admin updates | ✅ |
+| `crafting` | Admin updates | ✅ |
+| `quality_check` | Admin updates | ✅ |
+| `packed` | Admin updates | ✅ |
+| `shipped` | Admin updates | ✅ |
+| `delivered` | Admin updates | ✅ |
+| `cancelled` | Admin updates | ✅ |
+
+---
+
+## 🎨 Design System
+
+**Fonts** — Cormorant Garamond (display) + Jost (body)
+
+| Token | Hex | Used for |
+|---|---|---|
+| `--cream` | `#FAF6F1` | Page background |
+| `--brown-dark` | `#2C1810` | Hero, footer, headers |
+| `--brown-accent` | `#8B5E3C` | Buttons, links |
+| `--brown-light` | `#C4A882` | Muted on dark bg |
+| `--sage` | `#8A9E7B` | Success, sale badges |
+| `--sand` | `#E8DDD4` | Borders, subtle bg |
+
+---
+
+*Built with 🌸 — Everbloom Flask Edition*

@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}{{ store_name }} — Handcrafted Art & Craft{% endblock %}
+
+{% block content %}
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-bg-dots"></div>
+  <div class="hero-glow hero-glow-1"></div>
+  <div class="hero-glow hero-glow-2"></div>
+  <div class="container hero-grid">
+    <div class="hero-text" style="animation:fadeUp 0.8s ease">
+      <p class="hero-tag">✦ Handcrafted with soul</p>
+      <h1 class="hero-title">Art that <em>blooms</em> forever</h1>
+      <p class="hero-sub">Each piece from {{ store_name }} is lovingly handcrafted by our artisans — unique, meaningful, and made just for you.</p>
+      <div class="hero-btns">
+        <a href="{{ url_for('shop.shop') }}" class="btn btn-accent btn-lg">Explore Collection</a>
+        <a href="{{ url_for('shop.shop', category='diy-kits') }}" class="btn btn-lg hero-outline-btn">DIY Kits</a>
+      </div>
+      <div class="hero-stats">
+        <div><div class="hero-stat-val">100%</div><div class="hero-stat-lbl">Handmade</div></div>
+        <div><div class="hero-stat-val">Live</div><div class="hero-stat-lbl">Tracking</div></div>
+        <div><div class="hero-stat-val">∞</div><div class="hero-stat-lbl">Unique Pieces</div></div>
+      </div>
+    </div>
+    <div class="hero-image-col" style="animation:fadeUp 0.8s ease 0.2s both">
+      <div style="font-size:120px;text-align:center;opacity:0.15">🌸</div>
+    </div>
+  </div>
+</section>
+
+<!-- CATEGORIES -->
+<section class="section" style="background:var(--warm-white)">
+  <div class="container">
+    <div class="section-header">
+      <p class="section-tag">Browse</p>
+      <h2 class="section-title">Shop by Category</h2>
+    </div>
+    <div class="category-grid">
+      {% for cat in categories %}
+      <a href="{{ url_for('shop.shop', category=cat.slug) }}" class="category-card">
+        <span style="font-size:36px">{{ cat.icon }}</span>
+        <span class="category-name">{{ cat.name }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- FEATURED -->
+<section class="section">
+  <div class="container">
+    <div class="section-header">
+      <p class="section-tag">Curated</p>
+      <h2 class="section-title">Featured Pieces</h2>
+      <p class="section-subtitle">Each piece tells a unique story, crafted with intention and love</p>
+    </div>
+    <div class="grid-4">
+      {% for p in featured %}
+      {% include 'shop/_product_card.html' %}
+      {% else %}
+      <div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--text-muted)">Products coming soon 🌸</div>
+      {% endfor %}
+    </div>
+    <div style="text-align:center;margin-top:48px">
+      <a href="{{ url_for('shop.shop') }}" class="btn btn-secondary btn-lg">View All Pieces</a>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="section" style="background:var(--brown-dark)">
+  <div class="container">
+    <div class="section-header">
+      <p class="section-tag" style="color:var(--brown-light)">The Process</p>
+      <h2 class="section-title" style="color:var(--cream)">Your Order Journey</h2>
+    </div>
+    <div class="how-grid">
+      <div class="how-card">
+        <div class="how-icon">🛒</div>
+        <h3>Place Your Order</h3>
+        <p>Browse our handcrafted collection and place your order. We'll review it and get in touch.</p>
+      </div>
+      <div class="how-card">
+        <div class="how-icon">💌</div>
+        <h3>Pay Advance</h3>
+        <p>Once we review and accept, we email you a UPI QR to pay the advance amount — no full payment upfront!</p>
+      </div>
+      <div class="how-card">
+        <div class="how-icon">🎨</div>
+        <h3>We Craft It</h3>
+        <p>Our artist handcrafts your unique piece. You get live email updates at every step of the journey.</p>
+      </div>
+      <div class="how-card">
+        <div class="how-icon">🌸</div>
+        <h3>Delivered to You</h3>
+        <p>Your Everbloom piece arrives at your door. Pay the remaining balance on delivery.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- NEW ARRIVALS -->
+<section class="section">
+  <div class="container">
+    <div class="section-header">
+      <p class="section-tag">Fresh</p>
+      <h2 class="section-title">New Arrivals</h2>
+    </div>
+    <div class="grid-4">
+      {% for p in new_items %}
+      {% include 'shop/_product_card.html' %}
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}

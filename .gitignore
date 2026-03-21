@@ -1,13 +1,12 @@
-# NEVER commit real credentials
-js/env.js
-
-# OS files
+.env
+instance/
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+static/uploads/
+*.db
+*.sqlite3
 .DS_Store
-Thumbs.db
-
-# Editor
-.vscode/
-.idea/
-
-# Node (if using build tools)
-node_modules/

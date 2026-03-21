@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}My Orders — {{ store_name }}{% endblock %}
+{% block content %}
+<div class="page-header"><h1>My Orders</h1><p>Your Everbloom journey</p></div>
+<div class="container" style="padding-top:48px;padding-bottom:80px;max-width:860px">
+  {% if orders %}
+  {% for order in orders %}
+  <div class="card" style="margin-bottom:16px;cursor:pointer" onclick="location.href='{{ url_for('orders.track', order_id=order.id) }}'">
+    <div style="padding:20px 24px;display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between">
+      <div style="display:flex;gap:16px;align-items:center">
+        <div style="display:flex">
+          {% for item in order.items[:3] %}
+          <div style="width:52px;height:52px;border-radius:var(--radius);overflow:hidden;background:var(--sand);border:2px solid white;{% if not loop.first %}margin-left:-16px;{% endif %}box-shadow:var(--shadow-sm)">
+            {% if item.image_snap %}<img src="{{ url_for('static', filename='uploads/products/' + item.image_snap) }}" style="width:100%;height:100%;object-fit:cover">
+            {% else %}<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:16px">🎨</div>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
+            <span style="font-size:14px;font-weight:600">#{{ "%04d"|format(order.id) }}</span>
+            <span class="status-badge status-{{ order.status }}">{{ order.status_icon }} {{ order.status_label }}</span>
+            {% if order.status == 'advance_requested' %}
+            <span style="background:rgba(196,154,60,0.15);color:#8B6A20;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500">⚠ Action Required</span>
+            {% endif %}
+          </div>
+          <p style="font-size:12px;color:var(--text-muted)">{{ order.created_at.strftime('%d %b %Y') }} · {{ order.items|sum(attribute='quantity') }} item{{ 's' if order.items|sum(attribute='quantity') != 1 }}</p>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:20px">
+        <div style="text-align:right">
+          <p style="font-size:11px;color:var(--text-muted);margin-bottom:2px">Total</p>
+          <p style="font-family:var(--font-display);font-size:20px;color:var(--brown-dark)">₹{{ "{:,.0f}".format(order.total_amount) }}</p>
+        </div>
+        <span style="color:var(--text-muted);font-size:20px">›</span>
+      </div>
+    </div>
+    {% if order.status not in ('cancelled',) %}
+    <div style="padding:0 24px 14px">
+      <div style="height:3px;background:var(--sand);border-radius:2px;overflow:hidden">
+        {% set steps = ['draft','advance_requested','advance_paid','advance_confirmed','accepted','material_sourced','crafting','quality_check','packed','shipped','delivered'] %}
+        {% set sidx = steps.index(order.status) if order.status in steps else 0 %}
+        <div style="height:100%;width:{{ ((sidx / (steps|length - 1)) * 100)|round|int }}%;background:var(--brown-accent);border-radius:2px;transition:width 0.5s ease"></div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-state-icon">🛒</div>
+    <h3>No orders yet</h3>
+    <p>Start shopping and your orders will appear here</p>
+    <a href="{{ url_for('shop.shop') }}" class="btn btn-primary btn-lg">Browse Shop</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

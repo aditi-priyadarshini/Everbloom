@@ -1,0 +1,130 @@
+{% extends "admin/base.html" %}
+{% block page_title %}{{ 'Edit Product' if product else 'New Product' }}{% endblock %}
+{% block topbar_actions %}<a href="{{ url_for('admin.products') }}" class="btn btn-secondary btn-sm">← Products</a>{% endblock %}
+
+{% block content %}
+<div style="max-width:800px">
+  <form method="POST" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if product %}
+    <input type="hidden" name="existing_images" value="{{ product.images }}">
+    {% endif %}
+
+    <div class="admin-card" style="margin-bottom:20px">
+      <div class="admin-card-header">Basic Info</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="form-group" style="grid-column:1/-1">
+          <label class="form-label">Title *</label>
+          <input type="text" name="title" class="form-input" value="{{ product.title if product else '' }}" required placeholder="e.g. Handpainted Madhubani Canvas">
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label class="form-label">Description</label>
+          <textarea name="description" class="form-textarea" rows="4" placeholder="Describe the piece — materials, size, inspiration...">{{ product.description if product else '' }}</textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Category *</label>
+          <select name="category_id" class="form-select" required>
+            <option value="">Select category</option>
+            {% for cat in categories %}
+            <option value="{{ cat.id }}" {% if product and product.category_id == cat.id %}selected{% endif %}>{{ cat.icon }} {{ cat.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Stock Quantity</label>
+          <input type="number" name="stock_qty" class="form-input" value="{{ product.stock_qty if product else 0 }}" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Price (₹) *</label>
+          <input type="number" name="price" class="form-input" value="{{ product.price if product else '' }}" step="0.01" min="0" required id="price-input" oninput="updateFinal()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Discount (%)</label>
+          <input type="number" name="discount_percent" class="form-input" value="{{ product.discount_percent if product else 0 }}" min="0" max="100" id="disc-input" oninput="updateFinal()">
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label class="form-label">Final Price (auto-calculated)</label>
+          <div id="final-price-display" style="padding:12px 16px;background:var(--cream);border:1px solid var(--border);border-radius:var(--radius);font-size:15px;font-weight:600;color:var(--brown-dark)">₹0</div>
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label class="form-label">Tags (comma-separated)</label>
+          <input type="text" name="tags" class="form-input" value="{{ product.tags if product else '' }}" placeholder="handmade, traditional, unique">
+        </div>
+        <div style="display:flex;gap:24px;grid-column:1/-1">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px">
+            <input type="checkbox" name="is_featured" {% if product and product.is_featured %}checked{% endif %} style="accent-color:var(--brown-accent);width:16px;height:16px"> Featured Product
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px">
+            <input type="checkbox" name="is_active" {% if not product or product.is_active %}checked{% endif %} style="accent-color:var(--brown-accent);width:16px;height:16px"> Active (visible in shop)
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Existing images -->
+    {% if product and product.image_list %}
+    <div class="admin-card" style="margin-bottom:20px">
+      <div class="admin-card-header">Current Images</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        {% for img in product.image_list %}
+        <div style="position:relative;width:90px;height:90px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border)">
+          <img src="{{ url_for('static', filename='uploads/products/' + img) }}" style="width:100%;height:100%;object-fit:cover">
+        </div>
+        {% endfor %}
+      </div>
+      <p style="font-size:12px;color:var(--text-muted);margin-top:8px">Upload new images below to add more. Existing images are kept.</p>
+    </div>
+    {% endif %}
+
+    <!-- Image upload -->
+    <div class="admin-card" style="margin-bottom:20px">
+      <div class="admin-card-header">{{ 'Add More Images' if product else 'Product Images' }}</div>
+      <div class="img-upload-area" onclick="document.getElementById('img-upload').click()"
+           ondragover="event.preventDefault();this.classList.add('dragover')"
+           ondragleave="this.classList.remove('dragover')"
+           ondrop="handleDrop(event)">
+        <div id="upload-prompt"><div style="font-size:40px;margin-bottom:10px">🖼️</div>
+          <p style="font-size:14px;color:var(--text-secondary)">Click or drag & drop images</p>
+          <p style="font-size:12px;color:var(--text-muted)">JPG, PNG, WebP — up to 5MB each</p>
+        </div>
+        <input type="file" id="img-upload" name="images" accept="image/*" multiple style="display:none" onchange="previewImages(this.files)">
+      </div>
+      <div class="img-preview-grid" id="preview-grid"></div>
+    </div>
+
+    <div style="display:flex;gap:12px">
+      <button type="submit" class="btn btn-primary btn-lg">{{ '💾 Save Changes' if product else '✨ Create Product' }}</button>
+      <a href="{{ url_for('admin.products') }}" class="btn btn-secondary btn-lg">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<script>
+function updateFinal() {
+  const price = parseFloat(document.getElementById('price-input').value) || 0;
+  const disc  = parseFloat(document.getElementById('disc-input').value) || 0;
+  const final = price * (1 - disc / 100);
+  document.getElementById('final-price-display').textContent = '₹' + final.toLocaleString('en-IN', {maximumFractionDigits: 0});
+}
+updateFinal();
+
+function previewImages(files) {
+  const grid = document.getElementById('preview-grid');
+  grid.innerHTML = '';
+  Array.from(files).forEach(file => {
+    const url = URL.createObjectURL(file);
+    grid.innerHTML += `<div class="img-preview-item"><img src="${url}" alt="${file.name}"></div>`;
+  });
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.querySelector('.img-upload-area').classList.remove('dragover');
+  const input = document.getElementById('img-upload');
+  const dt = new DataTransfer();
+  Array.from(e.dataTransfer.files).forEach(f => dt.items.add(f));
+  input.files = dt.files;
+  previewImages(input.files);
+}
+</script>
+{% endblock %}

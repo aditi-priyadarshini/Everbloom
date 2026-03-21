@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Login — {{ store_name }}{% endblock %}
+{% block footer %}{% endblock %}
+{% block content %}
+<style>
+.auth-split{display:grid;grid-template-columns:1fr 1fr;min-height:calc(100vh - 72px)}
+.auth-art{background:var(--brown-dark);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px;position:relative;overflow:hidden}
+.auth-card{padding:60px;display:flex;align-items:center;justify-content:center;overflow-y:auto}
+.auth-form{width:100%;max-width:420px}
+@media(max-width:768px){.auth-split{grid-template-columns:1fr}.auth-art{display:none}.auth-card{padding:40px 24px;min-height:calc(100vh - 64px)}}
+</style>
+<div class="auth-split">
+  <div class="auth-art">
+    <div style="text-align:center">
+      <div style="font-size:80px;margin-bottom:24px">🌸</div>
+      <h1 style="font-family:var(--font-display);font-size:48px;color:var(--cream);font-weight:300;line-height:1.1;margin-bottom:16px">Welcome<br><em>back</em></h1>
+      <p style="color:var(--brown-light);font-size:15px;line-height:1.7;max-width:280px;margin:0 auto">Sign in to track your orders and discover new handcrafted pieces.</p>
+    </div>
+  </div>
+  <div class="auth-card">
+    <div class="auth-form">
+      <a href="{{ url_for('shop.home') }}" style="font-size:13px;color:var(--text-muted);display:flex;align-items:center;gap:6px;margin-bottom:40px">← Back to store</a>
+      <h2 style="font-family:var(--font-display);font-size:36px;margin-bottom:8px">Sign In</h2>
+      <p style="color:var(--text-muted);font-size:14px;margin-bottom:32px">Don't have an account? <a href="{{ url_for('auth.signup') }}" style="color:var(--brown-accent);font-weight:500">Sign up</a></p>
+      <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+          <label class="form-label">Email Address</label>
+          <input type="email" name="email" class="form-input" placeholder="you@example.com" required autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input type="password" name="password" class="form-input" placeholder="••••••••" required autocomplete="current-password">
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-secondary);margin-bottom:20px;cursor:pointer">
+          <input type="checkbox" name="remember" style="accent-color:var(--brown-accent)"> Remember me
+        </label>
+        <button type="submit" class="btn btn-primary btn-full btn-lg">Sign In</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

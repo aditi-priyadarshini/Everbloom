@@ -1,0 +1,113 @@
+{% extends "admin/base.html" %}
+{% block page_title %}Dashboard{% endblock %}
+{% block topbar_actions %}
+<a href="{{ url_for('admin.orders', status='draft') }}" class="btn btn-accent btn-sm">Review Orders</a>
+{% endblock %}
+
+{% block content %}
+<!-- Stats -->
+<div class="admin-stats">
+  <div class="stat-card">
+    <div class="stat-icon">📦</div>
+    <div class="stat-label">Total Orders</div>
+    <div class="stat-value">{{ total_orders }}</div>
+  </div>
+  <div class="stat-card" style="border-top:3px solid var(--warning)">
+    <div class="stat-icon">👀</div>
+    <div class="stat-label">Pending Review</div>
+    <div class="stat-value">{{ pending_review }}</div>
+    <div class="stat-sub"><a href="{{ url_for('admin.orders', status='draft') }}" style="color:var(--brown-accent)">Review now →</a></div>
+  </div>
+  <div class="stat-card" style="border-top:3px solid var(--sage)">
+    <div class="stat-icon">💳</div>
+    <div class="stat-label">Advance to Confirm</div>
+    <div class="stat-value">{{ advance_pending }}</div>
+    <div class="stat-sub"><a href="{{ url_for('admin.orders', status='advance_paid') }}" style="color:var(--brown-accent)">Confirm now →</a></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">🎨</div>
+    <div class="stat-label">In Progress</div>
+    <div class="stat-value">{{ in_progress }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">🚚</div>
+    <div class="stat-label">Shipped</div>
+    <div class="stat-value">{{ shipped }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">🌸</div>
+    <div class="stat-label">Delivered</div>
+    <div class="stat-value">{{ delivered }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">💰</div>
+    <div class="stat-label">Revenue</div>
+    <div class="stat-value">₹{{ "{:,.0f}".format(revenue) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">👥</div>
+    <div class="stat-label">Customers</div>
+    <div class="stat-value">{{ total_customers }}</div>
+  </div>
+</div>
+
+<!-- Recent Orders -->
+<div class="admin-table-wrap" style="margin-top:8px">
+  <div class="admin-table-header">
+    <h3 style="font-family:var(--font-display);font-size:20px">Recent Orders</h3>
+    <a href="{{ url_for('admin.orders') }}" class="btn btn-secondary btn-sm">View All</a>
+  </div>
+  <div class="table-scroll">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Order</th>
+          <th>Customer</th>
+          <th>Total</th>
+          <th>Status</th>
+          <th>Date</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for order in recent_orders %}
+        <tr>
+          <td><strong>#{{ "%04d"|format(order.id) }}</strong></td>
+          <td>
+            <div>{{ order.customer.full_name }}</div>
+            <div style="font-size:11px;color:var(--text-muted)">{{ order.customer.email }}</div>
+          </td>
+          <td><strong>₹{{ "{:,.0f}".format(order.total_amount) }}</strong></td>
+          <td>
+            <span class="status-badge status-{{ order.status }}">
+              {{ STATUS_ICONS.get(order.status, '📋') }} {{ order.status_label }}
+            </span>
+          </td>
+          <td style="font-size:13px">{{ order.created_at.strftime('%d %b %Y') }}</td>
+          <td><a href="{{ url_for('admin.order_detail', order_id=order.id) }}" class="btn btn-sm btn-secondary">Manage</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Quick Actions -->
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:20px">
+  <a href="{{ url_for('admin.orders', status='draft') }}" class="quick-action-card">
+    <div style="font-size:32px;margin-bottom:8px">👀</div>
+    <div>Review New Orders</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:4px">{{ pending_review }} waiting</div>
+  </a>
+  <a href="{{ url_for('admin.orders', status='advance_paid') }}" class="quick-action-card">
+    <div style="font-size:32px;margin-bottom:8px">💳</div>
+    <div>Confirm Advance Payments</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:4px">{{ advance_pending }} to confirm</div>
+  </a>
+  <a href="{{ url_for('admin.product_new') }}" class="quick-action-card">
+    <div style="font-size:32px;margin-bottom:8px">➕</div>
+    <div>Add New Product</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:4px">{{ total_products }} active</div>
+  </a>
+</div>
+{% endblock %}
