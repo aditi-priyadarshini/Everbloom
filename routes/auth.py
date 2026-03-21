@@ -16,7 +16,7 @@ def login():
         user  = User.by_email(email)
         if user and user.check_password(pw):
             login_user(user, remember=bool(request.form.get("remember")))
-            return redirect(request.args.get("next") or url_for("shop.home"))
+            return redirect(url_for("shop.home"))
         flash("Invalid email or password.", "error")
     return render_template("auth/login.html")
 
