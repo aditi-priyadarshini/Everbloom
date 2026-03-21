@@ -1,0 +1,12 @@
+{
+    "version": 2,
+    "builds": [
+        {"src": "app.py", "use": "@vercel/python"}
+    ],
+    "routes": [
+        {"src": "/f9ae959b99ed45ab83e746fdd18c1522.txt", "dest": "app.py"},
+        {"src": "/robots.txt", "dest": "app.py"},
+        {"src": "/sitemap.xml", "dest": "app.py"},
+        {"src": "/(.*)", "dest": "app.py"}
+    ]
+}
