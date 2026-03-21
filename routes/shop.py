@@ -214,6 +214,12 @@ def checkout():
                 coupon_error = "Invalid or expired gift card."
 
         if not coupon_error:
+            delivery_type = request.form.get("delivery_type", "delivery")
+            if delivery_type == "pickup":
+                name = request.form.get("pickup_name", name).strip() or name
+                phone = request.form.get("pickup_phone", phone).strip() or phone
+                address = "SELF PICKUP"
+
             total = round(subtotal - discount - gift_card_discount, 2)
             total = max(0, total)
             order = models.create_order({
@@ -222,6 +228,8 @@ def checkout():
                 "total": total,
                 "coupon_code": coupon_code or None,
                 "discount_amount": discount,
+                "delivery_type": delivery_type,
+                "shipping_charge": 0,
                 "status": "placed",
             })
             if order:

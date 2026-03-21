@@ -3,6 +3,7 @@
 {% block page_title %}Order #{{ order.id[:8]|upper }}{% endblock %}
 {% block content %}
 <div class="order-detail-layout">
+
   <!-- Left: items + tracking -->
   <div class="order-detail-main">
     <div class="admin-card">
@@ -26,10 +27,13 @@
         </tbody>
       </table>
       <div class="order-totals">
-        <div class="totals-row"><span>Total</span><strong>₹{{ "%.0f"|format(order.total) }}</strong></div>
         {% if order.discount_amount and order.discount_amount > 0 %}
         <div class="totals-row discount"><span>Coupon ({{ order.coupon_code }})</span><span>-₹{{ "%.0f"|format(order.discount_amount) }}</span></div>
         {% endif %}
+        {% if order.shipping_charge and order.shipping_charge > 0 %}
+        <div class="totals-row"><span>Shipping</span><span>₹{{ "%.0f"|format(order.shipping_charge) }}</span></div>
+        {% endif %}
+        <div class="totals-row"><span><strong>Total</strong></span><strong>₹{{ "%.0f"|format(order.total) }}</strong></div>
         {% if order.advance_amount %}
         <div class="totals-row"><span>Advance Paid</span><span>₹{{ "%.0f"|format(order.advance_amount) }}</span></div>
         <div class="totals-row strong"><span>Balance (COD)</span><strong>₹{{ "%.0f"|format(order.total - order.advance_amount) }}</strong></div>
@@ -56,12 +60,38 @@
 
   <!-- Right: customer info + actions -->
   <div class="order-detail-side">
+
+    <!-- Delivery type badge -->
+    <div class="admin-card">
+      <h3>Delivery Type</h3>
+      {% if order.delivery_type == 'pickup' %}
+      <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.5rem;">
+        <span style="font-size:1.3rem;">🏪</span>
+        <span style="font-weight:500;color:var(--sage-dark);">Self Pickup</span>
+      </div>
+      <p style="font-size:.84rem;color:var(--text-soft);">Customer will pick up. No shipping needed.</p>
+      {% else %}
+      <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.5rem;">
+        <span style="font-size:1.3rem;">🚚</span>
+        <span style="font-weight:500;color:var(--bark);">Home Delivery</span>
+      </div>
+      {% if order.shipping_charge and order.shipping_charge > 0 %}
+      <p style="font-size:.84rem;color:var(--text-soft);">Shipping: <strong>₹{{ "%.0f"|format(order.shipping_charge) }}</strong></p>
+      {% else %}
+      <p style="font-size:.84rem;color:var(--text-soft);">Shipping charge not set yet.</p>
+      {% endif %}
+      {% endif %}
+    </div>
+
+    <!-- Customer -->
     <div class="admin-card">
       <h3>Customer</h3>
       <p><strong>{{ order.name }}</strong></p>
       <p>{{ order.phone }}</p>
       {% if user %}<p>{{ user.email }}</p>{% endif %}
+      {% if order.address != 'SELF PICKUP' %}
       <p class="address-block">{{ order.address }}</p>
+      {% endif %}
     </div>
 
     <div class="admin-card">
@@ -74,7 +104,13 @@
       <h3>Actions</h3>
 
       {% if order.status == 'placed' %}
-      <p class="action-hint">Set advance amount to request payment from customer.</p>
+      <p class="action-hint">
+        {% if order.delivery_type == 'pickup' %}
+        Self pickup order — set advance amount (no shipping needed).
+        {% else %}
+        Set advance + shipping charge. Both will be shown to the customer.
+        {% endif %}
+      </p>
       <form method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="set_advance">
@@ -82,6 +118,12 @@
           <label>Advance Amount (₹)</label>
           <input type="number" name="advance_amount" min="0" placeholder="e.g. 500" required>
         </div>
+        {% if order.delivery_type != 'pickup' %}
+        <div class="form-group">
+          <label>Shipping Charge (₹) <span style="font-size:.75rem;color:var(--text-soft);">— added to order total</span></label>
+          <input type="number" name="shipping_charge" min="0" value="0" placeholder="e.g. 80">
+        </div>
+        {% endif %}
         <button type="submit" class="btn-primary btn-full">Request Advance & Send Email</button>
       </form>
 
@@ -90,15 +132,15 @@
       {% if order.payment_screenshot_url %}
       <a href="{{ order.payment_screenshot_url }}" target="_blank" class="screenshot-link">
         <img src="{{ order.payment_screenshot_url }}" alt="Payment Screenshot" class="screenshot-preview">
-        <span>View Full Screenshot</span>
+        <span>View Full Screenshot ↗</span>
       </a>
       {% endif %}
       <form method="post" style="margin-top:1rem;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="confirm_advance">
         <div class="form-group">
-          <label>Note (optional)</label>
-          <input type="text" name="note" placeholder="Payment verified…">
+          <label>Note to customer (optional)</label>
+          <input type="text" name="note" placeholder="Payment verified, crafting begins!">
         </div>
         <button type="submit" class="btn-primary btn-full">Confirm Payment & Start Crafting</button>
       </form>
@@ -129,17 +171,12 @@
         <input type="hidden" name="note" value="Order cancelled by admin.">
         <button type="submit" class="btn-danger btn-full" onclick="return confirm('Cancel this order?')">Cancel Order</button>
       </form>
+
       {% else %}
       <p class="action-hint muted">This order is {{ status_labels.get(order.status,'complete') }}. No further actions needed.</p>
       {% endif %}
     </div>
 
-    {% if order.is_custom_order and order.custom_notes %}
-    <div class="admin-card">
-      <h3>Custom Order Notes</h3>
-      <p>{{ order.custom_notes }}</p>
-    </div>
-    {% endif %}
   </div>
 </div>
 {% endblock %}
