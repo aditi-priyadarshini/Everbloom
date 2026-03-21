@@ -533,6 +533,7 @@ def variant_delete(vid):
     return redirect(url_for("admin.product_edit", pid=pid))
 
 
+
 # ── Settings ─────────────────────────────────────────────
 
 @admin_bp.route("/settings", methods=["GET", "POST"])
