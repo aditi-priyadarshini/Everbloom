@@ -1,7 +1,7 @@
 import math
 from flask import Blueprint, render_template, request, session, redirect, url_for, flash, jsonify
 from flask_login import current_user, login_required
-from models import Product, Category, Order, OrderItem, Tracking, Notification
+from models import Product, Category, Order, Tracking, Notification
 from emails import send_order_received
 
 shop_bp = Blueprint("shop", __name__)
