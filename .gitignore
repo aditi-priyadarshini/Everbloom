@@ -1,12 +1,8 @@
 .env
-instance/
 __pycache__/
 *.pyc
-*.pyo
 .venv/
 venv/
-env/
-static/uploads/
 *.db
-*.sqlite3
 .DS_Store
+.vercel/

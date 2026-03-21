@@ -37,7 +37,7 @@
     <div class="product-images">
       <div class="main-image" id="main-img-wrap">
         {% if product.first_image %}
-        <img src="{{ url_for('static', filename='uploads/products/' + product.first_image) }}" alt="{{ product.title }}" id="main-img">
+        <img src="{{ product.first_image }}" alt="{{ product.title }}" id="main-img">
         {% else %}
         <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:80px;color:var(--brown-light)">
           {{ product.category.icon if product.category else '🎨' }}
@@ -47,8 +47,8 @@
       {% if product.image_list|length > 1 %}
       <div class="thumb-row">
         {% for img in product.image_list %}
-        <div class="thumb {% if loop.first %}active{% endif %}" onclick="setImage('{{ url_for('static', filename='uploads/products/' + img) }}', this)" id="thumb-{{ loop.index }}">
-          <img src="{{ url_for('static', filename='uploads/products/' + img) }}" alt="{{ product.title }} {{ loop.index }}">
+        <div class="thumb {% if loop.first %}active{% endif %}" onclick="setImage('{{ img }}', this)" id="thumb-{{ loop.index }}">
+          <img src="{{ img }}" alt="{{ product.title }} {{ loop.index }}">
         </div>
         {% endfor %}
       </div>

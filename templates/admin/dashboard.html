@@ -10,39 +10,39 @@
   <div class="stat-card">
     <div class="stat-icon">📦</div>
     <div class="stat-label">Total Orders</div>
-    <div class="stat-value">{{ total_orders }}</div>
+    <div class="stat-value">{{ stats.total }}</div>
   </div>
   <div class="stat-card" style="border-top:3px solid var(--warning)">
     <div class="stat-icon">👀</div>
     <div class="stat-label">Pending Review</div>
-    <div class="stat-value">{{ pending_review }}</div>
+    <div class="stat-value">{{ stats.pending_review }}</div>
     <div class="stat-sub"><a href="{{ url_for('admin.orders', status='draft') }}" style="color:var(--brown-accent)">Review now →</a></div>
   </div>
   <div class="stat-card" style="border-top:3px solid var(--sage)">
     <div class="stat-icon">💳</div>
     <div class="stat-label">Advance to Confirm</div>
-    <div class="stat-value">{{ advance_pending }}</div>
+    <div class="stat-value">{{ stats.advance_pending }}</div>
     <div class="stat-sub"><a href="{{ url_for('admin.orders', status='advance_paid') }}" style="color:var(--brown-accent)">Confirm now →</a></div>
   </div>
   <div class="stat-card">
     <div class="stat-icon">🎨</div>
     <div class="stat-label">In Progress</div>
-    <div class="stat-value">{{ in_progress }}</div>
+    <div class="stat-value">{{ stats.in_progress }}</div>
   </div>
   <div class="stat-card">
     <div class="stat-icon">🚚</div>
     <div class="stat-label">Shipped</div>
-    <div class="stat-value">{{ shipped }}</div>
+    <div class="stat-value">{{ stats.shipped }}</div>
   </div>
   <div class="stat-card">
     <div class="stat-icon">🌸</div>
     <div class="stat-label">Delivered</div>
-    <div class="stat-value">{{ delivered }}</div>
+    <div class="stat-value">{{ stats.delivered }}</div>
   </div>
   <div class="stat-card">
     <div class="stat-icon">💰</div>
     <div class="stat-label">Revenue</div>
-    <div class="stat-value">₹{{ "{:,.0f}".format(revenue) }}</div>
+    <div class="stat-value">₹{{ "{:,.0f}".format(stats.revenue|float) }}</div>
   </div>
   <div class="stat-card">
     <div class="stat-icon">👥</div>
@@ -97,12 +97,12 @@
   <a href="{{ url_for('admin.orders', status='draft') }}" class="quick-action-card">
     <div style="font-size:32px;margin-bottom:8px">👀</div>
     <div>Review New Orders</div>
-    <div style="font-size:12px;color:var(--text-muted);margin-top:4px">{{ pending_review }} waiting</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:4px">{{ stats.pending_review }} waiting</div>
   </a>
   <a href="{{ url_for('admin.orders', status='advance_paid') }}" class="quick-action-card">
     <div style="font-size:32px;margin-bottom:8px">💳</div>
     <div>Confirm Advance Payments</div>
-    <div style="font-size:12px;color:var(--text-muted);margin-top:4px">{{ advance_pending }} to confirm</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:4px">{{ stats.advance_pending }} to confirm</div>
   </a>
   <a href="{{ url_for('admin.product_new') }}" class="quick-action-card">
     <div style="font-size:32px;margin-bottom:8px">➕</div>

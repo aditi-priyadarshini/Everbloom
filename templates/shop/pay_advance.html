@@ -9,7 +9,7 @@
     <p style="font-size:13px;color:var(--text-muted)">Order Total: ₹{{ "{:,.0f}".format(order.total_amount) }} · Balance on delivery: ₹{{ "{:,.0f}".format(order.total_amount - order.advance_amount) }}</p>
 
     <div style="margin:28px 0">
-      {% set qr_path = url_for('static', filename='uploads/qr/upi_qr.png') %}
+      {% set qr_path = config.get('QR_CODE_URL', '') %}
       <div style="width:200px;height:200px;margin:0 auto;background:var(--sand);border-radius:12px;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;overflow:hidden">
         <img src="{{ qr_path }}" alt="UPI QR" style="width:100%;height:100%;object-fit:contain" onerror="this.parentElement.innerHTML='<div style=\'padding:20px;text-align:center\'><div style=\'font-size:40px\'>📱</div><p style=\'font-size:11px;color:var(--text-muted);margin-top:8px\'>Upload QR in Admin → Settings</p></div>'">
       </div>

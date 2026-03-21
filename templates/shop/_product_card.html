@@ -1,7 +1,7 @@
 <div class="product-card" onclick="location.href='{{ url_for('shop.product', product_id=p.id) }}'">
   <div class="product-card-img">
     {% if p.first_image %}
-    <img src="{{ url_for('static', filename='uploads/products/' + p.first_image) }}" alt="{{ p.title }}" loading="lazy">
+    <img src="{{ p.first_image }}" alt="{{ p.title }}" loading="lazy">
     {% else %}
     <div class="product-card-placeholder">{{ p.category.icon if p.category else '🎨' }}</div>
     {% endif %}
