@@ -597,31 +597,6 @@ def settings():
 
 # ── Email Templates ───────────────────────────────────────
 
-@admin_bp.route("/email-templates")
-@admin_only
-def email_templates():
-    templates = models.get_email_templates()
-    return render_template("admin/email_templates.html", templates=templates)
-
-
-@admin_bp.route("/email-templates/<tid>", methods=["GET", "POST"])
-@admin_only
-def email_template_edit(tid):
-    tmpl = models.get_email_template(tid)
-    if not tmpl:
-        flash("Template not found.", "error")
-        return redirect(url_for("admin.email_templates"))
-    if request.method == "POST":
-        subject = request.form.get("subject", "").strip()
-        body = request.form.get("body", "").strip()
-        models.update_email_template(tid, subject, body)
-        flash("Template saved!", "success")
-        return redirect(url_for("admin.email_templates"))
-    return render_template("admin/email_template_edit.html", tmpl=tmpl)
-
-
-# ── Email Templates ───────────────────────────────────────
-
 TEMPLATE_LABELS = {
     "order_placed":      "Order Placed",
     "advance_requested": "Advance Payment Request",
