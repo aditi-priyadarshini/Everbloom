@@ -54,6 +54,9 @@ def order_detail(oid):
         import emails
 
         if action == "set_advance":
+            if order.get("status") != "placed":
+                flash("Advance already requested for this order.", "info")
+                return redirect(url_for("admin.order_detail", oid=oid))
             advance = request.form.get("advance_amount", "0")
             shipping = request.form.get("shipping_charge", "0")
             try:
@@ -79,36 +82,53 @@ def order_detail(oid):
                 note += f" Shipping charge: ₹{shipping}."
             models.add_tracking(oid, "advance_requested", note)
             if user:
-                emails.send_advance_requested(user["email"], {**order, "advance_amount": advance, "shipping_charge": shipping, "total": new_total if shipping > 0 else order.get("total",0)},
-                                              upi_id, upi_qr_url, site_url)
-                emails.send_advance_requested(user["email"], {**order, "advance_amount": advance},
-                                              upi_id, upi_qr_url, site_url)
-                models.create_notification(order["user_id"],
-                                           f"Advance payment of ₹{advance} requested.",
-                                           url_for("orders.pay_advance", oid=oid))
+                final_total = new_total if shipping > 0 else float(order.get("total", 0))
+                emails.send_advance_requested(
+                    user["email"],
+                    {**order, "advance_amount": advance, "shipping_charge": shipping, "total": final_total},
+                    upi_id, upi_qr_url, site_url
+                )
+                models.create_notification(
+                    order["user_id"],
+                    f"Advance payment of ₹{advance:.0f} requested.",
+                    url_for("orders.pay_advance", oid=oid)
+                )
             flash("Advance requested and email sent.", "success")
 
         elif action == "confirm_advance":
-            models.update_order(oid, {"status": "advance_confirmed"})
-            models.add_tracking(oid, "advance_confirmed", note or "Advance payment verified.")
-            if user:
-                emails.send_status_update(user["email"], order, "advance_confirmed", note)
-                models.create_notification(order["user_id"],
-                                           "Payment confirmed! Crafting begins.",
-                                           url_for("orders.order_detail", oid=oid))
-            flash("Advance confirmed.", "success")
+            if order.get("status") != "advance_paid":
+                flash("This order is not awaiting advance confirmation.", "error")
+            else:
+                models.update_order(oid, {"status": "advance_confirmed"})
+                models.add_tracking(oid, "advance_confirmed", note or "Advance payment verified.")
+                if user:
+                    emails.send_status_update(user["email"], order, "advance_confirmed", note)
+                    models.create_notification(
+                        order["user_id"],
+                        "Payment confirmed! Crafting begins.",
+                        url_for("orders.order_detail", oid=oid)
+                    )
+                flash("Advance confirmed. Crafting email sent.", "success")
 
         elif action == "update_status":
             new_status = request.form.get("new_status")
-            if new_status in models.ORDER_STATUSES:
+            current_status = order.get("status")
+            # Prevent updating to same status (duplicate emails)
+            if new_status == current_status:
+                flash("Order is already at that status. No changes made.", "info")
+            elif new_status in models.ORDER_STATUSES:
                 models.update_order(oid, {"status": new_status})
                 models.add_tracking(oid, new_status, note or None)
                 if user:
                     emails.send_status_update(user["email"], order, new_status, note)
-                    models.create_notification(order["user_id"],
-                                               f"Order status: {models.STATUS_LABELS.get(new_status, new_status)}",
-                                               url_for("orders.order_detail", oid=oid))
-            flash(f"Status updated to {new_status}.", "success")
+                    models.create_notification(
+                        order["user_id"],
+                        f"Order status updated: {models.STATUS_LABELS.get(new_status, new_status)}",
+                        url_for("orders.order_detail", oid=oid)
+                    )
+                flash(f"Status updated to {models.STATUS_LABELS.get(new_status, new_status)}.", "success")
+            else:
+                flash("Invalid status.", "error")
 
         return redirect(url_for("admin.order_detail", oid=oid))
 

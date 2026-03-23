@@ -11,6 +11,70 @@
 <link rel="stylesheet" href="/static/css/admin.css">
 </head>
 <body class="admin-body">
+
+<script>
+// Pick a random palette each session (persisted for the session)
+const palettes = {
+  blush: {
+    '--blush':'#f5e6e0','--rose':'#e8c4b8','--petal':'#d4a0a0',
+    '--mauve':'#b07878','--bark':'#5c3d3d','--cream':'#fdf6f0',
+    '--sage':'#c8d8c0','--sage-dark':'#8aaa7e','--gold':'#c9a96e',
+    '--text':'#3a2a2a','--text-soft':'#7a5c5c','--white':'#ffffff'
+  },
+  sage: {
+    '--blush':'#e8f0e4','--rose':'#c0d4b8','--petal':'#9ab88a',
+    '--mauve':'#6a9a58','--bark':'#2d4a20','--cream':'#f4f8f2',
+    '--sage':'#d4e8cc','--sage-dark':'#6a9a58','--gold':'#b8a84e',
+    '--text':'#1e3018','--text-soft':'#4a6a3a','--white':'#ffffff'
+  },
+  lavender: {
+    '--blush':'#f0eaf8','--rose':'#d8c8f0','--petal':'#bba0e0',
+    '--mauve':'#8a6ab8','--bark':'#3d2a5c','--cream':'#f8f4fd',
+    '--sage':'#d0d8f0','--sage-dark':'#6870b8','--gold':'#c9a96e',
+    '--text':'#2a1a3a','--text-soft':'#6a4a8a','--white':'#ffffff'
+  },
+  terracotta: {
+    '--blush':'#f8ede6','--rose':'#e8c4a8','--petal':'#d4986a',
+    '--mauve':'#b86840','--bark':'#5c2d10','--cream':'#fdf6f0',
+    '--sage':'#d8c8a8','--sage-dark':'#9a8850','--gold':'#c9952e',
+    '--text':'#3a1a08','--text-soft':'#7a4a28','--white':'#ffffff'
+  },
+  midnight: {
+    '--blush':'#e8eaf8','--rose':'#b8bce8','--petal':'#8890d8',
+    '--mauve':'#5058b8','--bark':'#1a2060','--cream':'#f2f4fd',
+    '--sage':'#c8d8e8','--sage-dark':'#5888b8','--gold':'#c9a96e',
+    '--text':'#0a1040','--text-soft':'#3848a0','--white':'#ffffff'
+  },
+  rose_gold: {
+    '--blush':'#faeee8','--rose':'#f0c8b8','--petal':'#e0988a',
+    '--mauve':'#c06858','--bark':'#6a2820','--cream':'#fdf8f6',
+    '--sage':'#e8d8c8','--sage-dark':'#b09070','--gold':'#d4a060',
+    '--text':'#3a1010','--text-soft':'#8a4840','--white':'#ffffff'
+  },
+  forest: {
+    '--blush':'#e8f4ec','--rose':'#b8d8c0','--petal':'#80b890',
+    '--mauve':'#488858','--bark':'#1a4028','--cream':'#f2f9f4',
+    '--sage':'#d0e8d4','--sage-dark':'#488858','--gold':'#b8a040',
+    '--text':'#0c2818','--text-soft':'#386848','--white':'#ffffff'
+  },
+  dusty_blue: {
+    '--blush':'#e8eef8','--rose':'#b8c8e8','--petal':'#88a0c8',
+    '--mauve':'#587098','--bark':'#1e3050','--cream':'#f2f6fd',
+    '--sage':'#c8d8e0','--sage-dark':'#5888a0','--gold':'#c9a96e',
+    '--text':'#0e2040','--text-soft':'#385878','--white':'#ffffff'
+  }
+};
+
+const keys = Object.keys(palettes);
+let stored = sessionStorage.getItem('eb_palette');
+if (!stored) {
+  stored = keys[Math.floor(Math.random() * keys.length)];
+  sessionStorage.setItem('eb_palette', stored);
+}
+const palette = palettes[stored] || palettes.blush;
+const root = document.documentElement;
+Object.entries(palette).forEach(([k, v]) => root.style.setProperty(k, v));
+</script>
 <div class="admin-layout">
   <aside class="admin-sidebar">
     <a class="admin-logo" href="{{ url_for('admin.dashboard') }}">Ever<span>bloom</span></a>
