@@ -2,17 +2,6 @@ import sys
 from flask_mail import Message
 from flask import current_app
 
-
-ORDER_STATUSES_MSGS = {
-    "advance_requested": ("Advance Payment Required — Everbloom", "Your advance payment details are ready."),
-    "advance_confirmed": ("Your Order is Being Crafted — Everbloom", "Payment confirmed! Crafting has begun."),
-    "crafting":          ("Crafting in Progress — Everbloom", "Our artisans are working on your piece."),
-    "quality_check":     ("Quality Check — Everbloom", "Your order is undergoing quality inspection."),
-    "shipped":           ("Your Order is Shipped — Everbloom", "Your handcrafted piece is on its way!"),
-    "delivered":         ("Order Delivered — Everbloom", "Thank you for shopping with Everbloom!"),
-    "cancelled":         ("Order Cancelled — Everbloom", "Your order has been cancelled."),
-}
-
 BASE = """
 <div style="font-family:'Georgia',serif;max-width:560px;margin:0 auto;background:#fdf6f0;border:1px solid #e8c4b8;border-radius:8px;overflow:hidden;">
   <div style="background:#5c3d3d;padding:24px 32px;">
@@ -26,6 +15,41 @@ BASE = """
   </div>
 </div>
 """
+
+DEFAULTS = {
+    "order_placed":      ("Order Placed — Everbloom",            "<h2 style='color:#5c3d3d;'>Order Placed!</h2><p style='color:#3a2a2a;'>Hi {{name}},<br>Your order <strong>#{{order_id}}</strong> has been placed. Total: ₹{{total}}</p>"),
+    "advance_requested": ("Advance Payment Required — Everbloom", "<h2 style='color:#5c3d3d;'>Advance Payment Required</h2><p style='color:#3a2a2a;'>Hi {{name}},<br>Pay advance of <strong>₹{{advance_amount}}</strong>. UPI ID: {{upi_id}}</p><p><a href='{{pay_link}}' style='background:#5c3d3d;color:#fdf6f0;padding:12px 24px;border-radius:4px;text-decoration:none;'>Upload Screenshot</a></p>"),
+    "advance_confirmed": ("Payment Confirmed — Everbloom",        "<h2 style='color:#5c3d3d;'>Payment Confirmed!</h2><p style='color:#3a2a2a;'>Hi {{name}}, crafting has begun on order #{{order_id}}!</p>"),
+    "crafting":          ("Crafting in Progress — Everbloom",     "<h2 style='color:#5c3d3d;'>Crafting in Progress</h2><p style='color:#3a2a2a;'>Hi {{name}}, artisans are working on order #{{order_id}}.</p>"),
+    "quality_check":     ("Quality Check — Everbloom",            "<h2 style='color:#5c3d3d;'>Quality Check</h2><p style='color:#3a2a2a;'>Hi {{name}}, order #{{order_id}} is being inspected.</p>"),
+    "shipped":           ("Your Order is Shipped — Everbloom",    "<h2 style='color:#5c3d3d;'>Shipped!</h2><p style='color:#3a2a2a;'>Hi {{name}}, order #{{order_id}} is on its way!</p>"),
+    "delivered":         ("Order Delivered — Everbloom",          "<h2 style='color:#5c3d3d;'>Delivered!</h2><p style='color:#3a2a2a;'>Hi {{name}}, thanks for shopping! Balance due: ₹{{balance}}.</p>"),
+    "cancelled":         ("Order Cancelled — Everbloom",          "<h2 style='color:#5c3d3d;'>Order Cancelled</h2><p style='color:#3a2a2a;'>Hi {{name}}, order #{{order_id}} has been cancelled.</p>"),
+    "welcome":           ("Welcome to Everbloom!",                "<h2 style='color:#5c3d3d;'>Welcome!</h2><p style='color:#3a2a2a;'>Hi {{name}}, your account is ready. Start shopping!</p>"),
+    "custom_request":    ("Custom Request Received — Everbloom",  "<h2 style='color:#5c3d3d;'>Request Received!</h2><p style='color:#3a2a2a;'>Hi {{name}}, we'll review your custom order request in 2–3 days.</p>"),
+}
+
+
+def _get_template(key):
+    """Load template from DB, fall back to default."""
+    try:
+        import models
+        t = models.get_email_template(key)
+        if t:
+            return t["subject"], t["body_html"]
+    except Exception:
+        pass
+    default = DEFAULTS.get(key)
+    if default:
+        return default
+    return "Everbloom Update", "<p>Hi there, you have an update from Everbloom.</p>"
+
+
+def _render(body_html, variables):
+    """Replace {{var}} placeholders with actual values."""
+    for k, v in variables.items():
+        body_html = body_html.replace("{{" + k + "}}", str(v) if v is not None else "")
+    return body_html
 
 
 def _send(to, subject, html):
@@ -47,60 +71,55 @@ def _send(to, subject, html):
 
 
 def send_order_placed(user_email, order):
-    body = f"""
-    <h2 style="color:#5c3d3d;">Order Placed!</h2>
-    <p style="color:#3a2a2a;">Hi {order.get('name','there')},<br>
-    Your order <strong>#{str(order['id'])[:8].upper()}</strong> has been placed successfully.
-    Our team will review it and send you payment details shortly.</p>
-    <p style="color:#3a2a2a;"><strong>Total:</strong> &#8377;{order['total']}</p>
-    <p style="color:#7a5c5c;font-size:14px;">No payment needed right now.</p>
-    """
-    return _send(user_email, "Order Placed — Everbloom", BASE.format(body=body))
+    subject, body = _get_template("order_placed")
+    html = _render(body, {
+        "name": order.get("name", "there"),
+        "order_id": str(order["id"])[:8].upper(),
+        "total": f"{float(order.get('total', 0)):.0f}",
+    })
+    return _send(user_email, subject, BASE.format(body=html))
 
 
 def send_advance_requested(user_email, order, upi_id, upi_qr_url, site_url):
+    subject, body = _get_template("advance_requested")
     pay_link = f"{site_url}/orders/{order['id']}/pay-advance"
     qr_html = f'<img src="{upi_qr_url}" style="width:180px;border-radius:8px;margin:12px 0;display:block;" alt="UPI QR">' if upi_qr_url else ""
-    body = f"""
-    <h2 style="color:#5c3d3d;">Advance Payment Required</h2>
-    <p style="color:#3a2a2a;">Hi {order.get('name','there')},<br>
-    Please pay an advance of <strong>&#8377;{order['advance_amount']}</strong> to confirm your order.</p>
-    <p style="color:#3a2a2a;"><strong>UPI ID:</strong> {upi_id}</p>
-    {qr_html}
-    <a href="{pay_link}" style="display:inline-block;margin-top:16px;background:#5c3d3d;color:#fdf6f0;padding:12px 24px;border-radius:4px;text-decoration:none;font-size:14px;">Upload Payment Screenshot</a>
-    """
-    return _send(user_email, "Advance Payment Required — Everbloom", BASE.format(body=body))
+    html = _render(body, {
+        "name": order.get("name", "there"),
+        "order_id": str(order["id"])[:8].upper(),
+        "advance_amount": f"{float(order.get('advance_amount', 0)):.0f}",
+        "upi_id": upi_id or "",
+        "pay_link": pay_link,
+        "total": f"{float(order.get('total', 0)):.0f}",
+        "shipping_charge": f"{float(order.get('shipping_charge', 0)):.0f}",
+    })
+    # Append QR after body if present
+    if qr_html:
+        html = html + qr_html
+    return _send(user_email, subject, BASE.format(body=html))
 
 
 def send_status_update(user_email, order, status, note=None):
-    subject, headline = ORDER_STATUSES_MSGS.get(
-        status, ("Order Update — Everbloom", "Your order has been updated."))
-    note_html = f"<p style='color:#5c3d3d;font-style:italic;'>{note}</p>" if note else ""
-    balance_html = ""
-    if status == "delivered":
-        balance = float(order.get('total', 0)) - float(order.get('advance_amount') or 0)
-        balance_html = f"<p style='color:#3a2a2a;'>Balance due on delivery: <strong>&#8377;{balance:.0f}</strong></p>"
-    body = f"""
-    <h2 style="color:#5c3d3d;">{headline}</h2>
-    <p style="color:#3a2a2a;">Order <strong>#{str(order['id'])[:8].upper()}</strong></p>
-    {note_html}{balance_html}
-    """
-    return _send(user_email, subject, BASE.format(body=body))
+    subject, body = _get_template(status)
+    balance = float(order.get("total", 0)) - float(order.get("advance_amount") or 0)
+    html = _render(body, {
+        "name": order.get("name", "there"),
+        "order_id": str(order["id"])[:8].upper(),
+        "balance": f"{balance:.0f}",
+        "note": note or "",
+    })
+    if note:
+        html += f"<p style='color:#5c3d3d;font-style:italic;margin-top:1rem;'>{note}</p>"
+    return _send(user_email, subject, BASE.format(body=html))
 
 
 def send_custom_request_received(user_email, name):
-    body = f"""
-    <h2 style="color:#5c3d3d;">Custom Order Request Received!</h2>
-    <p style="color:#3a2a2a;">Hi {name},<br>
-    We've received your custom order request and will get back to you within 2–3 business days.</p>
-    """
-    return _send(user_email, "Custom Request Received — Everbloom", BASE.format(body=body))
+    subject, body = _get_template("custom_request")
+    html = _render(body, {"name": name})
+    return _send(user_email, subject, BASE.format(body=html))
 
 
 def send_welcome(user_email, name):
-    body = f"""
-    <h2 style="color:#5c3d3d;">Welcome to Everbloom!</h2>
-    <p style="color:#3a2a2a;">Hi {name},<br>
-    Your account has been created. Browse our handcrafted collection and find something you'll treasure.</p>
-    """
-    return _send(user_email, "Welcome to Everbloom", BASE.format(body=body))
+    subject, body = _get_template("welcome")
+    html = _render(body, {"name": name})
+    return _send(user_email, subject, BASE.format(body=html))

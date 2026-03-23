@@ -508,3 +508,62 @@ def get_stats():
         "shipped": len([o for o in all_orders if o["status"] == "shipped"]),
         "monthly_revenue": monthly,
     }
+
+
+# ── Email Templates ───────────────────────────────────────
+
+def get_email_templates():
+    return supa.select("email_templates", order="id.asc")
+
+
+def get_email_template(tid):
+    rows = supa.select("email_templates", {"id": f"eq.{tid}"})
+    return rows[0] if rows else None
+
+
+def update_email_template(tid, subject, body):
+    return supa.update("email_templates",
+                       {"id": f"eq.{tid}"},
+                       {"subject": subject, "body": body,
+                        "updated_at": "now()"})
+
+
+def render_template_vars(text, order=None, user=None, extra=None):
+    """Replace {{var}} placeholders with real values."""
+    import re
+    vals = {
+        "name": (user or {}).get("name", "there") if user else (order or {}).get("name", "there"),
+        "order_id": str((order or {}).get("id", ""))[:8].upper() if order else "",
+        "total": f"{float((order or {}).get('total', 0)):.0f}" if order else "",
+        "advance_amount": f"{float((order or {}).get('advance_amount', 0)):.0f}" if order else "",
+        "balance": f"{float((order or {}).get('total', 0)) - float((order or {}).get('advance_amount', 0)):.0f}" if order else "",
+        "upi_id": get_setting("upi_id") or "",
+        "pay_link": "",
+    }
+    if extra:
+        vals.update(extra)
+    for k, v in vals.items():
+        text = text.replace(f"{{{{{k}}}}}", str(v))
+    return text
+
+
+# ── Email Templates ───────────────────────────────────────
+
+def get_email_templates():
+    return supa.select("email_templates", order="key.asc")
+
+
+def get_email_template(key):
+    rows = supa.select("email_templates", {"key": f"eq.{key}"})
+    return rows[0] if rows else None
+
+
+def save_email_template(key, subject, body_html):
+    existing = get_email_template(key)
+    if existing:
+        return supa.update("email_templates",
+                           {"key": f"eq.{key}"},
+                           {"subject": subject, "body_html": body_html,
+                            "updated_at": "now()"})
+    return supa.insert("email_templates",
+                       {"key": key, "subject": subject, "body_html": body_html})

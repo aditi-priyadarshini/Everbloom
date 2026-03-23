@@ -75,7 +75,7 @@
 
     <div class="product-meta">
       <span class="{% if product.stock > 0 %}in-stock{% else %}out-stock{% endif %}">
-        {% if product.stock > 0 %}✓ In Stock ({{ product.stock }} left){% else %}Out of Stock{% endif %}
+        {% if product.stock > 0 %}✓ In Stock ({{ product.stock }} left){% else %}📦 Available for Pre-order{% endif %}
       </span>
       {% if product.crafting_days %}
       <span class="crafting-info">Ready in approx. {{ product.crafting_days }} days</span>
@@ -113,15 +113,22 @@
       <button type="submit" class="btn-primary btn-full">Add to Cart</button>
     </form>
     {% else %}
-    <button class="btn-primary btn-full disabled" disabled>Out of Stock</button>
-    <div class="back-in-stock-form">
-      <p class="back-in-stock-label">Get notified when it's back:</p>
-      <form method="post" action="{{ url_for('shop.back_in_stock', pid=product.id) }}" class="bis-form">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="email" name="email" placeholder="your@email.com" value="{{ session.get('user_email','') }}" required class="bis-input">
-        <button type="submit" class="btn-outline">Notify Me</button>
-      </form>
-    </div>
+    <form method="post" action="{{ url_for('shop.cart_add', pid=product.id) }}" class="add-to-cart-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="is_preorder" value="1">
+      <div class="preorder-info">
+        <span>📦</span>
+        <div>
+          <strong>Made to order</strong>
+          <p>This item will be crafted especially for you in {{ product.crafting_days or 7 }}–{{ (product.crafting_days or 7) + 3 }} days after payment.</p>
+        </div>
+      </div>
+      <div class="qty-wrap">
+        <label>Qty</label>
+        <input type="number" name="qty" value="1" min="1" class="qty-input">
+      </div>
+      <button type="submit" class="btn-primary btn-full btn-preorder-lg">Pre-order Now</button>
+    </form>
     {% endif %}
 
     <a href="{{ url_for('shop.custom_order') }}" class="custom-order-link">Want something custom? →</a>

@@ -145,10 +145,40 @@ def cart():
 @shop_bp.route("/cart/add/<pid>", methods=["POST"])
 def cart_add(pid):
     qty = int(request.form.get("qty", 1))
+    is_preorder = request.form.get("preorder") == "1"
+    p = models.get_product(pid)
+    if not p:
+        flash("Product not found.", "error")
+        return redirect(request.referrer or url_for("shop.shop"))
+
+    stock = int(p.get("stock", 0))
     cart = _cart()
-    cart[pid] = cart.get(pid, 0) + qty
+    already_in_cart = cart.get(pid, 0)
+
+    if stock <= 0 and not p.get("allow_preorder"):
+        flash("This product is out of stock.", "error")
+        return redirect(request.referrer or url_for("shop.shop"))
+
+    # Prevent adding more than available stock
+    if stock > 0 and (already_in_cart + qty) > stock:
+        allowed = max(0, stock - already_in_cart)
+        if allowed <= 0:
+            flash(f"You already have the maximum available quantity ({stock}) in your cart.", "error")
+        else:
+            cart[pid] = already_in_cart + allowed
+            session.modified = True
+            flash(f"Only {stock} available — added {allowed} to your cart.", "info")
+        return redirect(request.referrer or url_for("shop.cart"))
+
+    cart[pid] = already_in_cart + qty
+    preorders = session.setdefault("preorder_items", [])
+    if is_preorder and pid not in preorders:
+        preorders.append(pid)
     session.modified = True
-    flash("Added to cart!", "success")
+    if is_preorder:
+        flash("Pre-order added! We'll craft this especially for you.", "success")
+    else:
+        flash("Added to cart!", "success")
     return redirect(request.referrer or url_for("shop.cart"))
 
 
@@ -159,6 +189,14 @@ def cart_update(pid):
     if qty <= 0:
         cart.pop(pid, None)
     else:
+        p = models.get_product(pid)
+        stock = int(p.get("stock", 0)) if p else 0
+        preorders = session.get("preorder_items", [])
+        is_pre = pid in preorders
+        # Cap at stock unless preorder
+        if stock > 0 and not is_pre and qty > stock:
+            qty = stock
+            flash(f"Quantity capped at {stock} (available stock).", "info")
         cart[pid] = qty
     session.modified = True
     return redirect(url_for("shop.cart"))
@@ -218,6 +256,32 @@ def checkout():
             if delivery_type == "pickup":
                 address = "SELF PICKUP"
 
+            # ── Stock validation ── check live stock right now before placing
+            stock_errors = []
+            for i in items:
+                p = i["product"]
+                live = models.get_product(str(p["id"]))  # fresh from DB
+                if not live:
+                    stock_errors.append(f"'{p['title']}' is no longer available.")
+                    continue
+                available = int(live.get("stock", 0))
+                can_preorder = live.get("allow_preorder", False)
+                if available <= 0 and not can_preorder:
+                    stock_errors.append(f"'{p['title']}' is out of stock.")
+                elif available > 0 and i["qty"] > available and not can_preorder:
+                    stock_errors.append(
+                        f"Only {available} unit(s) of '{p['title']}' available. You have {i['qty']} in cart."
+                    )
+
+            if stock_errors:
+                for err in stock_errors:
+                    flash(err, "error")
+                return render_template("shop/checkout.html",
+                                       items=items, subtotal=subtotal,
+                                       discount=discount, user=user,
+                                       coupon_error=None)
+
+            is_preorder_order = any(str(i["product"]["id"]) in preorder_pids for i in items)
             total = round(subtotal - discount - gift_card_discount, 2)
             total = max(0, total)
             order = models.create_order({
@@ -228,11 +292,13 @@ def checkout():
                 "discount_amount": discount,
                 "delivery_type": delivery_type,
                 "shipping_charge": 0,
+                "is_preorder": is_preorder_order,
                 "status": "placed",
             })
             if order:
                 for i in items:
                     p = i["product"]
+                    live = models.get_product(str(p["id"]))
                     models.create_order_item({
                         "order_id": order["id"],
                         "product_id": str(p["id"]),
@@ -241,9 +307,10 @@ def checkout():
                         "quantity": i["qty"],
                         "image_url": (p.get("images") or [""])[0],
                     })
-                    # Reduce stock
-                    new_stock = max(0, int(p.get("stock", 0)) - i["qty"])
-                    models.update_product(str(p["id"]), {"stock": new_stock})
+                    # Only reduce stock for non-preorder items with stock
+                    if live and int(live.get("stock", 0)) > 0:
+                        new_stock = max(0, int(live.get("stock", 0)) - i["qty"])
+                        models.update_product(str(p["id"]), {"stock": new_stock})
 
                 models.add_tracking(order["id"], "placed", "Order placed by customer.")
                 models.create_notification(session["user_id"],

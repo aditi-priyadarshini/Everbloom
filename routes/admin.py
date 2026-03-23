@@ -54,6 +54,9 @@ def order_detail(oid):
         import emails
 
         if action == "set_advance":
+            if order.get("status") != "placed":
+                flash("Advance already requested for this order.", "info")
+                return redirect(url_for("admin.order_detail", oid=oid))
             advance = request.form.get("advance_amount", "0")
             shipping = request.form.get("shipping_charge", "0")
             try:
@@ -79,36 +82,53 @@ def order_detail(oid):
                 note += f" Shipping charge: ₹{shipping}."
             models.add_tracking(oid, "advance_requested", note)
             if user:
-                emails.send_advance_requested(user["email"], {**order, "advance_amount": advance, "shipping_charge": shipping, "total": new_total if shipping > 0 else order.get("total",0)},
-                                              upi_id, upi_qr_url, site_url)
-                emails.send_advance_requested(user["email"], {**order, "advance_amount": advance},
-                                              upi_id, upi_qr_url, site_url)
-                models.create_notification(order["user_id"],
-                                           f"Advance payment of ₹{advance} requested.",
-                                           url_for("orders.pay_advance", oid=oid))
+                final_total = new_total if shipping > 0 else float(order.get("total", 0))
+                emails.send_advance_requested(
+                    user["email"],
+                    {**order, "advance_amount": advance, "shipping_charge": shipping, "total": final_total},
+                    upi_id, upi_qr_url, site_url
+                )
+                models.create_notification(
+                    order["user_id"],
+                    f"Advance payment of ₹{advance:.0f} requested.",
+                    url_for("orders.pay_advance", oid=oid)
+                )
             flash("Advance requested and email sent.", "success")
 
         elif action == "confirm_advance":
-            models.update_order(oid, {"status": "advance_confirmed"})
-            models.add_tracking(oid, "advance_confirmed", note or "Advance payment verified.")
-            if user:
-                emails.send_status_update(user["email"], order, "advance_confirmed", note)
-                models.create_notification(order["user_id"],
-                                           "Payment confirmed! Crafting begins.",
-                                           url_for("orders.order_detail", oid=oid))
-            flash("Advance confirmed.", "success")
+            if order.get("status") != "advance_paid":
+                flash("This order is not awaiting advance confirmation.", "error")
+            else:
+                models.update_order(oid, {"status": "advance_confirmed"})
+                models.add_tracking(oid, "advance_confirmed", note or "Advance payment verified.")
+                if user:
+                    emails.send_status_update(user["email"], order, "advance_confirmed", note)
+                    models.create_notification(
+                        order["user_id"],
+                        "Payment confirmed! Crafting begins.",
+                        url_for("orders.order_detail", oid=oid)
+                    )
+                flash("Advance confirmed. Crafting email sent.", "success")
 
         elif action == "update_status":
             new_status = request.form.get("new_status")
-            if new_status in models.ORDER_STATUSES:
+            current_status = order.get("status")
+            # Prevent updating to same status (duplicate emails)
+            if new_status == current_status:
+                flash("Order is already at that status. No changes made.", "info")
+            elif new_status in models.ORDER_STATUSES:
                 models.update_order(oid, {"status": new_status})
                 models.add_tracking(oid, new_status, note or None)
                 if user:
                     emails.send_status_update(user["email"], order, new_status, note)
-                    models.create_notification(order["user_id"],
-                                               f"Order status: {models.STATUS_LABELS.get(new_status, new_status)}",
-                                               url_for("orders.order_detail", oid=oid))
-            flash(f"Status updated to {new_status}.", "success")
+                    models.create_notification(
+                        order["user_id"],
+                        f"Order status updated: {models.STATUS_LABELS.get(new_status, new_status)}",
+                        url_for("orders.order_detail", oid=oid)
+                    )
+                flash(f"Status updated to {models.STATUS_LABELS.get(new_status, new_status)}.", "success")
+            else:
+                flash("Invalid status.", "error")
 
         return redirect(url_for("admin.order_detail", oid=oid))
 
@@ -184,6 +204,7 @@ def _parse_product_form(req, existing=None):
         "category_id": req.form.get("category_id") or None,
         "featured": req.form.get("featured") == "on",
         "is_flash_sale": req.form.get("is_flash_sale") == "on",
+        "allow_preorder": req.form.get("allow_preorder") == "on",
         "crafting_days": int(req.form.get("crafting_days", 7)),
     }
     flash_ends = req.form.get("flash_sale_ends_at", "")
@@ -572,3 +593,65 @@ def settings():
         return redirect(url_for("admin.settings"))
     s = models.get_all_settings()
     return render_template("admin/settings.html", s=s)
+
+
+# ── Email Templates ───────────────────────────────────────
+
+TEMPLATE_LABELS = {
+    "order_placed":      "Order Placed",
+    "advance_requested": "Advance Payment Request",
+    "advance_confirmed": "Advance Confirmed / Crafting Begins",
+    "crafting":          "Crafting in Progress",
+    "quality_check":     "Quality Check",
+    "shipped":           "Order Shipped",
+    "delivered":         "Order Delivered",
+    "cancelled":         "Order Cancelled",
+    "welcome":           "Welcome Email",
+    "custom_request":    "Custom Order Request Received",
+}
+
+TEMPLATE_VARS = {
+    "order_placed":      ["{{name}}", "{{order_id}}", "{{total}}"],
+    "advance_requested": ["{{name}}", "{{order_id}}", "{{advance_amount}}", "{{upi_id}}", "{{pay_link}}", "{{total}}", "{{shipping_charge}}"],
+    "advance_confirmed": ["{{name}}", "{{order_id}}"],
+    "crafting":          ["{{name}}", "{{order_id}}"],
+    "quality_check":     ["{{name}}", "{{order_id}}"],
+    "shipped":           ["{{name}}", "{{order_id}}"],
+    "delivered":         ["{{name}}", "{{order_id}}", "{{balance}}"],
+    "cancelled":         ["{{name}}", "{{order_id}}"],
+    "welcome":           ["{{name}}"],
+    "custom_request":    ["{{name}}"],
+}
+
+
+@admin_bp.route("/email-templates")
+@admin_only
+def email_templates():
+    templates = models.get_email_templates()
+    tmap = {t["key"]: t for t in templates}
+    return render_template("admin/email_templates.html",
+                           templates=tmap,
+                           labels=TEMPLATE_LABELS,
+                           template_vars=TEMPLATE_VARS)
+
+
+@admin_bp.route("/email-templates/<key>", methods=["GET", "POST"])
+@admin_only
+def email_template_edit(key):
+    if key not in TEMPLATE_LABELS:
+        flash("Template not found.", "error")
+        return redirect(url_for("admin.email_templates"))
+
+    template = models.get_email_template(key)
+    if request.method == "POST":
+        subject = request.form.get("subject", "").strip()
+        body_html = request.form.get("body_html", "").strip()
+        models.save_email_template(key, subject, body_html)
+        flash("Template saved!", "success")
+        return redirect(url_for("admin.email_template_edit", key=key))
+
+    return render_template("admin/email_template_edit.html",
+                           key=key,
+                           label=TEMPLATE_LABELS[key],
+                           template=template,
+                           vars=TEMPLATE_VARS.get(key, []))

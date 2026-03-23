@@ -71,10 +71,11 @@ img { max-width: 100%; display: block; }
 .notif-wrap { position: relative; }
 .notif-btn { background: none; border: none; cursor: pointer; color: var(--text-soft); position: relative; display: flex; padding: .3rem; }
 .notif-badge { position: absolute; top: 0; right: 0; background: var(--mauve); color: #fff; font-size: .6rem; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-.notif-dropdown { position: absolute; right: 0; top: calc(100% + .5rem); width: 300px; background: var(--white); border: 1px solid var(--rose); border-radius: 6px; box-shadow: 0 8px 24px rgba(92,61,61,.12); display: none; z-index: 300; }
+.notif-dropdown { position: absolute; right: 0; top: calc(100% + .5rem); width: 300px; background: var(--white); border: 1px solid var(--rose); border-radius: 6px; box-shadow: 0 8px 24px rgba(92,61,61,.12); display: none; z-index: 300; overflow: hidden; }
+#notifList { max-height: 320px; overflow-y: auto; }
 .notif-dropdown.open { display: block; }
 .notif-header { padding: .8rem 1rem; font-size: .75rem; letter-spacing: .1em; text-transform: uppercase; color: var(--text-soft); border-bottom: 1px solid var(--rose); }
-.notif-item { padding: .8rem 1rem; font-size: .84rem; border-bottom: 1px solid rgba(208,160,160,.2); color: var(--text); }
+.notif-item { display: block; padding: .8rem 1rem; font-size: .84rem; border-bottom: 1px solid rgba(208,160,160,.2); color: var(--text); line-height: 1.5; text-decoration: none; }
 .notif-item:hover { background: var(--blush); }
 .notif-empty { padding: 1rem; font-size: .84rem; color: var(--text-soft); text-align: center; }
 
@@ -741,3 +742,32 @@ main { padding-top: var(--nav-h); }
 }
 .pickup-note span { font-size: 1.2rem; flex-shrink: 0; }
 .pickup-note p { margin: 0; }
+
+/* ── Pre-order ── */
+.btn-preorder { background: var(--gold) !important; color: var(--bark) !important; border-color: var(--gold) !important; }
+.btn-preorder:hover { background: #b8923a !important; color: #fff !important; }
+.preorder-overlay { background: rgba(201,169,110,0.85) !important; color: var(--bark) !important; font-weight: 500; }
+.preorder-info {
+  display: flex; align-items: flex-start; gap: .6rem;
+  background: #fffbf0; border: 1px solid var(--gold);
+  border-radius: 6px; padding: .8rem 1rem;
+  margin-bottom: .8rem; font-size: .84rem; color: var(--text-soft);
+  line-height: 1.6;
+}
+.preorder-info span { font-size: 1.1rem; flex-shrink: 0; }
+.preorder-info p { margin: 0; }
+
+/* ── Coming Soon category ── */
+.cat-coming-soon { opacity: .75; }
+.cat-coming-soon .cat-placeholder {
+  background: linear-gradient(135deg, #f5e6e0 0%, #e8c4b8 100%);
+  display: flex; align-items: center; justify-content: center;
+}
+.cat-soon {
+  display: inline-block;
+  font-size: .62rem; letter-spacing: .14em; text-transform: uppercase;
+  background: rgba(255,255,255,.25); color: #fff;
+  border: 1px solid rgba(255,255,255,.4);
+  padding: .2rem .6rem; border-radius: 20px;
+  margin-top: .4rem; backdrop-filter: blur(4px);
+}

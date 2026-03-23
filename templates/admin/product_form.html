@@ -75,11 +75,17 @@
       <div class="form-col-side">
         <div class="admin-card">
           <h3>Visibility</h3>
-          <label class="toggle-label">
+          <label class="toggle-label" style="margin-bottom:.8rem;">
             <input type="checkbox" name="featured" {% if product and product.featured %}checked{% endif %}>
             <span class="toggle-track-ui"></span>
             Featured on Homepage
           </label>
+          <label class="toggle-label">
+            <input type="checkbox" name="allow_preorder" {% if product and product.allow_preorder %}checked{% endif %}>
+            <span class="toggle-track-ui"></span>
+            Allow Pre-order when out of stock
+          </label>
+          <p style="font-size:.75rem;color:var(--text-soft);margin-top:.5rem;">Customers can pre-order even when stock is 0.</p>
         </div>
 
         <div class="admin-card">
