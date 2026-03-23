@@ -45,7 +45,10 @@ if (notifBtn) {
       }
       if (data.notifications && data.notifications.length > 0) {
         notifList.innerHTML = data.notifications.map(n => `
-          <a href="${n.link || '#'}" class="notif-item">${n.message}</a>
+          <a href="${n.link || '#'}" class="notif-item">
+            <div style="font-size:.84rem;color:var(--text);">${n.message}</div>
+            <div style="font-size:.72rem;color:var(--text-soft);margin-top:.2rem;">${n.created_at ? n.created_at.slice(0,16).replace('T',' ') : ''}</div>
+          </a>
         `).join('');
       } else {
         notifList.innerHTML = '<p class="notif-empty">All caught up!</p>';

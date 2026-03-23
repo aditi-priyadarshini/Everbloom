@@ -184,6 +184,7 @@ def _parse_product_form(req, existing=None):
         "category_id": req.form.get("category_id") or None,
         "featured": req.form.get("featured") == "on",
         "is_flash_sale": req.form.get("is_flash_sale") == "on",
+        "allow_preorder": req.form.get("allow_preorder") == "on",
         "crafting_days": int(req.form.get("crafting_days", 7)),
     }
     flash_ends = req.form.get("flash_sale_ends_at", "")

@@ -145,10 +145,25 @@ def cart():
 @shop_bp.route("/cart/add/<pid>", methods=["POST"])
 def cart_add(pid):
     qty = int(request.form.get("qty", 1))
+    is_preorder = request.form.get("preorder") == "1"
+    p = models.get_product(pid)
+    if not p:
+        flash("Product not found.", "error")
+        return redirect(request.referrer or url_for("shop.shop"))
+    if p.get("stock", 0) <= 0 and not p.get("allow_preorder") and not is_preorder:
+        flash("This product is out of stock.", "error")
+        return redirect(request.referrer or url_for("shop.shop"))
     cart = _cart()
     cart[pid] = cart.get(pid, 0) + qty
+    # Track preorder items separately
+    preorders = session.setdefault("preorder_items", [])
+    if is_preorder and pid not in preorders:
+        preorders.append(pid)
     session.modified = True
-    flash("Added to cart!", "success")
+    if is_preorder:
+        flash("Pre-order added! We'll craft this especially for you.", "success")
+    else:
+        flash("Added to cart!", "success")
     return redirect(request.referrer or url_for("shop.cart"))
 
 

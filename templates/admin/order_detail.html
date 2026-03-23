@@ -61,6 +61,18 @@
   <!-- Right: customer info + actions -->
   <div class="order-detail-side">
 
+    {% if order.is_preorder %}
+    <div class="admin-card" style="border-color:var(--gold);background:#fffbf0;">
+      <div style="display:flex;align-items:center;gap:.6rem;">
+        <span style="font-size:1.3rem;">📦</span>
+        <div>
+          <strong style="color:var(--bark);">Pre-order</strong>
+          <p style="font-size:.82rem;color:var(--text-soft);margin:.2rem 0 0;">Customer pre-ordered an out-of-stock item. Craft after advance confirmation.</p>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
     <!-- Delivery type badge -->
     <div class="admin-card">
       <h3>Delivery Type</h3>

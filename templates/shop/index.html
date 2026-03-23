@@ -83,8 +83,9 @@
     <h2 class="section-title">Our <em>craft categories</em></h2>
     <div class="cat-grid">
       {% for cat in categories %}
-      <a href="{{ url_for('shop.shop') }}?category={{ cat.id }}" class="cat-card">
-        {% set img = cat_images.get(cat.id) or cat.image_url %}
+      {% set img = cat_images.get(cat.id) or cat.image_url %}
+      {% set has_products = cat.id in cat_images %}
+      <a href="{{ url_for('shop.shop') }}?category={{ cat.id }}" class="cat-card {% if not has_products %}cat-coming-soon{% endif %}">
         {% if img %}
         <img src="{{ img }}" alt="{{ cat.name }}" class="cat-img">
         {% else %}
@@ -93,6 +94,9 @@
         <div class="cat-overlay"></div>
         <div class="cat-info">
           <div class="cat-name">{{ cat.name }}</div>
+          {% if not has_products %}
+          <div class="cat-soon">Coming Soon</div>
+          {% endif %}
         </div>
       </a>
       {% endfor %}
