@@ -593,3 +593,90 @@ def settings():
         return redirect(url_for("admin.settings"))
     s = models.get_all_settings()
     return render_template("admin/settings.html", s=s)
+
+
+# ── Email Templates ───────────────────────────────────────
+
+@admin_bp.route("/email-templates")
+@admin_only
+def email_templates():
+    templates = models.get_email_templates()
+    return render_template("admin/email_templates.html", templates=templates)
+
+
+@admin_bp.route("/email-templates/<tid>", methods=["GET", "POST"])
+@admin_only
+def email_template_edit(tid):
+    tmpl = models.get_email_template(tid)
+    if not tmpl:
+        flash("Template not found.", "error")
+        return redirect(url_for("admin.email_templates"))
+    if request.method == "POST":
+        subject = request.form.get("subject", "").strip()
+        body = request.form.get("body", "").strip()
+        models.update_email_template(tid, subject, body)
+        flash("Template saved!", "success")
+        return redirect(url_for("admin.email_templates"))
+    return render_template("admin/email_template_edit.html", tmpl=tmpl)
+
+
+# ── Email Templates ───────────────────────────────────────
+
+TEMPLATE_LABELS = {
+    "order_placed":      "Order Placed",
+    "advance_requested": "Advance Payment Request",
+    "advance_confirmed": "Advance Confirmed / Crafting Begins",
+    "crafting":          "Crafting in Progress",
+    "quality_check":     "Quality Check",
+    "shipped":           "Order Shipped",
+    "delivered":         "Order Delivered",
+    "cancelled":         "Order Cancelled",
+    "welcome":           "Welcome Email",
+    "custom_request":    "Custom Order Request Received",
+}
+
+TEMPLATE_VARS = {
+    "order_placed":      ["{{name}}", "{{order_id}}", "{{total}}"],
+    "advance_requested": ["{{name}}", "{{order_id}}", "{{advance_amount}}", "{{upi_id}}", "{{pay_link}}", "{{total}}", "{{shipping_charge}}"],
+    "advance_confirmed": ["{{name}}", "{{order_id}}"],
+    "crafting":          ["{{name}}", "{{order_id}}"],
+    "quality_check":     ["{{name}}", "{{order_id}}"],
+    "shipped":           ["{{name}}", "{{order_id}}"],
+    "delivered":         ["{{name}}", "{{order_id}}", "{{balance}}"],
+    "cancelled":         ["{{name}}", "{{order_id}}"],
+    "welcome":           ["{{name}}"],
+    "custom_request":    ["{{name}}"],
+}
+
+
+@admin_bp.route("/email-templates")
+@admin_only
+def email_templates():
+    templates = models.get_email_templates()
+    tmap = {t["key"]: t for t in templates}
+    return render_template("admin/email_templates.html",
+                           templates=tmap,
+                           labels=TEMPLATE_LABELS,
+                           template_vars=TEMPLATE_VARS)
+
+
+@admin_bp.route("/email-templates/<key>", methods=["GET", "POST"])
+@admin_only
+def email_template_edit(key):
+    if key not in TEMPLATE_LABELS:
+        flash("Template not found.", "error")
+        return redirect(url_for("admin.email_templates"))
+
+    template = models.get_email_template(key)
+    if request.method == "POST":
+        subject = request.form.get("subject", "").strip()
+        body_html = request.form.get("body_html", "").strip()
+        models.save_email_template(key, subject, body_html)
+        flash("Template saved!", "success")
+        return redirect(url_for("admin.email_template_edit", key=key))
+
+    return render_template("admin/email_template_edit.html",
+                           key=key,
+                           label=TEMPLATE_LABELS[key],
+                           template=template,
+                           vars=TEMPLATE_VARS.get(key, []))

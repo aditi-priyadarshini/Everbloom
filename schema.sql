@@ -262,3 +262,92 @@ alter table if exists returns disable row level security;
 alter table if exists artisans disable row level security;
 alter table if exists faqs disable row level security;
 alter table if exists broadcasts disable row level security;
+
+-- Email Templates
+create table if not exists email_templates (
+  id text primary key,
+  name text not null,
+  subject text not null,
+  body text not null,
+  updated_at timestamptz default now()
+);
+
+insert into email_templates (id, name, subject, body) values
+('order_placed', 'Order Placed', 'Order Placed — Everbloom',
+'<h2 style="color:#5c3d3d;">Order Placed!</h2>
+<p style="color:#3a2a2a;">Hi {{name}},<br>
+Your order <strong>#{{order_id}}</strong> has been placed successfully.
+Our team will review it and send you payment details shortly.</p>
+<p style="color:#3a2a2a;"><strong>Total:</strong> ₹{{total}}</p>
+<p style="color:#7a5c5c;font-size:14px;">No payment needed right now.</p>'),
+
+('advance_requested', 'Advance Payment Request', 'Advance Payment Required — Everbloom',
+'<h2 style="color:#5c3d3d;">Advance Payment Required</h2>
+<p style="color:#3a2a2a;">Hi {{name}},<br>
+Please pay an advance of <strong>₹{{advance_amount}}</strong> to confirm your order.</p>
+<p style="color:#3a2a2a;"><strong>UPI ID:</strong> {{upi_id}}</p>
+<p><a href="{{pay_link}}" style="display:inline-block;background:#5c3d3d;color:#fdf6f0;padding:12px 24px;border-radius:4px;text-decoration:none;">Upload Payment Screenshot</a></p>'),
+
+('advance_confirmed', 'Advance Confirmed', 'Your Order is Being Crafted — Everbloom',
+'<h2 style="color:#5c3d3d;">Payment Confirmed!</h2>
+<p style="color:#3a2a2a;">Hi {{name}},<br>
+We''ve confirmed your payment and our artisans have begun crafting your order <strong>#{{order_id}}</strong>.</p>
+<p style="color:#7a5c5c;">We''ll keep you updated every step of the way.</p>'),
+
+('shipped', 'Order Shipped', 'Your Order is Shipped — Everbloom',
+'<h2 style="color:#5c3d3d;">Your Order is on its Way!</h2>
+<p style="color:#3a2a2a;">Hi {{name}},<br>
+Your handcrafted order <strong>#{{order_id}}</strong> has been shipped and is on its way to you.</p>'),
+
+('delivered', 'Order Delivered', 'Order Delivered — Everbloom',
+'<h2 style="color:#5c3d3d;">Order Delivered!</h2>
+<p style="color:#3a2a2a;">Hi {{name}},<br>
+Your order <strong>#{{order_id}}</strong> has been delivered. We hope you love it!</p>
+<p style="color:#3a2a2a;">Balance due: <strong>₹{{balance}}</strong></p>'),
+
+('cancelled', 'Order Cancelled', 'Order Cancelled — Everbloom',
+'<h2 style="color:#5c3d3d;">Order Cancelled</h2>
+<p style="color:#3a2a2a;">Hi {{name}},<br>
+Your order <strong>#{{order_id}}</strong> has been cancelled.</p>'),
+
+('welcome', 'Welcome Email', 'Welcome to Everbloom!',
+'<h2 style="color:#5c3d3d;">Welcome to Everbloom!</h2>
+<p style="color:#3a2a2a;">Hi {{name}},<br>
+Your account has been created. Browse our handcrafted collection and find something you''ll treasure.</p>')
+on conflict (id) do nothing;
+
+-- Email Templates
+create table if not exists email_templates (
+  id serial primary key,
+  key text unique not null,
+  subject text not null,
+  body_html text not null,
+  updated_at timestamptz default now()
+);
+
+insert into email_templates (key, subject, body_html) values
+('order_placed', 'Order Placed — Everbloom', '<h2 style="color:#5c3d3d;">Order Placed!</h2>
+<p style="color:#3a2a2a;">Hi {{name}},<br>Your order <strong>#{{order_id}}</strong> has been placed successfully. Our team will review it and send you payment details shortly.</p>
+<p style="color:#3a2a2a;"><strong>Total:</strong> ₹{{total}}</p>
+<p style="color:#7a5c5c;font-size:14px;">No payment needed right now.</p>'),
+('advance_requested', 'Advance Payment Required — Everbloom', '<h2 style="color:#5c3d3d;">Advance Payment Required</h2>
+<p style="color:#3a2a2a;">Hi {{name}},<br>Please pay an advance of <strong>₹{{advance_amount}}</strong> to confirm your order.</p>
+<p style="color:#3a2a2a;"><strong>UPI ID:</strong> {{upi_id}}</p>
+<p><a href="{{pay_link}}" style="background:#5c3d3d;color:#fdf6f0;padding:12px 24px;border-radius:4px;text-decoration:none;">Upload Payment Screenshot</a></p>'),
+('advance_confirmed', 'Your Order is Being Crafted — Everbloom', '<h2 style="color:#5c3d3d;">Payment Confirmed!</h2>
+<p style="color:#3a2a2a;">Hi {{name}},<br>Your payment has been confirmed and crafting has begun! Order <strong>#{{order_id}}</strong>.</p>'),
+('crafting', 'Crafting in Progress — Everbloom', '<h2 style="color:#5c3d3d;">Crafting in Progress</h2>
+<p style="color:#3a2a2a;">Hi {{name}},<br>Our artisans are working on your order <strong>#{{order_id}}</strong>. We''ll keep you updated!</p>'),
+('quality_check', 'Quality Check — Everbloom', '<h2 style="color:#5c3d3d;">Quality Check</h2>
+<p style="color:#3a2a2a;">Hi {{name}},<br>Your order <strong>#{{order_id}}</strong> is undergoing quality inspection. Almost ready!</p>'),
+('shipped', 'Your Order is Shipped — Everbloom', '<h2 style="color:#5c3d3d;">Your Order is Shipped!</h2>
+<p style="color:#3a2a2a;">Hi {{name}},<br>Your handcrafted piece is on its way! Order <strong>#{{order_id}}</strong>.</p>'),
+('delivered', 'Order Delivered — Everbloom', '<h2 style="color:#5c3d3d;">Order Delivered!</h2>
+<p style="color:#3a2a2a;">Hi {{name}},<br>Thank you for shopping with Everbloom! Balance due: <strong>₹{{balance}}</strong>.</p>'),
+('cancelled', 'Order Cancelled — Everbloom', '<h2 style="color:#5c3d3d;">Order Cancelled</h2>
+<p style="color:#3a2a2a;">Hi {{name}},<br>Your order <strong>#{{order_id}}</strong> has been cancelled. Contact us if you have questions.</p>'),
+('welcome', 'Welcome to Everbloom!', '<h2 style="color:#5c3d3d;">Welcome to Everbloom!</h2>
+<p style="color:#3a2a2a;">Hi {{name}},<br>Your account has been created. Browse our handcrafted collection and find something you''ll treasure.</p>'),
+('custom_request', 'Custom Request Received — Everbloom', '<h2 style="color:#5c3d3d;">Custom Order Request Received!</h2>
+<p style="color:#3a2a2a;">Hi {{name}},<br>We''ve received your custom order request and will get back to you within 2–3 business days.</p>')
+on conflict (key) do nothing;

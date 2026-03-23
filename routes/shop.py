@@ -155,7 +155,7 @@ def cart_add(pid):
     cart = _cart()
     already_in_cart = cart.get(pid, 0)
 
-    if stock <= 0 and not p.get("allow_preorder") and not is_preorder:
+    if stock <= 0 and not p.get("allow_preorder"):
         flash("This product is out of stock.", "error")
         return redirect(request.referrer or url_for("shop.shop"))
 
@@ -258,18 +258,17 @@ def checkout():
 
             # ── Stock validation ── check live stock right now before placing
             stock_errors = []
-            preorder_pids = session.get("preorder_items", [])
             for i in items:
                 p = i["product"]
                 live = models.get_product(str(p["id"]))  # fresh from DB
                 if not live:
                     stock_errors.append(f"'{p['title']}' is no longer available.")
                     continue
-                is_pre = str(p["id"]) in preorder_pids
                 available = int(live.get("stock", 0))
-                if available <= 0 and not is_pre and not live.get("allow_preorder"):
+                can_preorder = live.get("allow_preorder", False)
+                if available <= 0 and not can_preorder:
                     stock_errors.append(f"'{p['title']}' is out of stock.")
-                elif available > 0 and i["qty"] > available:
+                elif available > 0 and i["qty"] > available and not can_preorder:
                     stock_errors.append(
                         f"Only {available} unit(s) of '{p['title']}' available. You have {i['qty']} in cart."
                     )

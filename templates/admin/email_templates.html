@@ -1,0 +1,30 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Email Templates{% endblock %}
+{% block page_title %}Email Templates{% endblock %}
+{% block content %}
+<p style="color:var(--text-soft);font-size:.9rem;margin-bottom:1.5rem;">
+  Customise the emails sent to customers. Use the variable placeholders shown on each template's edit page.
+</p>
+<div class="admin-table-wrap">
+  <table class="admin-table">
+    <thead><tr><th>Template</th><th>Subject</th><th>Last Updated</th><th></th></tr></thead>
+    <tbody>
+      {% for key, label in labels.items() %}
+      {% set t = templates.get(key) %}
+      <tr>
+        <td><strong>{{ label }}</strong></td>
+        <td style="color:var(--text-soft);font-size:.84rem;">
+          {{ t.subject if t else '(using default)' }}
+        </td>
+        <td style="font-size:.8rem;color:var(--text-soft);">
+          {{ t.updated_at[:10] if t and t.updated_at else '—' }}
+        </td>
+        <td>
+          <a href="{{ url_for('admin.email_template_edit', key=key) }}" class="btn-primary-sm">Edit</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
