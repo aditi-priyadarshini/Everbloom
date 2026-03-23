@@ -6,83 +6,69 @@
   <div class="checkout-layout">
     <form method="post" class="checkout-form" id="checkoutForm">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="delivery_type" id="deliveryTypeInput" value="delivery">
 
       <!-- Delivery Type -->
       <div class="form-section">
         <h3>How would you like to receive your order?</h3>
         <div class="delivery-options">
-          <label class="delivery-option" id="opt-delivery">
-            <input type="radio" name="delivery_type" value="delivery" checked onchange="toggleDelivery(this)">
+          <label class="delivery-option">
+            <input type="radio" name="_delivery_ui" value="delivery" checked onchange="switchDelivery('delivery')">
             <div class="delivery-option-card">
               <div class="delivery-option-icon">🚚</div>
               <div>
                 <strong>Home Delivery</strong>
-                <p>We'll ship to your address. Shipping charges will be confirmed when we review your order.</p>
+                <p>We'll ship to your address. Shipping charges confirmed after review.</p>
               </div>
             </div>
           </label>
-          <label class="delivery-option" id="opt-pickup">
-            <input type="radio" name="delivery_type" value="pickup" onchange="toggleDelivery(this)">
+          <label class="delivery-option">
+            <input type="radio" name="_delivery_ui" value="pickup" onchange="switchDelivery('pickup')">
             <div class="delivery-option-card">
               <div class="delivery-option-icon">🏪</div>
               <div>
                 <strong>Self Pickup — Free</strong>
-                <p>Pick up from our address. We'll share the exact location after order confirmation.</p>
+                <p>Pick up from our address. We'll share the location after confirmation.</p>
               </div>
             </div>
           </label>
         </div>
       </div>
 
-      <!-- Delivery Address (hidden for pickup) -->
-      <div class="form-section" id="addressSection">
-        <h3>Delivery Details</h3>
+      <!-- Common fields always submitted -->
+      <div class="form-section">
+        <h3 id="detailsHeading">Delivery Details</h3>
         <div class="form-row">
           <div class="form-group">
             <label>Full Name</label>
-            <input type="text" name="name" value="{{ user.name or '' }}" required>
+            <input type="text" name="name" id="nameField" value="{{ user.name or '' }}" required autocomplete="name">
           </div>
           <div class="form-group">
             <label>Phone</label>
-            <input type="tel" name="phone" value="{{ user.phone or '' }}" required>
+            <input type="tel" name="phone" id="phoneField" value="{{ user.phone or '' }}" required autocomplete="tel">
           </div>
         </div>
-        <div class="form-group">
+        <div class="form-group" id="addressGroup">
           <label>Delivery Address</label>
-          <textarea name="address" rows="3" id="addressField">{{ user.address or '' }}</textarea>
+          <textarea name="address" id="addressField" rows="3" required autocomplete="street-address">{{ user.address or '' }}</textarea>
         </div>
-      </div>
-
-      <!-- Pickup section -->
-      <div class="form-section" id="pickupSection" style="display:none;">
-        <h3>Your Contact Details</h3>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Full Name</label>
-            <input type="text" name="pickup_name" value="{{ user.name or '' }}">
+        <div id="pickupNote" style="display:none;">
+          <div class="pickup-note">
+            <span>📍</span>
+            <p>Our pickup address will be shared via WhatsApp/email after your order is confirmed.</p>
           </div>
-          <div class="form-group">
-            <label>Phone</label>
-            <input type="tel" name="pickup_phone" value="{{ user.phone or '' }}">
-          </div>
-        </div>
-        <div class="pickup-note">
-          <span>📍</span>
-          <p>Our pickup address will be shared with you via WhatsApp/email after your order is confirmed.</p>
         </div>
       </div>
 
       <!-- Coupon -->
       <div class="form-section">
         <h3>Coupon Code</h3>
-        <div class="coupon-row">
-          <input type="text" name="coupon_code" placeholder="Enter coupon code" class="coupon-input">
-        </div>
-        {% if coupon_error %}<p class="form-error">{{ coupon_error }}</p>{% endif %}
+        <input type="text" name="coupon_code" placeholder="Enter coupon code" class="coupon-input" style="width:100%;">
+        {% if coupon_error %}<p class="form-error" style="margin-top:.5rem;">{{ coupon_error }}</p>{% endif %}
       </div>
 
       <button type="submit" class="btn-primary btn-full">Place Order</button>
-      <p class="checkout-note">No payment at checkout — we'll review your order and share payment details.</p>
+      <p class="checkout-note">No payment at checkout — we'll review and share payment details.</p>
     </form>
 
     <div class="checkout-summary">
@@ -103,22 +89,32 @@
         <span style="color:var(--text-soft);font-size:.85rem;">Confirmed after review</span>
       </div>
       <div class="summary-total"><span>Total</span><span>₹{{ "%.0f"|format(subtotal - discount) }}</span></div>
-      <p style="font-size:.75rem;color:var(--text-soft);margin-top:.8rem;line-height:1.6;">
-        Shipping charges (if any) will be added when we confirm your order.
-      </p>
     </div>
   </div>
 </div>
 <script>
-function toggleDelivery(radio) {
-  const isPickup = radio.value === 'pickup';
-  document.getElementById('addressSection').style.display = isPickup ? 'none' : 'block';
-  document.getElementById('pickupSection').style.display = isPickup ? 'block' : 'none';
-  document.getElementById('addressField').required = !isPickup;
+function switchDelivery(type) {
+  document.getElementById('deliveryTypeInput').value = type;
+  const isPickup = type === 'pickup';
+  const addrField = document.getElementById('addressField');
+  const addrGroup = document.getElementById('addressGroup');
+  const pickupNote = document.getElementById('pickupNote');
+  const heading = document.getElementById('detailsHeading');
   const shipRow = document.getElementById('shippingRow');
+
   if (isPickup) {
+    addrGroup.style.display = 'none';
+    addrField.required = false;
+    addrField.value = 'SELF PICKUP';
+    pickupNote.style.display = 'block';
+    heading.textContent = 'Your Contact Details';
     shipRow.innerHTML = '<span>Shipping</span><span style="color:var(--sage-dark);font-weight:500;">Free (Self Pickup)</span>';
   } else {
+    addrGroup.style.display = 'block';
+    addrField.required = true;
+    addrField.value = addrField.value === 'SELF PICKUP' ? '' : addrField.value;
+    pickupNote.style.display = 'none';
+    heading.textContent = 'Delivery Details';
     shipRow.innerHTML = '<span>Shipping</span><span style="color:var(--text-soft);font-size:.85rem;">Confirmed after review</span>';
   }
 }
