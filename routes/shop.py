@@ -216,8 +216,6 @@ def checkout():
         if not coupon_error:
             delivery_type = request.form.get("delivery_type", "delivery")
             if delivery_type == "pickup":
-                name = request.form.get("pickup_name", name).strip() or name
-                phone = request.form.get("pickup_phone", phone).strip() or phone
                 address = "SELF PICKUP"
 
             total = round(subtotal - discount - gift_card_discount, 2)
@@ -346,11 +344,18 @@ def artisan_detail(aid):
 
 @shop_bp.route("/about")
 def about():
-    artisan_list = models.get_artisans()
-    return render_template("shop/about.html", artisans=artisan_list)
-    notifs = models.get_notifications(session["user_id"])
-    unread = len([n for n in notifs if not n["read"]])
-    return jsonify({"notifications": notifs, "unread": unread})
+    return render_template("shop/about.html")
+
+
+@shop_bp.route("/api/notifications")
+@login_required
+def notifications_api():
+    try:
+        notifs = models.get_notifications(session["user_id"])
+        unread = len([n for n in notifs if not n["read"]])
+        return jsonify({"notifications": notifs, "unread": unread})
+    except Exception as e:
+        return jsonify({"notifications": [], "unread": 0})
 
 
 @shop_bp.route("/api/notifications/read", methods=["POST"])
