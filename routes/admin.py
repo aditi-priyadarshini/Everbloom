@@ -330,7 +330,10 @@ def custom_request_detail(rid):
 def analytics():
     stats = models.get_stats()
     all_orders = models.get_orders()
-    low_stock = models.get_low_stock_products(threshold=5)
+    try:
+        low_stock = models.get_low_stock_products(threshold=5)
+    except Exception:
+        low_stock = []
     return render_template("admin/analytics.html", stats=stats,
                            all_orders=all_orders, low_stock=low_stock)
 
@@ -364,7 +367,10 @@ def export_orders():
 @admin_bp.route("/gift-cards")
 @admin_only
 def gift_cards():
-    cards = models.get_all_gift_cards()
+    try:
+        cards = models.get_all_gift_cards()
+    except Exception:
+        cards = []
     return render_template("admin/gift_cards.html", cards=cards)
 
 
@@ -399,7 +405,10 @@ def gift_card_delete(gid):
 @admin_only
 def returns():
     status = request.args.get("status", "")
-    ret_list = models.get_returns(status=status or None)
+    try:
+        ret_list = models.get_returns(status=status or None)
+    except Exception:
+        ret_list = []
     return render_template("admin/returns.html", returns=ret_list, selected_status=status)
 
 
@@ -426,7 +435,10 @@ def return_detail(rid):
 @admin_bp.route("/artisans")
 @admin_only
 def artisans():
-    artisan_list = models.get_artisans(active_only=False)
+    try:
+        artisan_list = models.get_artisans(active_only=False)
+    except Exception:
+        artisan_list = []
     return render_template("admin/artisans.html", artisans=artisan_list)
 
 
@@ -493,7 +505,10 @@ def artisan_delete(aid):
 @admin_bp.route("/faqs")
 @admin_only
 def faqs():
-    faq_list = models.get_all_faqs()
+    try:
+        faq_list = models.get_all_faqs()
+    except Exception:
+        faq_list = []
     return render_template("admin/faqs.html", faqs=faq_list)
 
 
