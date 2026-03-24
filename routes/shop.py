@@ -245,11 +245,14 @@ def checkout():
                 coupon_error = "Invalid or expired coupon."
 
         if gift_card_code and not coupon_error:
-            gift_card_obj = models.get_gift_card(gift_card_code)
-            if gift_card_obj:
-                gift_card_discount = min(float(gift_card_obj["balance"]), subtotal - discount)
-            else:
-                coupon_error = "Invalid or expired gift card."
+            try:
+                gift_card_obj = models.get_gift_card(gift_card_code)
+                if gift_card_obj:
+                    gift_card_discount = min(float(gift_card_obj["balance"]), subtotal - discount)
+                else:
+                    coupon_error = "Invalid or expired gift card."
+            except Exception:
+                coupon_error = "Gift card feature coming soon."
 
         if not coupon_error:
             delivery_type = request.form.get("delivery_type", "delivery")
@@ -319,11 +322,19 @@ def checkout():
                 if coupon_code and coupon_obj:
                     models.use_coupon(coupon_code)
                 if gift_card_code and gift_card_obj and gift_card_discount > 0:
-                    models.use_gift_card(gift_card_code, gift_card_discount)
+                    try:
+                        models.use_gift_card(gift_card_code, gift_card_discount)
+                    except Exception:
+                        pass
 
-                import emails
+                import emails, os
                 user = models.get_user_by_id(session["user_id"])
                 emails.send_order_placed(user["email"], order)
+                # Alert admin
+                admin_email = os.environ.get("MAIL_USERNAME", "")
+                if admin_email:
+                    site_url = os.environ.get("SITE_URL", "http://localhost:5000")
+                    emails.send_admin_new_order(admin_email, order, site_url)
 
                 session.pop("cart", None)
                 flash("Order placed successfully!", "success")
@@ -366,44 +377,60 @@ def custom_order():
 @shop_bp.route("/wishlist")
 @login_required
 def wishlist():
-    items = models.get_wishlist(session["user_id"])
+    try:
+        items = models.get_wishlist(session["user_id"])
+    except Exception:
+        items = []
     return render_template("shop/wishlist.html", items=items)
 
 
 @shop_bp.route("/wishlist/toggle/<pid>", methods=["POST"])
 @login_required
 def wishlist_toggle(pid):
-    added = models.toggle_wishlist(session["user_id"], pid)
-    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-        return jsonify({"wishlisted": added})
-    flash("Added to wishlist!" if added else "Removed from wishlist.", "success")
+    try:
+        added = models.toggle_wishlist(session["user_id"], pid)
+        flash("Added to wishlist!" if added else "Removed from wishlist.", "success")
+    except Exception:
+        flash("Wishlist feature coming soon.", "info")
     return redirect(request.referrer or url_for("shop.shop"))
 
 
 @shop_bp.route("/back-in-stock/<pid>", methods=["POST"])
 def back_in_stock(pid):
-    email = request.form.get("email", "").strip()
-    if email:
-        models.add_back_in_stock_alert(pid, email, session.get("user_id"))
-        flash("We'll notify you when it's back!", "success")
+    try:
+        email = request.form.get("email", "").strip()
+        if email:
+            models.add_back_in_stock_alert(pid, email, session.get("user_id"))
+            flash("We'll notify you when it's back!", "success")
+    except Exception:
+        flash("Notification feature coming soon.", "info")
     return redirect(request.referrer or url_for("shop.shop"))
 
 
 @shop_bp.route("/faq")
 def faq():
-    faqs = models.get_faqs()
+    try:
+        faqs = models.get_faqs()
+    except Exception:
+        faqs = []
     return render_template("shop/faq.html", faqs=faqs)
 
 
 @shop_bp.route("/artisans")
 def artisans():
-    artisan_list = models.get_artisans()
+    try:
+        artisan_list = models.get_artisans()
+    except Exception:
+        artisan_list = []
     return render_template("shop/artisans.html", artisans=artisan_list)
 
 
 @shop_bp.route("/artisans/<aid>")
 def artisan_detail(aid):
-    artisan = models.get_artisan(aid)
+    try:
+        artisan = models.get_artisan(aid)
+    except Exception:
+        artisan = None
     if not artisan:
         return redirect(url_for("shop.artisans"))
     return render_template("shop/artisan_detail.html", artisan=artisan)

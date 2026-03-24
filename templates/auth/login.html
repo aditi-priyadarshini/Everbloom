@@ -7,6 +7,12 @@
     <h1>Welcome back</h1>
     <p class="auth-sub">Sign in to your account</p>
     {% if error %}<div class="form-error-box">{{ error }}</div>{% endif %}
+    {% if show_resend %}
+    <div class="form-error-box" style="background:#fff8e1;border-color:#f0c020;color:#7a5c00;">
+      Your email is not verified yet.
+      <a href="{{ url_for('auth.resend_verification') }}" style="color:#5c3d3d;font-weight:500;">Resend verification email →</a>
+    </div>
+    {% endif %}
     <form method="post" autocomplete="on">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-group">
@@ -16,6 +22,9 @@
       <div class="form-group">
         <label for="password">Password</label>
         <input type="password" id="password" name="password" autocomplete="current-password" required>
+      </div>
+      <div style="text-align:right;margin-bottom:1rem;">
+        <a href="{{ url_for('auth.forgot_password') }}" style="font-size:.82rem;color:var(--mauve);">Forgot password?</a>
       </div>
       <button type="submit" class="btn-primary btn-full">Sign In</button>
     </form>

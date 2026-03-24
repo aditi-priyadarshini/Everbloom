@@ -567,3 +567,53 @@ def save_email_template(key, subject, body_html):
                             "updated_at": "now()"})
     return supa.insert("email_templates",
                        {"key": key, "subject": subject, "body_html": body_html})
+
+
+# ── Auth Tokens (email verify + password reset) ───────────
+
+import secrets
+from datetime import datetime, timezone, timedelta
+
+
+def create_auth_token(user_id, token_type, hours=24):
+    token = secrets.token_hex(32)  # hex only - no special chars, fully URL safe
+    expires = (datetime.now(timezone.utc) + timedelta(hours=hours)).isoformat()
+    # Invalidate old tokens of same type for this user
+    supa.update("auth_tokens",
+                {"user_id": f"eq.{user_id}", "type": f"eq.{token_type}", "used": "eq.false"},
+                {"used": True})
+    supa.insert("auth_tokens", {
+        "user_id": str(user_id),
+        "token": token,
+        "type": token_type,
+        "expires_at": expires,
+        "used": False,
+    })
+    return token
+
+
+def get_auth_token(token, token_type):
+    rows = supa.select("auth_tokens", {
+        "token": f"eq.{token}",
+        "type": f"eq.{token_type}",
+        "used": "eq.false",
+    })
+    if not rows:
+        return None
+    t = rows[0]
+    # Check expiry
+    try:
+        exp = datetime.fromisoformat(t["expires_at"].replace("Z", "+00:00"))
+        if exp < datetime.now(timezone.utc):
+            return None
+    except Exception:
+        return None
+    return t
+
+
+def use_auth_token(token_id):
+    supa.update("auth_tokens", {"id": f"eq.{token_id}"}, {"used": True})
+
+
+def verify_user_email(user_id):
+    supa.update("users", {"id": f"eq.{user_id}"}, {"email_verified": True})
