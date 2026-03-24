@@ -617,3 +617,37 @@ def use_auth_token(token_id):
 
 def verify_user_email(user_id):
     supa.update("users", {"id": f"eq.{user_id}"}, {"email_verified": True})
+
+
+# ── Enhanced Custom Requests ──────────────────────────────
+
+def get_custom_request_by_token(token):
+    rows = supa.select("custom_requests", {"tracking_token": f"eq.{token}"})
+    return rows[0] if rows else None
+
+
+def get_custom_requests_all(status=None):
+    filters = {}
+    if status:
+        filters["status"] = f"eq.{status}"
+    return supa.select("custom_requests", filters, order="created_at.desc")
+
+
+# ── Email Log ─────────────────────────────────────────────
+
+def log_email(to_email, subject, body, sent_by, related_type=None, related_id=None):
+    return supa.insert("email_log", {
+        "to_email": to_email,
+        "subject": subject,
+        "body": body,
+        "sent_by": str(sent_by) if sent_by else None,
+        "related_type": related_type,
+        "related_id": str(related_id) if related_id else None,
+    })
+
+
+def get_email_log(related_type, related_id):
+    return supa.select("email_log", {
+        "related_type": f"eq.{related_type}",
+        "related_id": f"eq.{related_id}",
+    }, order="sent_at.desc")
