@@ -320,7 +320,8 @@ def custom_request_detail(rid):
         models.update_custom_request(rid, {"status": status, "admin_note": note})
         flash("Request updated.", "success")
         return redirect(url_for("admin.custom_request_detail", rid=rid))
-    return render_template("admin/custom_request_detail.html", req=req_obj)
+    email_log = models.get_email_log("custom_request", rid)
+    return render_template("admin/custom_request_detail.html", req=req_obj, email_log=email_log)
 
 
 # ── Analytics ─────────────────────────────────────────────
@@ -742,18 +743,6 @@ def custom_request_email(rid):
                      session["user_id"], "custom_request", rid)
     flash("Email sent!", "success")
     return redirect(url_for("admin.custom_request_detail", rid=rid))
-
-
-@admin_bp.route("/custom-requests/<rid>", methods=["GET"])
-@admin_only
-def custom_request_detail(rid):
-    req = models.get_custom_request(rid)
-    if not req:
-        flash("Request not found.", "error")
-        return redirect(url_for("admin.custom_requests"))
-    email_log = models.get_email_log("custom_request", rid)
-    return render_template("admin/custom_request_detail.html",
-                           req=req, email_log=email_log)
 
 
 # ── Manual email from order detail ────────────────────────
