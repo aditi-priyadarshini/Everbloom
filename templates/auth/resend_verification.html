@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Resend Verification{% endblock %}
+{% block content %}
+<div class="auth-wrap">
+  <div class="auth-card">
+    <a class="auth-logo" href="{{ url_for('shop.index') }}">Ever<span>bloom</span></a>
+    <h1>Resend verification</h1>
+    <p class="auth-sub">Enter your email and we'll send a new verification link.</p>
+    <form method="post" autocomplete="on">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" autocomplete="email" required autofocus>
+      </div>
+      <button type="submit" class="btn-primary btn-full">Send Verification Link</button>
+    </form>
+    <p class="auth-footer"><a href="{{ url_for('auth.login') }}">← Back to login</a></p>
+  </div>
+</div>
+{% endblock %}

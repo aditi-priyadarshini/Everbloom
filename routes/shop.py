@@ -321,9 +321,14 @@ def checkout():
                 if gift_card_code and gift_card_obj and gift_card_discount > 0:
                     models.use_gift_card(gift_card_code, gift_card_discount)
 
-                import emails
+                import emails, os
                 user = models.get_user_by_id(session["user_id"])
                 emails.send_order_placed(user["email"], order)
+                # Alert admin
+                admin_email = os.environ.get("MAIL_USERNAME", "")
+                if admin_email:
+                    site_url = os.environ.get("SITE_URL", "http://localhost:5000")
+                    emails.send_admin_new_order(admin_email, order, site_url)
 
                 session.pop("cart", None)
                 flash("Order placed successfully!", "success")

@@ -351,3 +351,18 @@ insert into email_templates (key, subject, body_html) values
 ('custom_request', 'Custom Request Received — Everbloom', '<h2 style="color:#5c3d3d;">Custom Order Request Received!</h2>
 <p style="color:#3a2a2a;">Hi {{name}},<br>We''ve received your custom order request and will get back to you within 2–3 business days.</p>')
 on conflict (key) do nothing;
+
+-- Email verification & password reset tokens
+create table if not exists auth_tokens (
+  id serial primary key,
+  user_id uuid references users(id),
+  token text unique not null,
+  type text not null, -- 'verify_email' | 'reset_password'
+  expires_at timestamptz not null,
+  used boolean default false,
+  created_at timestamptz default now()
+);
+alter table auth_tokens disable row level security;
+
+-- Add email_verified to users
+alter table users add column if not exists email_verified boolean default false;

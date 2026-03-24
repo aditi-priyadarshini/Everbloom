@@ -1,3 +1,4 @@
+import os
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
 from werkzeug.security import generate_password_hash, check_password_hash
 import models
@@ -27,24 +28,7 @@ def admin_only(f):
     return decorated
 
 
-@auth_bp.route("/login", methods=["GET", "POST"])
-def login():
-    if session.get("user_id"):
-        return redirect(url_for("shop.index"))
-    error = None
-    if request.method == "POST":
-        email = request.form.get("email", "").strip().lower()
-        password = request.form.get("password", "")
-        user = models.get_user_by_email(email)
-        if user and check_password_hash(user["password_hash"], password):
-            session["user_id"] = str(user["id"])
-            session["user_name"] = user.get("name", "")
-            session["is_admin"] = user.get("is_admin", False)
-            next_url = request.args.get("next")
-            return redirect(next_url if next_url else url_for("shop.index"))
-        error = "Invalid email or password."
-    return render_template("auth/login.html", error=error)
-
+# ── Signup ────────────────────────────────────────────────
 
 @auth_bp.route("/signup", methods=["GET", "POST"])
 def signup():
@@ -52,7 +36,7 @@ def signup():
         return redirect(url_for("shop.index"))
     error = None
     if request.method == "POST":
-        name = request.form.get("name", "").strip()
+        name  = request.form.get("name", "").strip()
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
         if models.get_user_by_email(email):
@@ -63,23 +47,126 @@ def signup():
             pw_hash = generate_password_hash(password, method="pbkdf2:sha256")
             user = models.create_user(email, pw_hash, name)
             if user:
-                session["user_id"] = str(user["id"])
-                session["user_name"] = user.get("name", "")
-                session["is_admin"] = False
-                try:
-                    emails.send_welcome(email, name)
-                except Exception:
-                    pass  # Don't block signup if email fails
-                return redirect(url_for("shop.index"))
-            error = "Could not create account. Check your Supabase URL/Key in .env and make sure Row Level Security is disabled (or insert policy exists) on the users table."
+                # Send verification email
+                token = models.create_auth_token(user["id"], "verify_email", hours=24)
+                site_url = os.environ.get("SITE_URL", "http://localhost:5000")
+                verify_url = f"{site_url}/auth/verify-email/{token}"
+                emails.send_verify_email(email, name, verify_url)
+                flash("Account created! Please check your email to verify your account before logging in.", "success")
+                return redirect(url_for("auth.login"))
+            error = "Could not create account. Check your Supabase connection."
     return render_template("auth/signup.html", error=error)
 
+
+# ── Verify Email ──────────────────────────────────────────
+
+@auth_bp.route("/verify-email/<token>")
+def verify_email(token):
+    t = models.get_auth_token(token, "verify_email")
+    if not t:
+        flash("This verification link is invalid or has expired. Please sign up again or request a new link.", "error")
+        return redirect(url_for("auth.signup"))
+    models.verify_user_email(t["user_id"])
+    models.use_auth_token(t["id"])
+    flash("Email verified! You can now log in.", "success")
+    return redirect(url_for("auth.login"))
+
+
+@auth_bp.route("/resend-verification", methods=["GET", "POST"])
+def resend_verification():
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        user = models.get_user_by_email(email)
+        if user and not user.get("email_verified"):
+            token = models.create_auth_token(user["id"], "verify_email", hours=24)
+            site_url = os.environ.get("SITE_URL", "http://localhost:5000")
+            verify_url = f"{site_url}/auth/verify-email/{token}"
+            emails.send_verify_email(email, user.get("name", ""), verify_url)
+        # Always show success to prevent email enumeration
+        flash("If that email exists and is unverified, we've sent a new verification link.", "success")
+        return redirect(url_for("auth.login"))
+    return render_template("auth/resend_verification.html")
+
+
+# ── Login ─────────────────────────────────────────────────
+
+@auth_bp.route("/login", methods=["GET", "POST"])
+def login():
+    if session.get("user_id"):
+        return redirect(url_for("shop.index"))
+    error = None
+    if request.method == "POST":
+        email    = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
+        user = models.get_user_by_email(email)
+        if user and check_password_hash(user["password_hash"], password):
+            # Block unverified users (skip check for admins)
+            if not user.get("email_verified") and not user.get("is_admin"):
+                flash("Please verify your email before logging in. "
+                      "Check your inbox or ", "error")
+                return render_template("auth/login.html",
+                                       error=None,
+                                       show_resend=True,
+                                       resend_email=email)
+            session["user_id"]   = str(user["id"])
+            session["user_name"] = user.get("name", "")
+            session["is_admin"]  = user.get("is_admin", False)
+            next_url = request.args.get("next")
+            return redirect(next_url if next_url else url_for("shop.index"))
+        error = "Invalid email or password."
+    return render_template("auth/login.html", error=error, show_resend=False)
+
+
+# ── Forgot Password ───────────────────────────────────────
+
+@auth_bp.route("/forgot-password", methods=["GET", "POST"])
+def forgot_password():
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        user  = models.get_user_by_email(email)
+        if user:
+            token = models.create_auth_token(user["id"], "reset_password", hours=1)
+            site_url = os.environ.get("SITE_URL", "http://localhost:5000")
+            reset_url = f"{site_url}/auth/reset-password/{token}"
+            emails.send_password_reset(email, user.get("name", ""), reset_url)
+        # Always success to prevent email enumeration
+        flash("If that email is registered, you'll receive a password reset link shortly.", "success")
+        return redirect(url_for("auth.login"))
+    return render_template("auth/forgot_password.html")
+
+
+@auth_bp.route("/reset-password/<token>", methods=["GET", "POST"])
+def reset_password(token):
+    t = models.get_auth_token(token, "reset_password")
+    if not t:
+        flash("This reset link is invalid or has expired. Please request a new one.", "error")
+        return redirect(url_for("auth.forgot_password"))
+    error = None
+    if request.method == "POST":
+        password = request.form.get("password", "")
+        confirm  = request.form.get("confirm_password", "")
+        if len(password) < 6:
+            error = "Password must be at least 6 characters."
+        elif password != confirm:
+            error = "Passwords do not match."
+        else:
+            pw_hash = generate_password_hash(password, method="pbkdf2:sha256")
+            models.update_user(t["user_id"], {"password_hash": pw_hash})
+            models.use_auth_token(t["id"])
+            flash("Password reset successfully! Please log in.", "success")
+            return redirect(url_for("auth.login"))
+    return render_template("auth/reset_password.html", token=token, error=error)
+
+
+# ── Logout ────────────────────────────────────────────────
 
 @auth_bp.route("/logout")
 def logout():
     session.clear()
     return redirect(url_for("shop.index"))
 
+
+# ── Profile ───────────────────────────────────────────────
 
 @auth_bp.route("/profile", methods=["GET", "POST"])
 @login_required
@@ -88,8 +175,8 @@ def profile():
     success = None
     if request.method == "POST":
         data = {
-            "name": request.form.get("name", "").strip(),
-            "phone": request.form.get("phone", "").strip(),
+            "name":    request.form.get("name", "").strip(),
+            "phone":   request.form.get("phone", "").strip(),
             "address": request.form.get("address", "").strip(),
         }
         models.update_user(session["user_id"], data)
