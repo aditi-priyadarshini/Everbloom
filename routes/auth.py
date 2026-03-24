@@ -49,7 +49,7 @@ def signup():
             if user:
                 # Send verification email
                 token = models.create_auth_token(user["id"], "verify_email", hours=24)
-                site_url = os.environ.get("SITE_URL", "http://localhost:5000")
+                site_url = os.environ.get("SITE_URL", "http://localhost:5000").rstrip("/")
                 verify_url = f"{site_url}/auth/verify-email/{token}"
                 emails.send_verify_email(email, name, verify_url)
                 flash("Account created! Please check your email to verify your account before logging in.", "success")
@@ -79,7 +79,7 @@ def resend_verification():
         user = models.get_user_by_email(email)
         if user and not user.get("email_verified"):
             token = models.create_auth_token(user["id"], "verify_email", hours=24)
-            site_url = os.environ.get("SITE_URL", "http://localhost:5000")
+            site_url = os.environ.get("SITE_URL", "http://localhost:5000").rstrip("/")
             verify_url = f"{site_url}/auth/verify-email/{token}"
             emails.send_verify_email(email, user.get("name", ""), verify_url)
         # Always show success to prevent email enumeration
@@ -126,7 +126,7 @@ def forgot_password():
         user  = models.get_user_by_email(email)
         if user:
             token = models.create_auth_token(user["id"], "reset_password", hours=1)
-            site_url = os.environ.get("SITE_URL", "http://localhost:5000")
+            site_url = os.environ.get("SITE_URL", "http://localhost:5000").rstrip("/")
             reset_url = f"{site_url}/auth/reset-password/{token}"
             emails.send_password_reset(email, user.get("name", ""), reset_url)
         # Always success to prevent email enumeration

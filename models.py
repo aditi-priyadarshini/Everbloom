@@ -576,7 +576,7 @@ from datetime import datetime, timezone, timedelta
 
 
 def create_auth_token(user_id, token_type, hours=24):
-    token = secrets.token_urlsafe(32)
+    token = secrets.token_hex(32)  # hex only - no special chars, fully URL safe
     expires = (datetime.now(timezone.utc) + timedelta(hours=hours)).isoformat()
     # Invalidate old tokens of same type for this user
     supa.update("auth_tokens",
