@@ -166,3 +166,40 @@ def send_admin_new_order(admin_email, order, site_url):
     <a href="{order_url}" style="display:inline-block;margin-top:20px;background:#5c3d3d;color:#fdf6f0;padding:12px 24px;border-radius:4px;text-decoration:none;font-size:14px;">View & Manage Order</a>
     """
     return _send(admin_email, f"New Order #{str(order['id'])[:8].upper()} — Everbloom", BASE.format(body=body))
+
+
+def send_custom_quote(customer_email, name, req, accept_url, decline_url):
+    body = f"""
+    <h2 style="color:#5c3d3d;">Your Custom Order Quote</h2>
+    <p style="color:#3a2a2a;">Hi {name}, we've reviewed your custom order request and have a quote for you!</p>
+    <div style="background:#fdf6f0;border:1px solid #e8c4b8;border-radius:6px;padding:1.2rem;margin:1rem 0;">
+      <p style="margin:.3rem 0;color:#3a2a2a;"><strong>Quoted Price:</strong> &#8377;{req.get('quoted_price','—')}</p>
+      <p style="margin:.3rem 0;color:#3a2a2a;"><strong>Estimated Crafting Time:</strong> {req.get('quoted_days','—')} days</p>
+      {f"<p style='margin:.8rem 0 0;color:#5c3d3d;font-style:italic;'>{req.get('quote_message','')}</p>" if req.get('quote_message') else ''}
+    </div>
+    <p style="color:#3a2a2a;">Please accept or decline below:</p>
+    <div style="display:flex;gap:1rem;margin-top:1rem;">
+      <a href="{accept_url}" style="background:#5c3d3d;color:#fdf6f0;padding:12px 24px;border-radius:4px;text-decoration:none;font-size:14px;">✓ Accept Quote</a>
+      <a href="{decline_url}" style="background:#fff;color:#5c3d3d;padding:12px 24px;border-radius:4px;text-decoration:none;font-size:14px;border:1px solid #e8c4b8;">✗ Decline</a>
+    </div>
+    <p style="color:#7a5c5c;font-size:12px;margin-top:1rem;">This quote is valid for 7 days.</p>
+    """
+    return _send(customer_email, "Your Custom Order Quote — Everbloom", BASE.format(body=body))
+
+
+def send_custom_accepted(customer_email, name, order_id, site_url):
+    order_url = f"{site_url}/orders/{order_id}"
+    body = f"""
+    <h2 style="color:#5c3d3d;">Custom Order Confirmed!</h2>
+    <p style="color:#3a2a2a;">Hi {name}, you've accepted the quote and your custom order is now confirmed!</p>
+    <p style="color:#3a2a2a;">You'll receive advance payment details shortly. Track your order below.</p>
+    <a href="{order_url}" style="display:inline-block;margin-top:16px;background:#5c3d3d;color:#fdf6f0;padding:12px 24px;border-radius:4px;text-decoration:none;font-size:14px;">Track My Order</a>
+    """
+    return _send(customer_email, "Custom Order Confirmed — Everbloom", BASE.format(body=body))
+
+
+def send_manual_email(to_email, subject, message, from_name="Everbloom"):
+    body = f"""
+    <p style="color:#3a2a2a;line-height:1.8;">{message.replace(chr(10), '<br>')}</p>
+    """
+    return _send(to_email, subject, BASE.format(body=body))

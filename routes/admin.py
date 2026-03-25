@@ -320,7 +320,8 @@ def custom_request_detail(rid):
         models.update_custom_request(rid, {"status": status, "admin_note": note})
         flash("Request updated.", "success")
         return redirect(url_for("admin.custom_request_detail", rid=rid))
-    return render_template("admin/custom_request_detail.html", req=req_obj)
+    email_log = models.get_email_log("custom_request", rid)
+    return render_template("admin/custom_request_detail.html", req=req_obj, email_log=email_log)
 
 
 # ── Analytics ─────────────────────────────────────────────
@@ -670,3 +671,100 @@ def email_template_edit(key):
                            label=TEMPLATE_LABELS[key],
                            template=template,
                            vars=TEMPLATE_VARS.get(key, []))
+
+
+# ── Enhanced Custom Request Actions ───────────────────────
+
+@admin_bp.route("/custom-requests/<rid>/status", methods=["POST"])
+@admin_only
+def custom_request_status(rid):
+    status = request.form.get("status")
+    note = request.form.get("admin_note", "")
+    models.update_custom_request(rid, {"status": status, "admin_note": note})
+    flash("Status updated.", "success")
+    return redirect(url_for("admin.custom_request_detail", rid=rid))
+
+
+@admin_bp.route("/custom-requests/<rid>/quote", methods=["POST"])
+@admin_only
+def custom_request_quote(rid):
+    import os, emails
+    from datetime import datetime, timezone
+    req = models.get_custom_request(rid)
+    if not req:
+        flash("Request not found.", "error")
+        return redirect(url_for("admin.custom_requests"))
+
+    quoted_price = float(request.form.get("quoted_price", 0))
+    quoted_days  = int(request.form.get("quoted_days", 14))
+    quote_msg    = request.form.get("quote_message", "").strip()
+    site_url     = os.environ.get("SITE_URL", "http://localhost:5000")
+    token        = req.get("tracking_token", "")
+    accept_url   = f"{site_url}/custom-order/respond/{token}/accepted"
+    decline_url  = f"{site_url}/custom-order/respond/{token}/declined"
+
+    models.update_custom_request(rid, {
+        "status": "quoted",
+        "quoted_price": quoted_price,
+        "quoted_days": quoted_days,
+        "quote_message": quote_msg,
+        "quote_sent_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+    emails.send_custom_quote(req["email"], req["name"],
+                             {**req, "quoted_price": quoted_price,
+                              "quoted_days": quoted_days,
+                              "quote_message": quote_msg},
+                             accept_url, decline_url)
+
+    models.log_email(req["email"],
+                     "Custom Order Quote — Everbloom",
+                     f"Quoted ₹{quoted_price} / {quoted_days} days",
+                     session["user_id"], "custom_request", rid)
+
+    flash("Quote sent to customer!", "success")
+    return redirect(url_for("admin.custom_request_detail", rid=rid))
+
+
+@admin_bp.route("/custom-requests/<rid>/email", methods=["POST"])
+@admin_only
+def custom_request_email(rid):
+    import emails
+    req = models.get_custom_request(rid)
+    if not req:
+        flash("Request not found.", "error")
+        return redirect(url_for("admin.custom_requests"))
+
+    subject = request.form.get("subject", "").strip()
+    message = request.form.get("message", "").strip()
+
+    emails.send_manual_email(req["email"], subject, message)
+    models.log_email(req["email"], subject, message,
+                     session["user_id"], "custom_request", rid)
+    flash("Email sent!", "success")
+    return redirect(url_for("admin.custom_request_detail", rid=rid))
+
+
+# ── Manual email from order detail ────────────────────────
+
+@admin_bp.route("/orders/<oid>/email", methods=["POST"])
+@admin_only
+def order_send_email(oid):
+    import emails
+    order = models.get_order(oid)
+    if not order:
+        flash("Order not found.", "error")
+        return redirect(url_for("admin.orders"))
+    user = models.get_user_by_id(order["user_id"]) if order.get("user_id") else None
+    if not user:
+        flash("No customer email found.", "error")
+        return redirect(url_for("admin.order_detail", oid=oid))
+
+    subject = request.form.get("subject", "").strip()
+    message = request.form.get("message", "").strip()
+
+    emails.send_manual_email(user["email"], subject, message)
+    models.log_email(user["email"], subject, message,
+                     session["user_id"], "order", oid)
+    flash("Email sent to customer!", "success")
+    return redirect(url_for("admin.order_detail", oid=oid))

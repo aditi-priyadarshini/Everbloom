@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Track Custom Request{% endblock %}
+{% block content %}
+<div class="page-wrap narrow">
+  <a href="{{ url_for('shop.index') }}" class="back-link">← Home</a>
+  <h1 class="page-title">Custom Request #{{ req.id }}</h1>
+
+  <!-- Status badge -->
+  <div style="margin-bottom:2rem;">
+    {% set status_map = {
+      'pending': ('Pending Review', 'status-placed'),
+      'reviewing': ('Under Review', 'status-advance_requested'),
+      'quoted': ('Quote Sent', 'status-crafting'),
+      'accepted': ('Accepted — Order Created', 'status-delivered'),
+      'rejected': ('Declined', 'status-cancelled'),
+    } %}
+    {% set label, cls = status_map.get(req.status, ('Unknown', 'status-placed')) %}
+    <span class="status-pill {{ cls }}" style="font-size:.85rem;padding:.4rem 1rem;">{{ label }}</span>
+  </div>
+
+  <!-- Timeline -->
+  <div class="admin-card" style="margin-bottom:1.5rem;">
+    <h3 style="font-family:'Cormorant Garamond',serif;font-size:1.2rem;color:var(--bark);margin-bottom:1.2rem;">Request Timeline</h3>
+    <div class="timeline">
+      <div class="timeline-item">
+        <div class="timeline-dot"></div>
+        <div class="timeline-content">
+          <strong>Request Submitted</strong>
+          <span class="timeline-date">{{ req.created_at[:16].replace('T',' ') }}</span>
+        </div>
+      </div>
+      {% if req.status in ['reviewing','quoted','accepted','rejected'] %}
+      <div class="timeline-item">
+        <div class="timeline-dot"></div>
+        <div class="timeline-content"><strong>Under Review</strong></div>
+      </div>
+      {% endif %}
+      {% if req.status in ['quoted','accepted'] %}
+      <div class="timeline-item">
+        <div class="timeline-dot"></div>
+        <div class="timeline-content">
+          <strong>Quote Sent</strong>
+          {% if req.quoted_price %}
+          <p>Quoted Price: <strong>₹{{ "%.0f"|format(req.quoted_price) }}</strong> · {{ req.quoted_days }} days crafting</p>
+          {% if req.quote_message %}<p style="font-style:italic;color:var(--text-soft);">"{{ req.quote_message }}"</p>{% endif %}
+          {% endif %}
+          {% if req.quote_sent_at %}<span class="timeline-date">{{ req.quote_sent_at[:16].replace('T',' ') }}</span>{% endif %}
+        </div>
+      </div>
+      {% endif %}
+      {% if req.status == 'accepted' %}
+      <div class="timeline-item">
+        <div class="timeline-dot" style="background:var(--sage-dark);"></div>
+        <div class="timeline-content">
+          <strong style="color:var(--sage-dark);">Quote Accepted — Order Created!</strong>
+          {% if req.converted_order_id %}
+          <p><a href="{{ url_for('orders.order_detail', oid=req.converted_order_id) }}" style="color:var(--mauve);">View your order →</a></p>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+      {% if req.status == 'rejected' %}
+      <div class="timeline-item">
+        <div class="timeline-dot" style="background:var(--error);"></div>
+        <div class="timeline-content"><strong style="color:var(--error);">Request Declined</strong></div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Quote accept/decline (if quoted and not responded) -->
+  {% if req.status == 'quoted' and req.quoted_price %}
+  <div class="admin-card" style="border-color:var(--gold);background:#fffbf0;margin-bottom:1.5rem;">
+    <h3 style="font-family:'Cormorant Garamond',serif;color:var(--bark);margin-bottom:1rem;">Your Quote</h3>
+    <div style="font-size:1.8rem;font-family:'Cormorant Garamond',serif;color:var(--bark);margin-bottom:.5rem;">₹{{ "%.0f"|format(req.quoted_price) }}</div>
+    <p style="font-size:.88rem;color:var(--text-soft);margin-bottom:1.2rem;">Estimated crafting time: {{ req.quoted_days }} days</p>
+    {% if req.quote_message %}<p style="font-style:italic;color:var(--text-soft);margin-bottom:1.2rem;">"{{ req.quote_message }}"</p>{% endif %}
+    <div style="display:flex;gap:.8rem;flex-wrap:wrap;">
+      <a href="{{ url_for('shop.custom_order_respond', token=req.tracking_token, response='accepted') }}" class="btn-primary">✓ Accept Quote</a>
+      <a href="{{ url_for('shop.custom_order_respond', token=req.tracking_token, response='declined') }}" class="btn-outline">✗ Decline</a>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Request summary -->
+  <div class="admin-card">
+    <h3 style="font-family:'Cormorant Garamond',serif;font-size:1.2rem;color:var(--bark);margin-bottom:1rem;">Request Details</h3>
+    <table style="width:100%;font-size:.88rem;">
+      {% if req.craft_type %}<tr><td style="color:var(--text-soft);padding:.3rem 0;width:40%;">Craft Type</td><td>{{ req.craft_type }}</td></tr>{% endif %}
+      {% if req.occasion %}<tr><td style="color:var(--text-soft);padding:.3rem 0;">Occasion</td><td>{{ req.occasion }}</td></tr>{% endif %}
+      {% if req.size_preference %}<tr><td style="color:var(--text-soft);padding:.3rem 0;">Size</td><td>{{ req.size_preference }}</td></tr>{% endif %}
+      {% if req.colour_preference %}<tr><td style="color:var(--text-soft);padding:.3rem 0;">Colours</td><td>{{ req.colour_preference }}</td></tr>{% endif %}
+      {% if req.budget %}<tr><td style="color:var(--text-soft);padding:.3rem 0;">Budget</td><td>{{ req.budget }}</td></tr>{% endif %}
+    </table>
+    <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--rose);">
+      <p style="font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--text-soft);margin-bottom:.4rem;">Description</p>
+      <p style="font-size:.9rem;color:var(--text);line-height:1.7;">{{ req.description }}</p>
+    </div>
+    {% if req.reference_image_url %}
+    <div style="margin-top:1rem;">
+      <p style="font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--text-soft);margin-bottom:.6rem;">Reference Image</p>
+      <img src="{{ req.reference_image_url }}" style="max-width:200px;border-radius:6px;border:1px solid var(--rose);" alt="Reference">
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

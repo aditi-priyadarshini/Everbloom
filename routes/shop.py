@@ -350,28 +350,95 @@ def checkout():
 @shop_bp.route("/custom-order", methods=["GET", "POST"])
 def custom_order():
     success = False
+    tracking_token = None
     if request.method == "POST":
-        import supa
+        import supa, uuid, secrets
         ref_url = None
         ref_file = request.files.get("reference_image")
         if ref_file and ref_file.filename:
-            import uuid
             path = f"custom/{uuid.uuid4()}-{ref_file.filename}"
             ref_url = supa.upload_file("everbloom", path, ref_file.read(), ref_file.content_type)
+        tracking_token = secrets.token_urlsafe(24)
         data = {
             "name": request.form.get("name", "").strip(),
             "email": request.form.get("email", "").strip(),
             "phone": request.form.get("phone", "").strip(),
             "description": request.form.get("description", "").strip(),
             "budget": request.form.get("budget", "").strip(),
+            "craft_type": request.form.get("craft_type", "").strip(),
+            "occasion": request.form.get("occasion", "").strip(),
+            "size_preference": request.form.get("size_preference", "").strip(),
+            "colour_preference": request.form.get("colour_preference", "").strip(),
             "reference_image_url": ref_url,
             "user_id": session.get("user_id"),
+            "tracking_token": tracking_token,
+            "status": "pending",
         }
         if models.create_custom_request(data):
             import emails
             emails.send_custom_request_received(data["email"], data["name"])
+            # Alert admin
+            import os
+            admin_email = os.environ.get("MAIL_USERNAME", "")
+            if admin_email:
+                site_url = os.environ.get("SITE_URL", "http://localhost:5000")
+                emails.send_manual_email(
+                    admin_email,
+                    f"New Custom Order Request — {data['name']}",
+                    f"New custom order request from {data['name']} ({data['email']}).\n\nCraft Type: {data.get('craft_type','')}\nBudget: {data.get('budget','')}\n\nDescription:\n{data['description']}\n\nView: {site_url}/admin/custom-requests"
+                )
             success = True
-    return render_template("shop/custom_order.html", success=success)
+    return render_template("shop/custom_order.html", success=success, tracking_token=tracking_token)
+
+
+@shop_bp.route("/custom-order/track/<token>")
+def custom_order_track(token):
+    req = models.get_custom_request_by_token(token)
+    if not req:
+        flash("Request not found.", "error")
+        return redirect(url_for("shop.custom_order"))
+    return render_template("shop/custom_order_track.html", req=req)
+
+
+@shop_bp.route("/custom-order/respond/<token>/<response>")
+def custom_order_respond(token, response):
+    req = models.get_custom_request_by_token(token)
+    if not req or req.get("status") != "quoted":
+        flash("This link is no longer valid.", "error")
+        return redirect(url_for("shop.index"))
+    import os, emails
+    site_url = os.environ.get("SITE_URL", "http://localhost:5000")
+    if response == "accepted":
+        # Create a real order
+        order = models.create_order({
+            "user_id": req.get("user_id"),
+            "name": req["name"],
+            "phone": req.get("phone", ""),
+            "address": "To be confirmed",
+            "total": float(req["quoted_price"]),
+            "status": "placed",
+            "is_custom_order": True,
+            "custom_notes": req["description"],
+            "delivery_type": "delivery",
+            "shipping_charge": 0,
+        })
+        if order:
+            models.add_tracking(order["id"], "placed", "Custom order accepted by customer.")
+            models.update_custom_request(req["id"], {
+                "status": "accepted",
+                "customer_response": "accepted",
+                "converted_order_id": order["id"],
+            })
+            emails.send_custom_accepted(req["email"], req["name"], order["id"], site_url)
+            flash("Quote accepted! Your order has been created.", "success")
+            return redirect(url_for("shop.custom_order_track", token=token))
+    else:
+        models.update_custom_request(req["id"], {
+            "status": "rejected",
+            "customer_response": "declined",
+        })
+        flash("You've declined the quote. Feel free to submit a new request anytime.", "info")
+    return redirect(url_for("shop.custom_order_track", token=token))
 
 
 @shop_bp.route("/wishlist")
