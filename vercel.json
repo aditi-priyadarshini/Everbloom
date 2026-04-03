@@ -16,6 +16,22 @@
       "dest": "/static/$1"
     },
     {
+      "src": "/auth/(.*)",
+      "dest": "/app.py"
+    },
+    {
+      "src": "/admin/(.*)",
+      "dest": "/app.py"
+    },
+    {
+      "src": "/orders/(.*)",
+      "dest": "/app.py"
+    },
+    {
+      "src": "/api/(.*)",
+      "dest": "/app.py"
+    },
+    {
       "src": "/(.*)",
       "dest": "/app.py"
     }
