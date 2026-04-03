@@ -24,12 +24,20 @@ def dashboard():
 @admin_only
 def orders():
     status = request.args.get("status", "")
-    if status:
+    show_custom = request.args.get("custom", "") == "1"
+    if show_custom:
+        order_list = [o for o in models.get_orders() if o.get("is_custom_order")]
+        pending_custom_requests = [r for r in models.get_custom_requests() if r.get("status") not in ("accepted", "rejected")]
+    elif status:
         order_list = models.get_orders(status=status)
+        pending_custom_requests = []
     else:
         order_list = models.get_orders()
+        pending_custom_requests = []
     return render_template("admin/orders.html", orders=order_list,
                            selected_status=status,
+                           show_custom=show_custom,
+                           pending_custom_requests=pending_custom_requests,
                            statuses=models.ORDER_STATUSES,
                            status_labels=models.STATUS_LABELS)
 
