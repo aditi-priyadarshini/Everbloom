@@ -508,6 +508,20 @@ def about():
     return render_template("shop/about.html")
 
 
+@shop_bp.route("/custom-order/cancel/<token>", methods=["POST"])
+def custom_order_cancel(token):
+    req = models.get_custom_request_by_token(token)
+    if not req:
+        flash("Request not found.", "error")
+        return redirect(url_for("shop.custom_order"))
+    if req.get("status") not in ["pending", "reviewing"]:
+        flash("This request can no longer be cancelled.", "error")
+        return redirect(url_for("shop.custom_order_track", token=token))
+    models.update_custom_request(req["id"], {"status": "rejected", "admin_note": "Cancelled by customer."})
+    flash("Your request has been cancelled.", "success")
+    return redirect(url_for("shop.custom_order_track", token=token))
+
+
 @shop_bp.route("/api/notifications")
 @login_required
 def notifications_api():

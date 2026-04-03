@@ -68,6 +68,18 @@
     </div>
   </div>
 
+  <!-- Cancel request (only if not yet accepted/quoted) -->
+  {% if req.status in ['pending', 'reviewing'] %}
+  <div class="admin-card" style="border-color:var(--rose);margin-bottom:1.5rem;">
+    <h3 style="font-family:'Cormorant Garamond',serif;font-size:1.1rem;color:var(--bark);margin-bottom:.5rem;">Cancel Request</h3>
+    <p style="font-size:.85rem;color:var(--text-soft);margin-bottom:1rem;">Changed your mind? You can cancel this request as long as we haven't sent you a quote yet.</p>
+    <form method="post" action="{{ url_for('shop.custom_order_cancel', token=req.tracking_token) }}" onsubmit="return confirm('Are you sure you want to cancel this request?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn-danger">Cancel My Request</button>
+    </form>
+  </div>
+  {% endif %}
+
   <!-- Quote accept/decline (if quoted and not responded) -->
   {% if req.status == 'quoted' and req.quoted_price %}
   <div class="admin-card" style="border-color:var(--gold);background:#fffbf0;margin-bottom:1.5rem;">
