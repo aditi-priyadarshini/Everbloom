@@ -284,6 +284,7 @@ def checkout():
                                        discount=discount, user=user,
                                        coupon_error=None)
 
+            preorder_pids = session.get("preorder_items", [])
             is_preorder_order = any(str(i["product"]["id"]) in preorder_pids for i in items)
             total = round(subtotal - discount - gift_card_discount, 2)
             total = max(0, total)
@@ -348,7 +349,6 @@ def checkout():
 
 
 @shop_bp.route("/custom-order", methods=["GET", "POST"])
-@login_required
 def custom_order():
     success = False
     tracking_token = None
