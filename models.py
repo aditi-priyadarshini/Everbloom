@@ -755,3 +755,230 @@ def calculate_product_cost(product_id):
         "margin_percent": margin,
         "suggested_price": suggested,
     }
+
+
+# ── Components ────────────────────────────────────────────
+
+def get_components():
+    return supa.select("components", order="name.asc")
+
+def get_component(cid):
+    rows = supa.select("components", {"id": f"eq.{cid}"})
+    return rows[0] if rows else None
+
+def create_component(data):
+    return supa.insert("components", data)
+
+def update_component(cid, data):
+    return supa.update("components", {"id": f"eq.{cid}"}, data)
+
+def delete_component(cid):
+    return supa.delete("components", {"id": f"eq.{cid}"})
+
+def get_low_stock_components():
+    comps = get_components()
+    return [c for c in comps
+            if float(c.get("current_stock", 0)) <= float(c.get("reorder_level", 0))
+            and float(c.get("reorder_level", 0)) > 0]
+
+# ── Component BOM ─────────────────────────────────────────
+
+def get_component_bom(component_id):
+    return supa.select("component_bom", {"component_id": f"eq.{component_id}"})
+
+def save_component_bom(component_id, items):
+    supa.delete("component_bom", {"component_id": f"eq.{component_id}"})
+    for item in items:
+        if item.get("material_id") and float(item.get("quantity_used", 0)) > 0:
+            supa.insert("component_bom", {
+                "component_id": int(component_id),
+                "material_id": int(item["material_id"]),
+                "quantity_used": float(item["quantity_used"]),
+            })
+
+def calculate_component_cost(component_id):
+    bom = get_component_bom(component_id)
+    total = 0
+    for item in bom:
+        mat = get_raw_material(item["material_id"])
+        if mat:
+            total += float(mat.get("cost_per_unit", 0)) * float(item.get("quantity_used", 0))
+    return round(total, 2)
+
+def manufacture_component(component_id, quantity, notes=""):
+    """Deduct raw materials and add to component stock."""
+    bom = get_component_bom(component_id)
+    errors = []
+    for item in bom:
+        mat = get_raw_material(item["material_id"])
+        if not mat:
+            continue
+        needed = float(item["quantity_used"]) * float(quantity)
+        available = float(mat.get("current_stock", 0))
+        if available < needed:
+            errors.append(f"Not enough {mat['name']}: need {needed} {mat['unit']}, have {available}")
+    if errors:
+        return False, errors
+    # Deduct materials
+    for item in bom:
+        mat = get_raw_material(item["material_id"])
+        if mat:
+            needed = float(item["quantity_used"]) * float(quantity)
+            new_stock = max(0, float(mat.get("current_stock", 0)) - needed)
+            supa.update("raw_materials", {"id": f"eq.{item['material_id']}"}, {"current_stock": new_stock})
+    # Add to component stock
+    comp = get_component(component_id)
+    if comp:
+        new_stock = float(comp.get("current_stock", 0)) + float(quantity)
+        supa.update("components", {"id": f"eq.{component_id}"}, {"current_stock": new_stock})
+    # Log it
+    supa.insert("manufacture_log", {
+        "component_id": int(component_id),
+        "quantity_made": float(quantity),
+        "notes": notes,
+    })
+    return True, []
+
+# ── Product BOM ───────────────────────────────────────────
+
+def get_product_bom(product_id):
+    return supa.select("product_bom", {"product_id": f"eq.{product_id}"})
+
+def save_product_bom(product_id, items):
+    supa.delete("product_bom", {"product_id": f"eq.{product_id}"})
+    for item in items:
+        qty = float(item.get("quantity_used", 0))
+        if qty <= 0:
+            continue
+        row = {"product_id": str(product_id), "item_type": item["item_type"], "quantity_used": qty}
+        if item["item_type"] == "material" and item.get("material_id"):
+            row["material_id"] = int(item["material_id"])
+        elif item["item_type"] == "component" and item.get("component_id"):
+            row["component_id"] = int(item["component_id"])
+        else:
+            continue
+        supa.insert("product_bom", row)
+
+def calculate_product_bom_cost(product_id):
+    bom = get_product_bom(product_id)
+    pc = get_product_cost(product_id) or {}
+    material_cost = 0
+    breakdown = []
+    for item in bom:
+        if item["item_type"] == "material" and item.get("material_id"):
+            mat = get_raw_material(item["material_id"])
+            if mat:
+                cost = float(mat.get("cost_per_unit", 0)) * float(item["quantity_used"])
+                material_cost += cost
+                breakdown.append({
+                    "name": mat["name"], "icon": mat.get("icon", "🧪"),
+                    "type": "material", "qty": item["quantity_used"],
+                    "unit": mat["unit"], "cost": round(cost, 2)
+                })
+        elif item["item_type"] == "component" and item.get("component_id"):
+            comp = get_component(item["component_id"])
+            if comp:
+                comp_cost = calculate_component_cost(item["component_id"])
+                cost = comp_cost * float(item["quantity_used"])
+                material_cost += cost
+                breakdown.append({
+                    "name": comp["name"], "icon": comp.get("icon", "🔧"),
+                    "type": "component", "qty": item["quantity_used"],
+                    "unit": comp["unit"], "cost": round(cost, 2)
+                })
+    labour = float(pc.get("labour_cost", 0))
+    overhead = float(pc.get("overhead_cost", 0))
+    margin = float(pc.get("margin_percent", 30))
+    total = material_cost + labour + overhead
+    suggested = round(total * (1 + margin / 100), 2) if total > 0 else 0
+    return {
+        "breakdown": breakdown,
+        "material_cost": round(material_cost, 2),
+        "labour_cost": round(labour, 2),
+        "overhead_cost": round(overhead, 2),
+        "total_cost": round(total, 2),
+        "margin_percent": margin,
+        "suggested_price": suggested,
+    }
+
+# ── Order Requirements & Auto-deduction ──────────────────
+
+def get_order_requirements(order_id):
+    return supa.select("order_requirements", {"order_id": f"eq.{order_id}"})
+
+def calculate_order_requirements(order_id):
+    """Work out all materials + components needed for an order."""
+    items = get_order_items(order_id)
+    requirements = {}  # key: 'material_X' or 'component_X'
+    for item in items:
+        qty = int(item.get("quantity", 1))
+        bom = get_product_bom(str(item["product_id"]))
+        for b in bom:
+            needed = float(b["quantity_used"]) * qty
+            if b["item_type"] == "material" and b.get("material_id"):
+                key = f"material_{b['material_id']}"
+                requirements[key] = requirements.get(key, {
+                    "item_type": "material", "material_id": b["material_id"],
+                    "component_id": None, "quantity_needed": 0
+                })
+                requirements[key]["quantity_needed"] += needed
+            elif b["item_type"] == "component" and b.get("component_id"):
+                key = f"component_{b['component_id']}"
+                requirements[key] = requirements.get(key, {
+                    "item_type": "component", "material_id": None,
+                    "component_id": b["component_id"], "quantity_needed": 0
+                })
+                requirements[key]["quantity_needed"] += needed
+    return list(requirements.values())
+
+def check_requirements_availability(requirements):
+    """Check if we have enough stock for each requirement."""
+    result = []
+    for req in requirements:
+        r = dict(req)
+        if r["item_type"] == "material":
+            mat = get_raw_material(r["material_id"])
+            if mat:
+                r["name"] = mat["name"]
+                r["icon"] = mat.get("icon", "🧪")
+                r["unit"] = mat["unit"]
+                r["available"] = float(mat.get("current_stock", 0))
+                r["is_available"] = r["available"] >= r["quantity_needed"]
+            else:
+                r["name"] = "Unknown"
+                r["icon"] = "❓"
+                r["unit"] = ""
+                r["available"] = 0
+                r["is_available"] = False
+        elif r["item_type"] == "component":
+            comp = get_component(r["component_id"])
+            if comp:
+                r["name"] = comp["name"]
+                r["icon"] = comp.get("icon", "🔧")
+                r["unit"] = comp["unit"]
+                r["available"] = float(comp.get("current_stock", 0))
+                r["is_available"] = r["available"] >= r["quantity_needed"]
+            else:
+                r["name"] = "Unknown"
+                r["icon"] = "❓"
+                r["unit"] = ""
+                r["available"] = 0
+                r["is_available"] = False
+        result.append(r)
+    return result
+
+def deduct_order_materials(order_id):
+    """Deduct all materials and components when order is confirmed."""
+    reqs = calculate_order_requirements(order_id)
+    for req in reqs:
+        needed = float(req["quantity_needed"])
+        if req["item_type"] == "material" and req.get("material_id"):
+            mat = get_raw_material(req["material_id"])
+            if mat:
+                new_stock = max(0, float(mat.get("current_stock", 0)) - needed)
+                supa.update("raw_materials", {"id": f"eq.{req['material_id']}"}, {"current_stock": new_stock})
+        elif req["item_type"] == "component" and req.get("component_id"):
+            comp = get_component(req["component_id"])
+            if comp:
+                new_stock = max(0, float(comp.get("current_stock", 0)) - needed)
+                supa.update("components", {"id": f"eq.{req['component_id']}"}, {"current_stock": new_stock})
