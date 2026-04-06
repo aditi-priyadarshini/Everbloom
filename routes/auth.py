@@ -108,6 +108,7 @@ def login():
                                        error=None,
                                        show_resend=True,
                                        resend_email=email)
+            session.permanent = True   # use PERMANENT_SESSION_LIFETIME (15 days)
             session["user_id"]   = str(user["id"])
             session["user_name"] = user.get("name", "")
             session["is_admin"]  = user.get("is_admin", False)
