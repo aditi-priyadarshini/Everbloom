@@ -1,0 +1,187 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}{{ comp.name }}{% endblock %}
+{% block page_title %}{{ comp.icon }} {{ comp.name }}{% endblock %}
+{% block content %}
+<a href="{{ url_for('admin.components') }}" class="back-link" style="display:inline-flex;align-items:center;gap:.4rem;margin-bottom:1.5rem;font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-soft);text-decoration:none;">← All Components</a>
+
+<div class="order-detail-layout">
+  <div class="order-detail-main">
+
+    <!-- BOM -->
+    <div class="admin-card">
+      <h3>Bill of Materials <span style="font-size:.8rem;color:var(--text-soft);font-weight:400;">(per 1 {{ comp.unit }})</span></h3>
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="save_bom">
+        <div id="bomList">
+          {% for b in bom %}
+          {% set mat = none %}
+          {% for m in materials %}{% if m.id == b.material_id %}{% set mat = m %}{% endif %}{% endfor %}
+          <div class="bom-row" style="display:grid;grid-template-columns:1fr 1fr auto;gap:.8rem;align-items:end;margin-bottom:.8rem;">
+            <div class="form-group" style="margin:0;">
+              <label>Raw Material</label>
+              <select name="material_id[]">
+                <option value="">Select material</option>
+                {% for m in materials %}
+                <option value="{{ m.id }}" {% if m.id == b.material_id %}selected{% endif %}>{{ m.icon or '🧪' }} {{ m.name }} ({{ m.unit }})</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label>Qty Used per {{ comp.unit }}</label>
+              <input type="number" name="quantity_used[]" value="{{ b.quantity_used }}" min="0" step="0.001">
+            </div>
+            <button type="button" onclick="this.parentElement.remove()" style="background:none;border:none;color:#c0392b;font-size:1.3rem;cursor:pointer;padding:.5rem 0;">&times;</button>
+          </div>
+          {% endfor %}
+          {% if not bom %}
+          <div class="bom-row" style="display:grid;grid-template-columns:1fr 1fr auto;gap:.8rem;align-items:end;margin-bottom:.8rem;">
+            <div class="form-group" style="margin:0;"><label>Raw Material</label>
+              <select name="material_id[]"><option value="">Select material</option>
+                {% for m in materials %}<option value="{{ m.id }}">{{ m.icon or '🧪' }} {{ m.name }} ({{ m.unit }})</option>{% endfor %}
+              </select></div>
+            <div class="form-group" style="margin:0;"><label>Qty per {{ comp.unit }}</label>
+              <input type="number" name="quantity_used[]" min="0" step="0.001" value="0"></div>
+            <button type="button" onclick="this.parentElement.remove()" style="background:none;border:none;color:#c0392b;font-size:1.3rem;cursor:pointer;padding:.5rem 0;">&times;</button>
+          </div>
+          {% endif %}
+        </div>
+        <button type="button" onclick="addBomRow()" class="btn-outline" style="margin-bottom:1rem;">+ Add Material</button>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Icon</label>
+            <div style="display:flex;flex-wrap:wrap;gap:.3rem;">
+              {% for icon in icons %}
+              <label style="cursor:pointer;">
+                <input type="radio" name="icon" value="{{ icon }}" {% if comp.icon == icon %}checked{% endif %} style="display:none;">
+                <span style="font-size:1.3rem;padding:.2rem .3rem;border-radius:4px;border:2px solid {% if comp.icon == icon %}#5c3d3d{% else %}transparent{% endif %};" onclick="this.previousElementSibling.click();document.querySelectorAll('.ic').forEach(e=>e.style.borderColor='transparent');this.style.borderColor='#5c3d3d';" class="ic">{{ icon }}</span>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Reorder Alert Level</label>
+            <input type="number" name="reorder_level" value="{{ comp.reorder_level }}" min="0" step="0.01">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Notes</label>
+          <input type="text" name="notes" value="{{ comp.notes or '' }}" placeholder="Notes…">
+        </div>
+        <button type="submit" class="btn-primary">Save BOM</button>
+      </form>
+    </div>
+
+    <!-- Manufacture Log -->
+    {% if log %}
+    <div class="admin-card">
+      <h3>Manufacture History</h3>
+      <table class="admin-table">
+        <thead><tr><th>Date</th><th>Qty Made</th><th>Notes</th></tr></thead>
+        <tbody>
+          {% for l in log %}
+          <tr>
+            <td>{{ l.manufactured_at[:16].replace('T',' ') }}</td>
+            <td><strong>{{ l.quantity_made }} {{ comp.unit }}</strong></td>
+            <td>{{ l.notes or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="order-detail-side">
+
+    <!-- Stock & Cost summary -->
+    <div class="admin-card" style="border-color:var(--gold);background:#fffbf0;">
+      <h3>{{ comp.icon }} {{ comp.name }}</h3>
+      <div class="order-totals">
+        <div class="totals-row"><span>Current Stock</span><strong>{{ comp.current_stock }} {{ comp.unit }}</strong></div>
+        <div class="totals-row"><span>Reorder At</span><span>{{ comp.reorder_level }} {{ comp.unit }}</span></div>
+        <div class="totals-row strong" style="border-top:1px solid var(--rose);padding-top:.5rem;margin-top:.3rem;">
+          <span>Material Cost</span><strong>₹{{ "%.2f"|format(cost) }}</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- Manufacture batch -->
+    <div class="admin-card">
+      <h3>Manufacture a Batch</h3>
+      <p style="font-size:.84rem;color:var(--text-soft);margin-bottom:1rem;">
+        This will deduct raw materials from inventory and add to component stock.
+      </p>
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="manufacture">
+        <div class="form-group">
+          <label>How many {{ comp.unit }} to make?</label>
+          <input type="number" name="quantity" value="1" min="1" step="1" required>
+        </div>
+        <div class="form-group">
+          <label>Notes (optional)</label>
+          <input type="text" name="notes" placeholder="Batch notes…">
+        </div>
+
+        {% if bom %}
+        <div style="background:#f8f4fd;border:1px solid #d0c8e8;border-radius:6px;padding:.8rem;margin-bottom:1rem;">
+          <p style="font-size:.78rem;font-weight:500;color:#3a2a5a;margin-bottom:.5rem;">WILL DEDUCT:</p>
+          {% for b in bom %}
+          {% for m in materials %}{% if m.id == b.material_id %}
+          <div style="font-size:.82rem;color:#3a2a2a;display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem;">
+            <span>{{ m.icon or '🧪' }}</span>
+            <span>{{ b.quantity_used }} × <em id="mult">1</em> = <strong>{{ b.quantity_used }}</strong> {{ m.unit }} of {{ m.name }}</span>
+            <span style="color:{% if m.current_stock >= b.quantity_used %}var(--sage-dark){% else %}#c0392b{% endif %};">({{ m.current_stock }} available)</span>
+          </div>
+          {% endif %}{% endfor %}
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <button type="submit" class="btn-primary btn-full">Manufacture Now</button>
+      </form>
+    </div>
+
+    <!-- Quick edit -->
+    <div class="admin-card">
+      <h3>Edit Details</h3>
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="edit">
+        <div class="form-group"><label>Name</label><input type="text" name="name" value="{{ comp.name }}" required></div>
+        <div class="form-group"><label>Unit</label>
+          <select name="unit">
+            {% for u in ['pieces','units','sets','batches'] %}
+            <option value="{{ u }}" {% if comp.unit == u %}selected{% endif %}>{{ u }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn-outline btn-full">Save Details</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+const materials = {{ materials | tojson }};
+function addBomRow() {
+  const opts = materials.map(m => `<option value="${m.id}">${m.icon || '🧪'} ${m.name} (${m.unit})</option>`).join('');
+  const row = document.createElement('div');
+  row.className = 'bom-row';
+  row.style.cssText = 'display:grid;grid-template-columns:1fr 1fr auto;gap:.8rem;align-items:end;margin-bottom:.8rem;';
+  row.innerHTML = `
+    <div class="form-group" style="margin:0;"><label>Raw Material</label>
+      <select name="material_id[]"><option value="">Select material</option>${opts}</select></div>
+    <div class="form-group" style="margin:0;"><label>Qty per unit</label>
+      <input type="number" name="quantity_used[]" min="0" step="0.001" value="0"></div>
+    <button type="button" onclick="this.parentElement.remove()" style="background:none;border:none;color:#c0392b;font-size:1.3rem;cursor:pointer;padding:.5rem 0;">&times;</button>
+  `;
+  document.getElementById('bomList').appendChild(row);
+}
+// Update deduction preview when qty changes
+document.querySelector('input[name="quantity"]')?.addEventListener('input', function() {
+  document.querySelectorAll('#mult').forEach(el => el.textContent = this.value || 1);
+});
+</script>
+{% endblock %}
