@@ -132,14 +132,26 @@
           <span><strong>Suggested Price</strong></span>
           <strong style="font-size:1.1rem;" id="suggestedPrice">₹{{ "%.0f"|format(cost_breakdown.suggested_price) }}</strong>
         </div>
+
+        <!-- Price comparison (discount-aware) -->
+        {% set disc = product.discount_percent | default(0) | int %}
+        {% set effective_price = (product.price * (1 - disc / 100)) | round | int if disc > 0 else product.price | round | int %}
+
         <div class="totals-row" style="margin-top:.8rem;">
-          <span style="color:var(--text-soft);">Current Price</span>
+          <span style="color:var(--text-soft);">Listed Price</span>
           <span>₹{{ "%.0f"|format(product.price) }}</span>
         </div>
-        {% set diff = product.price - cost_breakdown.suggested_price %}
-        {% if cost_breakdown.total_cost > 0 %}
+        {% if disc > 0 %}
         <div class="totals-row">
-          <span style="color:var(--text-soft);">vs Suggested</span>
+          <span style="color:var(--text-soft);">After Discount ({{ disc }}% off)</span>
+          <span style="color:#e67e22;font-weight:600;">₹{{ effective_price }}</span>
+        </div>
+        {% endif %}
+
+        {% if cost_breakdown.total_cost > 0 %}
+        {% set diff = effective_price - cost_breakdown.suggested_price %}
+        <div class="totals-row">
+          <span style="color:var(--text-soft);">vs Suggested{% if disc > 0 %} (after discount){% endif %}</span>
           <span style="color:{% if diff >= 0 %}var(--sage-dark){% else %}#c0392b{% endif %};">
             {% if diff >= 0 %}+{% endif %}₹{{ "%.0f"|format(diff) }}
           </span>
