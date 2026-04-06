@@ -349,6 +349,7 @@ def checkout():
 
 
 @shop_bp.route("/custom-order", methods=["GET", "POST"])
+@login_required
 def custom_order():
     success = False
     tracking_token = None
