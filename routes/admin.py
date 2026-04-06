@@ -984,20 +984,24 @@ def product_cost_detail(pid):
             "margin_percent": float(request.form.get("margin_percent", 30)),
             "notes":          request.form.get("notes", "").strip(),
         })
-        item_types  = request.form.getlist("item_type[]")
-        mat_ids     = request.form.getlist("material_id[]")
-        comp_ids    = request.form.getlist("component_id[]")
-        qtys        = request.form.getlist("quantity_used[]")
+
+        item_types = request.form.getlist("item_type[]")
+        mat_ids    = request.form.getlist("material_id[]")
+        comp_ids   = request.form.getlist("component_id[]")
+        qtys       = request.form.getlist("quantity_used[]")
+
         bom_items = []
-        mat_i = comp_i = 0
         for i, itype in enumerate(item_types):
             qty = float(qtys[i]) if i < len(qtys) else 0
-            if itype == "material" and mat_i < len(mat_ids):
-                bom_items.append({"item_type": "material", "material_id": mat_ids[mat_i], "component_id": None, "quantity_used": qty})
-                mat_i += 1
-            elif itype == "component" and comp_i < len(comp_ids):
-                bom_items.append({"item_type": "component", "material_id": None, "component_id": comp_ids[comp_i], "quantity_used": qty})
-                comp_i += 1
+            if itype == "material":
+                mid = mat_ids[i] if i < len(mat_ids) else ""
+                if mid:
+                    bom_items.append({"item_type": "material", "material_id": mid, "component_id": None, "quantity_used": qty})
+            elif itype == "component":
+                cid = comp_ids[i] if i < len(comp_ids) else ""
+                if cid:
+                    bom_items.append({"item_type": "component", "material_id": None, "component_id": cid, "quantity_used": qty})
+
         models.save_product_bom(pid, bom_items)
         flash("Cost breakdown saved!", "success")
         return redirect(url_for("admin.product_cost_detail", pid=pid))
