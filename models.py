@@ -651,3 +651,107 @@ def get_email_log(related_type, related_id):
         "related_type": f"eq.{related_type}",
         "related_id": f"eq.{related_id}",
     }, order="sent_at.desc")
+
+
+# ── Raw Materials ─────────────────────────────────────────
+
+def get_raw_materials():
+    return supa.select("raw_materials", order="name.asc")
+
+def get_raw_material(mid):
+    rows = supa.select("raw_materials", {"id": f"eq.{mid}"})
+    return rows[0] if rows else None
+
+def create_raw_material(data):
+    return supa.insert("raw_materials", data)
+
+def update_raw_material(mid, data):
+    return supa.update("raw_materials", {"id": f"eq.{mid}"}, data)
+
+def delete_raw_material(mid):
+    return supa.delete("raw_materials", {"id": f"eq.{mid}"})
+
+def get_low_stock_materials():
+    """Materials where current_stock <= reorder_level."""
+    materials = get_raw_materials()
+    return [m for m in materials
+            if float(m.get("current_stock", 0)) <= float(m.get("reorder_level", 0))
+            and float(m.get("reorder_level", 0)) > 0]
+
+# ── Expenditures ──────────────────────────────────────────
+
+def get_expenditures(material_id=None):
+    filters = {}
+    if material_id:
+        filters["material_id"] = f"eq.{material_id}"
+    return supa.select("expenditures", filters, order="purchased_at.desc")
+
+def add_expenditure(data):
+    exp = supa.insert("expenditures", data)
+    if exp:
+        # Update material stock and cost_per_unit
+        mat = get_raw_material(data["material_id"])
+        if mat:
+            new_stock = float(mat.get("current_stock", 0)) + float(data["quantity"])
+            supa.update("raw_materials", {"id": f"eq.{data['material_id']}"}, {
+                "current_stock": new_stock,
+                "cost_per_unit": float(data["cost_per_unit"]),
+            })
+    return exp
+
+def deduct_material_stock(material_id, quantity):
+    mat = get_raw_material(material_id)
+    if mat:
+        new_stock = max(0, float(mat.get("current_stock", 0)) - float(quantity))
+        supa.update("raw_materials", {"id": f"eq.{material_id}"}, {"current_stock": new_stock})
+
+# ── Product Costs ─────────────────────────────────────────
+
+def get_product_cost(product_id):
+    rows = supa.select("product_costs", {"product_id": f"eq.{product_id}"})
+    return rows[0] if rows else None
+
+def save_product_cost(product_id, data):
+    existing = get_product_cost(product_id)
+    data["product_id"] = str(product_id)
+    data["updated_at"] = "now()"
+    if existing:
+        return supa.update("product_costs", {"product_id": f"eq.{product_id}"}, data)
+    return supa.insert("product_costs", data)
+
+def get_product_materials(product_id):
+    return supa.select("product_materials", {"product_id": f"eq.{product_id}"})
+
+def save_product_materials(product_id, materials_data):
+    # Delete existing and re-insert
+    supa.delete("product_materials", {"product_id": f"eq.{product_id}"})
+    for m in materials_data:
+        if m.get("material_id") and float(m.get("quantity_used", 0)) > 0:
+            supa.insert("product_materials", {
+                "product_id": str(product_id),
+                "material_id": int(m["material_id"]),
+                "quantity_used": float(m["quantity_used"]),
+            })
+
+def calculate_product_cost(product_id):
+    """Calculate total material cost + labour + overhead, return suggested price."""
+    pm = get_product_materials(product_id)
+    pc = get_product_cost(product_id) or {}
+    material_cost = 0
+    for item in pm:
+        mat = get_raw_material(item["material_id"])
+        if mat:
+            material_cost += float(mat.get("cost_per_unit", 0)) * float(item.get("quantity_used", 0))
+    labour    = float(pc.get("labour_cost", 0))
+    overhead  = float(pc.get("overhead_cost", 0))
+    total_cost = material_cost + labour + overhead
+    margin    = float(pc.get("margin_percent", 30))
+    suggested = round(total_cost * (1 + margin / 100), 2) if total_cost > 0 else 0
+    return {
+        "material_cost": round(material_cost, 2),
+        "labour_cost":   round(labour, 2),
+        "overhead_cost": round(overhead, 2),
+        "total_cost":    round(total_cost, 2),
+        "margin_percent": margin,
+        "suggested_price": suggested,
+    }
