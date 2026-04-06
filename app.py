@@ -15,6 +15,13 @@ def create_app():
         template_folder=os.path.join(os.path.dirname(__file__), "templates"),
     )
     app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-me")
+
+    # Keep users logged in for 15 days
+    from datetime import timedelta
+    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=15)
+    app.config["SESSION_COOKIE_SECURE"]   = True   # HTTPS only
+    app.config["SESSION_COOKIE_HTTPONLY"] = True    # No JS access
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"  # CSRF protection
     app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
     app.config["APPLICATION_ROOT"] = "/"
     app.config["PREFERRED_URL_SCHEME"] = "https"
