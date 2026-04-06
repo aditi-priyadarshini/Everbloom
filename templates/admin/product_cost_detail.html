@@ -1,0 +1,201 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Cost: {{ product.title }}{% endblock %}
+{% block page_title %}Cost Builder — {{ product.title }}{% endblock %}
+{% block content %}
+<a href="{{ url_for('admin.product_costs') }}" class="back-link" style="display:inline-flex;align-items:center;gap:.4rem;margin-bottom:1.5rem;font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-soft);text-decoration:none;">← All Products</a>
+
+<div class="order-detail-layout">
+  <div class="order-detail-main">
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <!-- BOM: Raw Materials + Components -->
+      <div class="admin-card">
+        <h3>Bill of Materials <span style="font-size:.8rem;color:var(--text-soft);font-weight:400;">(per 1 product)</span></h3>
+        <div id="bomList">
+          {% for b in product_bom %}
+          <div class="bom-row" style="display:grid;grid-template-columns:120px 1fr 1fr auto;gap:.8rem;align-items:end;margin-bottom:.8rem;">
+            <div class="form-group" style="margin:0;">
+              <label>Type</label>
+              <select name="item_type[]" onchange="toggleBomItem(this)">
+                <option value="material" {% if b.item_type=='material' %}selected{% endif %}>🧪 Material</option>
+                <option value="component" {% if b.item_type=='component' %}selected{% endif %}>🔧 Component</option>
+              </select>
+            </div>
+            <div class="form-group mat-select" style="margin:0;{% if b.item_type=='component' %}display:none;{% endif %}">
+              <label>Raw Material</label>
+              <select name="material_id[]">
+                <option value="">Select…</option>
+                {% for m in materials %}
+                <option value="{{ m.id }}" {% if b.material_id == m.id %}selected{% endif %}>{{ m.icon or '🧪' }} {{ m.name }} ({{ m.unit }}) — ₹{{ "%.2f"|format(m.cost_per_unit) }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group comp-select" style="margin:0;{% if b.item_type=='material' %}display:none;{% endif %}">
+              <label>Component</label>
+              <select name="component_id[]">
+                <option value="">Select…</option>
+                {% for c in components %}
+                <option value="{{ c.id }}" {% if b.component_id == c.id %}selected{% endif %}>{{ c.icon or '🔧' }} {{ c.name }} ({{ c.unit }})</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label>Qty Used</label>
+              <input type="number" name="quantity_used[]" value="{{ b.quantity_used }}" min="0" step="0.001">
+            </div>
+            <button type="button" onclick="this.parentElement.remove()" style="background:none;border:none;color:#c0392b;font-size:1.3rem;cursor:pointer;padding:.5rem 0;">&times;</button>
+          </div>
+          {% endfor %}
+          {% if not product_bom %}
+          <div class="bom-row" style="display:grid;grid-template-columns:120px 1fr 1fr auto;gap:.8rem;align-items:end;margin-bottom:.8rem;">
+            <div class="form-group" style="margin:0;"><label>Type</label>
+              <select name="item_type[]" onchange="toggleBomItem(this)">
+                <option value="material">🧪 Material</option>
+                <option value="component">🔧 Component</option>
+              </select></div>
+            <div class="form-group mat-select" style="margin:0;"><label>Raw Material</label>
+              <select name="material_id[]"><option value="">Select…</option>
+                {% for m in materials %}<option value="{{ m.id }}">{{ m.icon or '🧪' }} {{ m.name }} ({{ m.unit }}) — ₹{{ "%.2f"|format(m.cost_per_unit) }}</option>{% endfor %}
+              </select></div>
+            <div class="form-group comp-select" style="margin:0;display:none;"><label>Component</label>
+              <select name="component_id[]"><option value="">Select…</option>
+                {% for c in components %}<option value="{{ c.id }}">{{ c.icon or '🔧' }} {{ c.name }} ({{ c.unit }})</option>{% endfor %}
+              </select></div>
+            <div class="form-group" style="margin:0;"><label>Qty Used</label>
+              <input type="number" name="quantity_used[]" min="0" step="0.001" value="0"></div>
+            <button type="button" onclick="this.parentElement.remove()" style="background:none;border:none;color:#c0392b;font-size:1.3rem;cursor:pointer;padding:.5rem 0;">&times;</button>
+          </div>
+          {% endif %}
+        </div>
+        <button type="button" onclick="addRow()" class="btn-outline" style="margin-top:.5rem;">+ Add Item</button>
+      </div>
+
+      <!-- Other costs -->
+      <div class="admin-card">
+        <h3>Other Costs (per product)</h3>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Labour Cost (₹)</label>
+            <input type="number" name="labour_cost" value="{{ product_cost.labour_cost if product_cost else 0 }}" min="0" step="0.01">
+          </div>
+          <div class="form-group">
+            <label>Overhead / Packaging (₹)</label>
+            <input type="number" name="overhead_cost" value="{{ product_cost.overhead_cost if product_cost else 0 }}" min="0" step="0.01">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Margin %</label>
+          <input type="number" name="margin_percent" id="marginInput" value="{{ product_cost.margin_percent if product_cost else 30 }}" min="0" step="0.1" oninput="updateSuggested()">
+        </div>
+      </div>
+
+      <button type="submit" class="btn-primary">Save Cost Breakdown</button>
+    </form>
+  </div>
+
+  <!-- Right: cost summary -->
+  <div class="order-detail-side">
+    <div class="admin-card" style="border-color:var(--gold);background:#fffbf0;">
+      <h3>Cost Summary</h3>
+      <!-- Breakdown by item -->
+      {% if cost_breakdown.breakdown %}
+      <div style="margin-bottom:1rem;">
+        {% for item in cost_breakdown.breakdown %}
+        <div style="display:flex;align-items:center;justify-content:space-between;font-size:.82rem;padding:.3rem 0;border-bottom:1px solid rgba(208,160,160,.15);">
+          <span style="display:flex;align-items:center;gap:.4rem;">
+            <span>{{ item.icon }}</span>
+            <span>{{ item.name }}</span>
+            <span style="color:var(--text-soft);font-size:.75rem;">×{{ item.qty }} {{ item.unit }}</span>
+            {% if item.type == 'component' %}
+            <span style="background:#f3e5f5;color:#6a1b9a;font-size:.65rem;padding:.1rem .3rem;border-radius:10px;">component</span>
+            {% endif %}
+          </span>
+          <span>₹{{ "%.2f"|format(item.cost) }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <div class="order-totals">
+        <div class="totals-row"><span>Materials + Components</span><span>₹{{ "%.2f"|format(cost_breakdown.material_cost) }}</span></div>
+        <div class="totals-row"><span>Labour</span><span>₹{{ "%.2f"|format(cost_breakdown.labour_cost) }}</span></div>
+        <div class="totals-row"><span>Overhead</span><span>₹{{ "%.2f"|format(cost_breakdown.overhead_cost) }}</span></div>
+        <div class="totals-row strong" style="border-top:1px solid var(--rose);padding-top:.5rem;margin-top:.3rem;">
+          <span><strong>Total Manufacturing Cost</strong></span>
+          <strong>₹{{ "%.2f"|format(cost_breakdown.total_cost) }}</strong>
+        </div>
+        <div class="totals-row" style="margin-top:.8rem;">
+          <span>Margin (<span id="marginDisp">{{ "%.0f"|format(cost_breakdown.margin_percent) }}</span>%)</span>
+          <span id="marginAmt">₹{{ "%.2f"|format(cost_breakdown.suggested_price - cost_breakdown.total_cost) }}</span>
+        </div>
+        <div class="totals-row strong" style="border-top:1px solid var(--gold);padding-top:.5rem;margin-top:.3rem;">
+          <span><strong>Suggested Price</strong></span>
+          <strong style="font-size:1.1rem;" id="suggestedPrice">₹{{ "%.0f"|format(cost_breakdown.suggested_price) }}</strong>
+        </div>
+        <div class="totals-row" style="margin-top:.8rem;">
+          <span style="color:var(--text-soft);">Current Price</span>
+          <span>₹{{ "%.0f"|format(product.price) }}</span>
+        </div>
+        {% set diff = product.price - cost_breakdown.suggested_price %}
+        {% if cost_breakdown.total_cost > 0 %}
+        <div class="totals-row">
+          <span style="color:var(--text-soft);">vs Suggested</span>
+          <span style="color:{% if diff >= 0 %}var(--sage-dark){% else %}#c0392b{% endif %};">
+            {% if diff >= 0 %}+{% endif %}₹{{ "%.0f"|format(diff) }}
+          </span>
+        </div>
+        {% endif %}
+      </div>
+      {% if cost_breakdown.total_cost > 0 %}
+      <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--rose);">
+        <a href="{{ url_for('admin.product_edit', pid=product.id) }}" class="btn-outline btn-full" style="font-size:.78rem;">Update Listing Price →</a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<script>
+const totalCost = {{ cost_breakdown.total_cost }};
+const materials = {{ materials | tojson }};
+const components = {{ components | tojson }};
+
+function updateSuggested() {
+  const margin = parseFloat(document.getElementById('marginInput').value) || 0;
+  const suggested = totalCost * (1 + margin / 100);
+  document.getElementById('suggestedPrice').textContent = '₹' + Math.round(suggested).toLocaleString('en-IN');
+  document.getElementById('marginDisp').textContent = Math.round(margin);
+  document.getElementById('marginAmt').textContent = '₹' + (suggested - totalCost).toFixed(2);
+}
+
+function toggleBomItem(sel) {
+  const row = sel.closest('.bom-row');
+  const isMat = sel.value === 'material';
+  row.querySelector('.mat-select').style.display = isMat ? 'block' : 'none';
+  row.querySelector('.comp-select').style.display = isMat ? 'none' : 'block';
+}
+
+function addRow() {
+  const matOpts = materials.map(m => `<option value="${m.id}">${m.icon || '🧪'} ${m.name} (${m.unit}) — ₹${parseFloat(m.cost_per_unit).toFixed(2)}</option>`).join('');
+  const compOpts = components.map(c => `<option value="${c.id}">${c.icon || '🔧'} ${c.name} (${c.unit})</option>`).join('');
+  const row = document.createElement('div');
+  row.className = 'bom-row';
+  row.style.cssText = 'display:grid;grid-template-columns:120px 1fr 1fr auto;gap:.8rem;align-items:end;margin-bottom:.8rem;';
+  row.innerHTML = `
+    <div class="form-group" style="margin:0;"><label>Type</label>
+      <select name="item_type[]" onchange="toggleBomItem(this)">
+        <option value="material">🧪 Material</option>
+        <option value="component">🔧 Component</option>
+      </select></div>
+    <div class="form-group mat-select" style="margin:0;"><label>Raw Material</label>
+      <select name="material_id[]"><option value="">Select…</option>${matOpts}</select></div>
+    <div class="form-group comp-select" style="margin:0;display:none;"><label>Component</label>
+      <select name="component_id[]"><option value="">Select…</option>${compOpts}</select></div>
+    <div class="form-group" style="margin:0;"><label>Qty Used</label>
+      <input type="number" name="quantity_used[]" min="0" step="0.001" value="0"></div>
+    <button type="button" onclick="this.parentElement.remove()" style="background:none;border:none;color:#c0392b;font-size:1.3rem;cursor:pointer;padding:.5rem 0;">&times;</button>
+  `;
+  document.getElementById('bomList').appendChild(row);
+}
+</script>
+{% endblock %}

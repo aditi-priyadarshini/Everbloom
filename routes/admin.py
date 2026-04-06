@@ -15,7 +15,12 @@ admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 def dashboard():
     stats = models.get_stats()
     recent_orders = models.get_orders(limit=10)
-    return render_template("admin/dashboard.html", stats=stats, recent_orders=recent_orders)
+    low_stock_materials = models.get_low_stock_materials()
+    low_stock_components = models.get_low_stock_components()
+    return render_template("admin/dashboard.html", stats=stats,
+                           recent_orders=recent_orders,
+                           low_stock_materials=low_stock_materials,
+                           low_stock_components=low_stock_components)
 
 
 # ── Orders ────────────────────────────────────────────────
@@ -24,20 +29,12 @@ def dashboard():
 @admin_only
 def orders():
     status = request.args.get("status", "")
-    show_custom = request.args.get("custom", "") == "1"
-    if show_custom:
-        order_list = [o for o in models.get_orders() if o.get("is_custom_order")]
-        pending_custom_requests = [r for r in models.get_custom_requests() if r.get("status") not in ("accepted", "rejected")]
-    elif status:
+    if status:
         order_list = models.get_orders(status=status)
-        pending_custom_requests = []
     else:
         order_list = models.get_orders()
-        pending_custom_requests = []
     return render_template("admin/orders.html", orders=order_list,
                            selected_status=status,
-                           show_custom=show_custom,
-                           pending_custom_requests=pending_custom_requests,
                            statuses=models.ORDER_STATUSES,
                            status_labels=models.STATUS_LABELS)
 
@@ -776,3 +773,271 @@ def order_send_email(oid):
                      session["user_id"], "order", oid)
     flash("Email sent to customer!", "success")
     return redirect(url_for("admin.order_detail", oid=oid))
+
+
+# ═══════════════════════════════════════════════════════════
+# RAW MATERIAL INVENTORY
+# ═══════════════════════════════════════════════════════════
+
+@admin_bp.route("/inventory")
+@admin_only
+def inventory():
+    materials = models.get_raw_materials()
+    low_stock = models.get_low_stock_materials()
+    return render_template("admin/inventory.html",
+                           materials=materials, low_stock=low_stock)
+
+
+@admin_bp.route("/inventory/new", methods=["POST"])
+@admin_only
+def inventory_new():
+    data = {
+        "name":          request.form.get("name", "").strip(),
+        "unit":          request.form.get("unit", "units").strip(),
+        "current_stock": float(request.form.get("current_stock", 0)),
+        "reorder_level": float(request.form.get("reorder_level", 0)),
+        "cost_per_unit": float(request.form.get("cost_per_unit", 0)),
+        "supplier":      request.form.get("supplier", "").strip(),
+        "notes":         request.form.get("notes", "").strip(),
+    }
+    models.create_raw_material(data)
+    flash("Material added!", "success")
+    return redirect(url_for("admin.inventory"))
+
+
+@admin_bp.route("/inventory/<int:mid>/edit", methods=["POST"])
+@admin_only
+def inventory_edit(mid):
+    data = {
+        "name":          request.form.get("name", "").strip(),
+        "unit":          request.form.get("unit", "units").strip(),
+        "reorder_level": float(request.form.get("reorder_level", 0)),
+        "cost_per_unit": float(request.form.get("cost_per_unit", 0)),
+        "supplier":      request.form.get("supplier", "").strip(),
+        "notes":         request.form.get("notes", "").strip(),
+    }
+    models.update_raw_material(mid, data)
+    flash("Material updated!", "success")
+    return redirect(url_for("admin.inventory"))
+
+
+@admin_bp.route("/inventory/<int:mid>/delete", methods=["POST"])
+@admin_only
+def inventory_delete(mid):
+    models.delete_raw_material(mid)
+    flash("Material deleted.", "success")
+    return redirect(url_for("admin.inventory"))
+
+
+@admin_bp.route("/inventory/<int:mid>/purchase", methods=["POST"])
+@admin_only
+def inventory_purchase(mid):
+    qty      = float(request.form.get("quantity", 0))
+    cpu      = float(request.form.get("cost_per_unit", 0))
+    supplier = request.form.get("supplier", "").strip()
+    note     = request.form.get("note", "").strip()
+    if qty > 0:
+        models.add_expenditure({
+            "material_id":   mid,
+            "quantity":      qty,
+            "cost_per_unit": cpu,
+            "total_cost":    round(qty * cpu, 2),
+            "supplier":      supplier,
+            "note":          note,
+        })
+        flash(f"Stock updated! Added {qty} units.", "success")
+    return redirect(url_for("admin.inventory"))
+
+
+@admin_bp.route("/inventory/<int:mid>")
+@admin_only
+def inventory_detail(mid):
+    material = models.get_raw_material(mid)
+    if not material:
+        flash("Material not found.", "error")
+        return redirect(url_for("admin.inventory"))
+    expenditures = models.get_expenditures(mid)
+    return render_template("admin/inventory_detail.html",
+                           material=material, expenditures=expenditures)
+
+
+# ═══════════════════════════════════════════════════════════
+# PRODUCT COST BUILDER
+# ═══════════════════════════════════════════════════════════
+
+@admin_bp.route("/product-costs")
+@admin_only
+def product_costs():
+    products = models.get_products()
+    return render_template("admin/product_costs.html", products=products)
+
+# ═══════════════════════════════════════════════════════════
+# COMPONENTS (SEMI-FINISHED GOODS)
+# ═══════════════════════════════════════════════════════════
+
+COMPONENT_ICONS = ["🔧","🪵","🎨","🖼️","🏺","🧱","🪡","🧵","🪢","⚙️","🔩","🪣","📦","🎭","🗿","💎","🪨","🌿","🍃","🌸"]
+
+@admin_bp.route("/components")
+@admin_only
+def components():
+    comps = models.get_components()
+    materials = models.get_raw_materials()
+    low = models.get_low_stock_components()
+    return render_template("admin/components.html",
+                           components=comps, materials=materials,
+                           low_stock=low, icons=COMPONENT_ICONS)
+
+@admin_bp.route("/components/new", methods=["POST"])
+@admin_only
+def component_new():
+    data = {
+        "name":          request.form.get("name", "").strip(),
+        "unit":          request.form.get("unit", "pieces"),
+        "current_stock": float(request.form.get("current_stock", 0)),
+        "reorder_level": float(request.form.get("reorder_level", 0)),
+        "icon":          request.form.get("icon", "🔧"),
+        "notes":         request.form.get("notes", "").strip(),
+    }
+    models.create_component(data)
+    flash("Component added!", "success")
+    return redirect(url_for("admin.components"))
+
+@admin_bp.route("/components/<int:cid>", methods=["GET", "POST"])
+@admin_only
+def component_detail(cid):
+    comp = models.get_component(cid)
+    if not comp:
+        flash("Component not found.", "error")
+        return redirect(url_for("admin.components"))
+    materials = models.get_raw_materials()
+    bom = models.get_component_bom(cid)
+    cost = models.calculate_component_cost(cid)
+    log = supa.select("manufacture_log", {"component_id": f"eq.{cid}"}, order="manufactured_at.desc")
+
+    if request.method == "POST":
+        action = request.form.get("action")
+        if action == "save_bom":
+            mat_ids = request.form.getlist("material_id[]")
+            qtys    = request.form.getlist("quantity_used[]")
+            models.save_component_bom(cid, [
+                {"material_id": m, "quantity_used": q}
+                for m, q in zip(mat_ids, qtys)
+            ])
+            # Also update icon/notes
+            models.update_component(cid, {
+                "icon":  request.form.get("icon", comp.get("icon","🔧")),
+                "notes": request.form.get("notes", "").strip(),
+                "reorder_level": float(request.form.get("reorder_level", 0)),
+            })
+            flash("Component BOM saved!", "success")
+        elif action == "manufacture":
+            qty   = float(request.form.get("quantity", 1))
+            notes = request.form.get("notes", "").strip()
+            ok, errors = models.manufacture_component(cid, qty, notes)
+            if ok:
+                flash(f"Manufactured {qty} × {comp['name']}. Stock updated!", "success")
+            else:
+                for e in errors:
+                    flash(e, "error")
+        elif action == "edit":
+            models.update_component(cid, {
+                "name":  request.form.get("name", comp["name"]).strip(),
+                "unit":  request.form.get("unit", comp["unit"]),
+                "icon":  request.form.get("icon", comp.get("icon","🔧")),
+                "reorder_level": float(request.form.get("reorder_level", 0)),
+                "notes": request.form.get("notes", "").strip(),
+            })
+            flash("Component updated!", "success")
+        return redirect(url_for("admin.component_detail", cid=cid))
+
+    comp = models.get_component(cid)
+    bom  = models.get_component_bom(cid)
+    cost = models.calculate_component_cost(cid)
+    return render_template("admin/component_detail.html",
+                           comp=comp, materials=materials, bom=bom,
+                           cost=cost, log=log, icons=COMPONENT_ICONS)
+
+@admin_bp.route("/components/<int:cid>/delete", methods=["POST"])
+@admin_only
+def component_delete(cid):
+    models.delete_component(cid)
+    flash("Component deleted.", "success")
+    return redirect(url_for("admin.components"))
+
+
+# ── Update product cost detail to use new BOM ─────────────
+
+@admin_bp.route("/product-costs/<pid>", methods=["GET", "POST"])
+@admin_only
+def product_cost_detail(pid):
+    product = models.get_product(pid)
+    if not product:
+        flash("Product not found.", "error")
+        return redirect(url_for("admin.product_costs"))
+    materials  = models.get_raw_materials()
+    components = models.get_components()
+
+    if request.method == "POST":
+        models.save_product_cost(pid, {
+            "labour_cost":    float(request.form.get("labour_cost", 0)),
+            "overhead_cost":  float(request.form.get("overhead_cost", 0)),
+            "margin_percent": float(request.form.get("margin_percent", 30)),
+            "notes":          request.form.get("notes", "").strip(),
+        })
+        item_types  = request.form.getlist("item_type[]")
+        mat_ids     = request.form.getlist("material_id[]")
+        comp_ids    = request.form.getlist("component_id[]")
+        qtys        = request.form.getlist("quantity_used[]")
+        bom_items = []
+        mat_i = comp_i = 0
+        for i, itype in enumerate(item_types):
+            qty = float(qtys[i]) if i < len(qtys) else 0
+            if itype == "material" and mat_i < len(mat_ids):
+                bom_items.append({"item_type": "material", "material_id": mat_ids[mat_i], "component_id": None, "quantity_used": qty})
+                mat_i += 1
+            elif itype == "component" and comp_i < len(comp_ids):
+                bom_items.append({"item_type": "component", "material_id": None, "component_id": comp_ids[comp_i], "quantity_used": qty})
+                comp_i += 1
+        models.save_product_bom(pid, bom_items)
+        flash("Cost breakdown saved!", "success")
+        return redirect(url_for("admin.product_cost_detail", pid=pid))
+
+    product_cost   = models.get_product_cost(pid)
+    product_bom    = models.get_product_bom(pid)
+    cost_breakdown = models.calculate_product_bom_cost(pid)
+    return render_template("admin/product_cost_detail.html",
+                           product=product, materials=materials,
+                           components=components, product_cost=product_cost,
+                           product_bom=product_bom, cost_breakdown=cost_breakdown)
+
+
+# ── Order Requirements Panel ──────────────────────────────
+
+@admin_bp.route("/orders/<oid>/requirements")
+@admin_only
+def order_requirements(oid):
+    order = models.get_order(oid)
+    if not order:
+        flash("Order not found.", "error")
+        return redirect(url_for("admin.orders"))
+    items = models.get_order_items(oid)
+    reqs  = models.calculate_order_requirements(oid)
+    reqs_with_status = models.check_requirements_availability(reqs)
+    all_available = all(r["is_available"] for r in reqs_with_status)
+    return render_template("admin/order_requirements.html",
+                           order=order, items=items,
+                           requirements=reqs_with_status,
+                           all_available=all_available)
+
+
+@admin_bp.route("/orders/<oid>/deduct-stock", methods=["POST"])
+@admin_only
+def order_deduct_stock(oid):
+    order = models.get_order(oid)
+    if not order:
+        flash("Order not found.", "error")
+        return redirect(url_for("admin.orders"))
+    models.deduct_order_materials(oid)
+    models.add_tracking(oid, order["status"], "Inventory deducted for this order.")
+    flash("Stock deducted from inventory!", "success")
+    return redirect(url_for("admin.order_requirements", oid=oid))

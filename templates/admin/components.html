@@ -1,0 +1,116 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Components{% endblock %}
+{% block page_title %}Components (Semi-finished Goods){% endblock %}
+{% block content %}
+
+{% if low_stock %}
+<div style="background:#fce4e4;border:1px solid #e8a0a0;border-radius:6px;padding:1rem 1.2rem;margin-bottom:1.5rem;display:flex;align-items:center;gap:.8rem;">
+  <span style="font-size:1.3rem;">⚠️</span>
+  <div style="flex:1;">
+    <strong style="color:#c0392b;">Low Component Stock!</strong>
+    <p style="font-size:.84rem;color:#c0392b;margin:.2rem 0 0;">
+      {% for c in low_stock %}{{ c.icon }} {{ c.name }} ({{ c.current_stock }} left){% if not loop.last %} · {% endif %}{% endfor %}
+    </p>
+  </div>
+</div>
+{% endif %}
+
+<div style="background:#e8f0fe;border:1px solid #b0c4f8;border-radius:6px;padding:1rem 1.2rem;margin-bottom:1.5rem;font-size:.88rem;color:#1a3a8a;">
+  <strong>How this works:</strong> Components are semi-finished goods you make from raw materials. 
+  Example: a "Painted Base" made from clay + paint. Then your final products use components + raw materials.
+  When you manufacture a batch of components, raw material stock is automatically deducted.
+</div>
+
+<!-- Add New Component -->
+<div class="admin-card" style="margin-bottom:1.5rem;">
+  <h3>Add New Component</h3>
+  <form method="post" action="{{ url_for('admin.component_new') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-row-4">
+      <div class="form-group">
+        <label>Component Name *</label>
+        <input type="text" name="name" placeholder="e.g. Sculpted Base" required>
+      </div>
+      <div class="form-group">
+        <label>Unit</label>
+        <select name="unit">
+          <option value="pieces">Pieces</option>
+          <option value="units">Units</option>
+          <option value="sets">Sets</option>
+          <option value="batches">Batches</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Opening Stock</label>
+        <input type="number" name="current_stock" value="0" min="0" step="0.01">
+      </div>
+      <div class="form-group">
+        <label>Reorder Alert At</label>
+        <input type="number" name="reorder_level" value="0" min="0" step="0.01">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Icon</label>
+        <div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.4rem;">
+          {% for icon in icons %}
+          <label style="cursor:pointer;">
+            <input type="radio" name="icon" value="{{ icon }}" {% if loop.first %}checked{% endif %} style="display:none;" onchange="document.getElementById('selectedIcon').textContent='{{ icon }}'">
+            <span style="font-size:1.4rem;padding:.2rem .3rem;border-radius:4px;border:2px solid transparent;display:inline-block;" onclick="this.previousElementSibling.click();document.querySelectorAll('.icon-opt').forEach(e=>e.style.borderColor='transparent');this.style.borderColor='#5c3d3d';" class="icon-opt">{{ icon }}</span>
+          </label>
+          {% endfor %}
+        </div>
+        <p style="font-size:.78rem;color:var(--text-soft);margin-top:.3rem;">Selected: <span id="selectedIcon">🔧</span></p>
+      </div>
+      <div class="form-group">
+        <label>Notes</label>
+        <input type="text" name="notes" placeholder="Any notes…">
+      </div>
+    </div>
+    <button type="submit" class="btn-primary">Add Component</button>
+  </form>
+</div>
+
+<!-- Components List -->
+<div class="admin-table-wrap">
+  <table class="admin-table">
+    <thead><tr><th>Component</th><th>Stock</th><th>Reorder At</th><th>Material Cost</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+      {% for c in components %}
+      {% set is_low = c.current_stock <= c.reorder_level and c.reorder_level > 0 %}
+      {% set cost = namespace(val=0) %}
+      <tr>
+        <td>
+          <div style="display:flex;align-items:center;gap:.6rem;">
+            <span style="font-size:1.5rem;">{{ c.icon or '🔧' }}</span>
+            <div>
+              <strong>{{ c.name }}</strong>
+              {% if c.notes %}<br><span style="font-size:.75rem;color:var(--text-soft);">{{ c.notes }}</span>{% endif %}
+            </div>
+          </div>
+        </td>
+        <td style="font-weight:500;{% if is_low %}color:#c0392b;{% endif %}">{{ c.current_stock }} {{ c.unit }}</td>
+        <td>{{ c.reorder_level }} {{ c.unit }}</td>
+        <td style="color:var(--text-soft);font-size:.84rem;">Calculated in detail</td>
+        <td>
+          {% if is_low %}
+          <span style="background:#fce4e4;color:#c0392b;font-size:.68rem;padding:.2rem .5rem;border-radius:20px;">⚠ Low</span>
+          {% else %}
+          <span style="background:#e8f5e9;color:#2e7d32;font-size:.68rem;padding:.2rem .5rem;border-radius:20px;">✓ OK</span>
+          {% endif %}
+        </td>
+        <td>
+          <a href="{{ url_for('admin.component_detail', cid=c.id) }}" class="btn-primary-sm" style="margin-right:.3rem;">Manage →</a>
+          <form method="post" action="{{ url_for('admin.component_delete', cid=c.id) }}" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="table-action danger" onclick="return confirm('Delete?')">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="empty-row">No components yet. Add your first one above.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
