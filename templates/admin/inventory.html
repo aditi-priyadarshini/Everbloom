@@ -1,0 +1,186 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Inventory{% endblock %}
+{% block page_title %}Raw Material Inventory{% endblock %}
+{% block content %}
+
+{% if low_stock %}
+<div style="background:#fce4e4;border:1px solid #e8a0a0;border-radius:6px;padding:1rem 1.2rem;margin-bottom:1.5rem;display:flex;align-items:flex-start;gap:.8rem;">
+  <span style="font-size:1.3rem;">⚠️</span>
+  <div>
+    <strong style="color:#c0392b;">Low Stock Alert!</strong>
+    <p style="font-size:.86rem;color:#c0392b;margin:.2rem 0 0;">
+      {% for m in low_stock %}{{ m.name }} ({{ m.current_stock }} {{ m.unit }} left){% if not loop.last %}, {% endif %}{% endfor %}
+    </p>
+  </div>
+</div>
+{% endif %}
+
+<!-- Add New Material -->
+<div class="admin-card" style="margin-bottom:1.5rem;">
+  <h3>Add New Material</h3>
+  <form method="post" action="{{ url_for('admin.inventory_new') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-row-4">
+      <div class="form-group">
+        <label>Material Name *</label>
+        <input type="text" name="name" placeholder="e.g. Acrylic Paint" required>
+      </div>
+      <div class="form-group">
+        <label>Unit</label>
+        <select name="unit">
+          <option value="grams">Grams</option>
+          <option value="kg">Kg</option>
+          <option value="ml">ml</option>
+          <option value="litres">Litres</option>
+          <option value="sheets">Sheets</option>
+          <option value="pieces">Pieces</option>
+          <option value="metres">Metres</option>
+          <option value="units" selected>Units</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Opening Stock</label>
+        <input type="number" name="current_stock" value="0" min="0" step="0.01">
+      </div>
+      <div class="form-group">
+        <label>Reorder Alert Level</label>
+        <input type="number" name="reorder_level" value="0" min="0" step="0.01">
+      </div>
+    </div>
+    <div class="form-row-4">
+      <div class="form-group">
+        <label>Cost per Unit (₹)</label>
+        <input type="number" name="cost_per_unit" value="0" min="0" step="0.01">
+      </div>
+      <div class="form-group">
+        <label>Supplier</label>
+        <input type="text" name="supplier" placeholder="Supplier name">
+      </div>
+      <div class="form-group" style="grid-column:span 2;">
+        <label>Notes</label>
+        <input type="text" name="notes" placeholder="Any notes…">
+      </div>
+    </div>
+    <button type="submit" class="btn-primary">Add Material</button>
+  </form>
+</div>
+
+<!-- Materials Table -->
+<div class="admin-table-wrap">
+  <table class="admin-table">
+    <thead><tr>
+      <th>Material</th><th>Unit</th><th>In Stock</th><th>Reorder At</th><th>Cost/Unit</th><th>Supplier</th><th>Status</th><th></th>
+    </tr></thead>
+    <tbody>
+      {% for m in materials %}
+      {% set is_low = m.current_stock <= m.reorder_level and m.reorder_level > 0 %}
+      <tr class="{% if is_low %}low-stock-row{% endif %}">
+        <td><strong>{{ m.name }}</strong>{% if m.notes %}<br><span style="font-size:.75rem;color:var(--text-soft);">{{ m.notes }}</span>{% endif %}</td>
+        <td>{{ m.unit }}</td>
+        <td style="font-weight:500;{% if is_low %}color:#c0392b;{% endif %}">{{ m.current_stock }}</td>
+        <td>{{ m.reorder_level }}</td>
+        <td>₹{{ "%.2f"|format(m.cost_per_unit) }}</td>
+        <td>{{ m.supplier or '—' }}</td>
+        <td>
+          {% if is_low %}
+          <span style="background:#fce4e4;color:#c0392b;font-size:.68rem;padding:.2rem .5rem;border-radius:20px;letter-spacing:.06em;text-transform:uppercase;">⚠ Low</span>
+          {% else %}
+          <span style="background:#e8f5e9;color:#2e7d32;font-size:.68rem;padding:.2rem .5rem;border-radius:20px;letter-spacing:.06em;text-transform:uppercase;">OK</span>
+          {% endif %}
+        </td>
+        <td>
+          <a href="{{ url_for('admin.inventory_detail', mid=m.id) }}" class="table-action">History</a>
+          <button class="table-action" onclick="showEdit({{ m.id }}, '{{ m.name }}', '{{ m.unit }}', {{ m.reorder_level }}, {{ m.cost_per_unit }}, '{{ m.supplier or '' }}')">Edit</button>
+          <form method="post" action="{{ url_for('admin.inventory_delete', mid=m.id) }}" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="table-action danger" onclick="return confirm('Delete this material?')">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="empty-row">No materials yet. Add your first one above.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Add Stock / Purchase Modal -->
+<div id="purchaseModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:8px;padding:2rem;width:440px;max-width:95vw;">
+    <h3 style="font-family:'Cormorant Garamond',serif;font-size:1.2rem;color:#3a2a2a;margin-bottom:1.2rem;">Add Stock Purchase</h3>
+    <form method="post" id="purchaseForm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group"><label>Quantity Purchased</label>
+        <input type="number" name="quantity" min="0.01" step="0.01" required></div>
+      <div class="form-group"><label>Cost per Unit (₹)</label>
+        <input type="number" name="cost_per_unit" min="0" step="0.01" required></div>
+      <div class="form-group"><label>Supplier</label>
+        <input type="text" name="supplier"></div>
+      <div class="form-group"><label>Note</label>
+        <input type="text" name="note" placeholder="Invoice no., date, etc."></div>
+      <div style="display:flex;gap:.8rem;margin-top:1rem;">
+        <button type="submit" class="btn-primary">Add Stock</button>
+        <button type="button" class="btn-outline" onclick="hidePurchase()">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:8px;padding:2rem;width:440px;max-width:95vw;">
+    <h3 style="font-family:'Cormorant Garamond',serif;font-size:1.2rem;color:#3a2a2a;margin-bottom:1.2rem;">Edit Material</h3>
+    <form method="post" id="editForm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group"><label>Name</label><input type="text" name="name" id="editName" required></div>
+      <div class="form-group"><label>Unit</label>
+        <select name="unit" id="editUnit">
+          <option value="grams">Grams</option><option value="kg">Kg</option>
+          <option value="ml">ml</option><option value="litres">Litres</option>
+          <option value="sheets">Sheets</option><option value="pieces">Pieces</option>
+          <option value="metres">Metres</option><option value="units">Units</option>
+        </select></div>
+      <div class="form-group"><label>Reorder Alert Level</label><input type="number" name="reorder_level" id="editReorder" step="0.01"></div>
+      <div class="form-group"><label>Cost per Unit (₹)</label><input type="number" name="cost_per_unit" id="editCpu" step="0.01"></div>
+      <div class="form-group"><label>Supplier</label><input type="text" name="supplier" id="editSupplier"></div>
+      <div style="display:flex;gap:.8rem;margin-top:1rem;">
+        <button type="submit" class="btn-primary">Save</button>
+        <button type="button" class="btn-outline" onclick="hideEdit()">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function showPurchase(mid) {
+  document.getElementById('purchaseForm').action = `/admin/inventory/${mid}/purchase`;
+  document.getElementById('purchaseModal').style.display = 'flex';
+}
+function hidePurchase() { document.getElementById('purchaseModal').style.display = 'none'; }
+
+function showEdit(mid, name, unit, reorder, cpu, supplier) {
+  document.getElementById('editForm').action = `/admin/inventory/${mid}/edit`;
+  document.getElementById('editName').value = name;
+  document.getElementById('editUnit').value = unit;
+  document.getElementById('editReorder').value = reorder;
+  document.getElementById('editCpu').value = cpu;
+  document.getElementById('editSupplier').value = supplier;
+  document.getElementById('editModal').style.display = 'flex';
+}
+function hideEdit() { document.getElementById('editModal').style.display = 'none'; }
+
+// Add "Add Stock" button to each row
+document.querySelectorAll('tbody tr:not(.empty-row)').forEach((row, i) => {
+  const materials = {{ materials | tojson }};
+  if (materials[i]) {
+    const td = row.querySelector('td:last-child');
+    const btn = document.createElement('button');
+    btn.className = 'btn-primary-sm';
+    btn.style.marginRight = '.3rem';
+    btn.textContent = '+ Stock';
+    btn.onclick = () => showPurchase(materials[i].id);
+    td.insertBefore(btn, td.firstChild);
+  }
+});
+</script>
+{% endblock %}
