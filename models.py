@@ -40,7 +40,7 @@ def get_category(cid):
 # ── Products ──────────────────────────────────────────────
 
 def get_products(category_id=None, featured=False, in_stock=False,
-                 on_sale=False, flash=False, order="created_at.desc", limit=None, search=None):
+                 on_sale=False, flash=False, order="created_at.desc", limit=None, search=None, listed_only=True):
     filters = {}
     if category_id:
         filters["category_id"] = f"eq.{category_id}"
@@ -54,6 +54,8 @@ def get_products(category_id=None, featured=False, in_stock=False,
         filters["is_flash_sale"] = "eq.true"
     if search:
         filters["title"] = f"ilike.*{search}*"
+    if listed_only:
+        filters["is_listed"] = "eq.true"
     return supa.select("products", filters, order=order, limit=limit)
 
 

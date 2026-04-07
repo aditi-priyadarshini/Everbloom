@@ -288,6 +288,7 @@ def checkout():
             is_preorder_order = any(str(i["product"]["id"]) in preorder_pids for i in items)
             total = round(subtotal - discount - gift_card_discount, 2)
             total = max(0, total)
+            pref_date = request.form.get("preferred_delivery_date", "").strip() or None
             order = models.create_order({
                 "user_id": session["user_id"],
                 "name": name, "phone": phone, "address": address,
@@ -297,6 +298,7 @@ def checkout():
                 "delivery_type": delivery_type,
                 "shipping_charge": 0,
                 "is_preorder": is_preorder_order,
+                "preferred_delivery_date": pref_date,
                 "status": "placed",
             })
             if order:
@@ -341,11 +343,16 @@ def checkout():
                 flash("Order placed successfully!", "success")
                 return redirect(url_for("orders.orders_list"))
 
+    from datetime import date, timedelta
     user = models.get_user_by_id(session["user_id"])
+    # Min delivery date = today + max crafting days across cart items
+    max_crafting = max((i["product"].get("crafting_days") or 7 for i in items), default=7)
+    min_date = (date.today() + timedelta(days=int(max_crafting))).isoformat()
     return render_template("shop/checkout.html",
                            items=items, subtotal=subtotal,
                            discount=discount, user=user,
-                           coupon_error=coupon_error)
+                           coupon_error=coupon_error,
+                           min_date=min_date)
 
 
 @shop_bp.route("/custom-order", methods=["GET", "POST"])
@@ -374,6 +381,7 @@ def custom_order():
             "reference_image_url": ref_url,
             "user_id": session.get("user_id"),
             "tracking_token": tracking_token,
+            "preferred_delivery_date": request.form.get("preferred_delivery_date", "").strip() or None,
             "status": "pending",
         }
         if models.create_custom_request(data):
@@ -390,7 +398,10 @@ def custom_order():
                     f"New custom order request from {data['name']} ({data['email']}).\n\nCraft Type: {data.get('craft_type','')}\nBudget: {data.get('budget','')}\n\nDescription:\n{data['description']}\n\nView: {site_url}/admin/custom-requests"
                 )
             success = True
-    return render_template("shop/custom_order.html", success=success, tracking_token=tracking_token)
+    from datetime import date, timedelta
+    min_date = (date.today() + timedelta(days=14)).isoformat()
+    return render_template("shop/custom_order.html", success=success,
+                           tracking_token=tracking_token, min_date=min_date)
 
 
 @shop_bp.route("/custom-order/track/<token>")

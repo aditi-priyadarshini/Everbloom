@@ -152,7 +152,7 @@ def order_detail(oid):
 def products():
     search = request.args.get("q", "")
     category_id = request.args.get("category")
-    prods = models.get_products(category_id=category_id, search=search or None)
+    prods = models.get_products(category_id=category_id, search=search or None, listed_only=False)
     categories = models.get_categories()
     return render_template("admin/products.html", products=prods,
                            categories=categories, search=search,
@@ -190,6 +190,20 @@ def product_edit(pid):
                            categories=categories, action="edit")
 
 
+@admin_bp.route("/products/<pid>/toggle-listing", methods=["POST"])
+@admin_only
+def product_toggle_listing(pid):
+    p = models.get_product(pid)
+    if p:
+        current = p.get("is_listed", True)
+        if current is None:
+            current = True
+        models.update_product(pid, {"is_listed": not current})
+        state = "listed" if not current else "unlisted"
+        flash(f"Product {state}.", "success")
+    return redirect(url_for("admin.products"))
+
+
 @admin_bp.route("/products/<pid>/delete", methods=["POST"])
 @admin_only
 def product_delete(pid):
@@ -210,6 +224,7 @@ def _parse_product_form(req, existing=None):
         "featured": req.form.get("featured") == "on",
         "is_flash_sale": req.form.get("is_flash_sale") == "on",
         "allow_preorder": req.form.get("allow_preorder") == "on",
+        "is_listed": req.form.get("is_listed") == "on",
         "crafting_days": int(req.form.get("crafting_days", 7)),
     }
     flash_ends = req.form.get("flash_sale_ends_at", "")
@@ -871,6 +886,9 @@ def product_costs():
     products = models.get_products()
     return render_template("admin/product_costs.html", products=products)
 
+
+
+
 # ═══════════════════════════════════════════════════════════
 # COMPONENTS (SEMI-FINISHED GOODS)
 # ═══════════════════════════════════════════════════════════
@@ -984,24 +1002,20 @@ def product_cost_detail(pid):
             "margin_percent": float(request.form.get("margin_percent", 30)),
             "notes":          request.form.get("notes", "").strip(),
         })
-
-        item_types = request.form.getlist("item_type[]")
-        mat_ids    = request.form.getlist("material_id[]")
-        comp_ids   = request.form.getlist("component_id[]")
-        qtys       = request.form.getlist("quantity_used[]")
-
+        item_types  = request.form.getlist("item_type[]")
+        mat_ids     = request.form.getlist("material_id[]")
+        comp_ids    = request.form.getlist("component_id[]")
+        qtys        = request.form.getlist("quantity_used[]")
         bom_items = []
+        mat_i = comp_i = 0
         for i, itype in enumerate(item_types):
             qty = float(qtys[i]) if i < len(qtys) else 0
-            if itype == "material":
-                mid = mat_ids[i] if i < len(mat_ids) else ""
-                if mid:
-                    bom_items.append({"item_type": "material", "material_id": mid, "component_id": None, "quantity_used": qty})
-            elif itype == "component":
-                cid = comp_ids[i] if i < len(comp_ids) else ""
-                if cid:
-                    bom_items.append({"item_type": "component", "material_id": None, "component_id": cid, "quantity_used": qty})
-
+            if itype == "material" and mat_i < len(mat_ids):
+                bom_items.append({"item_type": "material", "material_id": mat_ids[mat_i], "component_id": None, "quantity_used": qty})
+                mat_i += 1
+            elif itype == "component" and comp_i < len(comp_ids):
+                bom_items.append({"item_type": "component", "material_id": None, "component_id": comp_ids[comp_i], "quantity_used": qty})
+                comp_i += 1
         models.save_product_bom(pid, bom_items)
         flash("Cost breakdown saved!", "success")
         return redirect(url_for("admin.product_cost_detail", pid=pid))
