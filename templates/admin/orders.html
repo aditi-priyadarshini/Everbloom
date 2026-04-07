@@ -3,54 +3,22 @@
 {% block page_title %}Orders{% endblock %}
 {% block content %}
 <div class="filter-tabs">
-  <a href="{{ url_for('admin.orders') }}" class="tab {% if not selected_status and not show_custom %}active{% endif %}">All</a>
+  <a href="{{ url_for('admin.orders') }}" class="tab {% if not selected_status %}active{% endif %}">All</a>
   {% for s in statuses %}
   <a href="{{ url_for('admin.orders') }}?status={{ s }}" class="tab {% if selected_status == s %}active{% endif %}">
     {{ status_labels.get(s, s) }}
   </a>
   {% endfor %}
-  <a href="{{ url_for('admin.orders') }}?custom=1" class="tab {% if show_custom %}active{% endif %}">✦ Custom Orders</a>
 </div>
-
-{% if show_custom and pending_custom_requests %}
-<h3 style="margin: 1.5rem 0 0.75rem; font-size: 0.95rem; color: var(--text-muted, #888);">Pending Requests (not yet quoted/accepted)</h3>
-<div class="admin-table-wrap" style="margin-bottom: 2rem;">
-  <table class="admin-table">
-    <thead><tr>
-      <th>Name</th><th>Email</th><th>Craft Type</th><th>Budget</th><th>Status</th><th>Date</th><th></th>
-    </tr></thead>
-    <tbody>
-      {% for r in pending_custom_requests %}
-      <tr>
-        <td>{{ r.name }}</td>
-        <td>{{ r.email }}</td>
-        <td>{{ r.craft_type or '—' }}</td>
-        <td>{{ r.budget or '—' }}</td>
-        <td><span class="status-pill status-{{ r.status }}">{{ r.status|capitalize }}</span></td>
-        <td>{{ r.created_at[:10] }}</td>
-        <td><a href="{{ url_for('admin.custom_request_detail', rid=r.id) }}" class="table-action">Review →</a></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-<h3 style="margin: 1.5rem 0 0.75rem; font-size: 0.95rem; color: var(--text-muted, #888);">Accepted Custom Orders</h3>
-{% endif %}
-
 <div class="admin-table-wrap">
   <table class="admin-table">
     <thead><tr>
-      <th>Order ID</th><th>Customer</th><th>Phone</th><th>Total</th><th>Advance</th><th>Status</th><th>Date</th><th></th>
+      <th>Order ID</th><th>Customer</th><th>Phone</th><th>Total</th><th>Advance</th><th>Status</th><th>Pref. Date</th><th>Date</th><th></th>
     </tr></thead>
     <tbody>
       {% for o in orders %}
       <tr>
-        <td>
-          <code>#{{ o.id[:8]|upper }}</code>
-          {% if o.get('is_custom_order') %}
-          <span class="status-pill status-crafting" style="font-size:0.65rem;padding:2px 6px;margin-left:4px;">Custom</span>
-          {% endif %}
-        </td>
+        <td><code>#{{ o.id[:8]|upper }}</code></td>
         <td>{{ o.name }}</td>
         <td>{{ o.phone }}</td>
         <td>₹{{ "%.0f"|format(o.total) }}</td>
