@@ -67,6 +67,20 @@
         {% if coupon_error %}<p class="form-error" style="margin-top:.5rem;">{{ coupon_error }}</p>{% endif %}
       </div>
 
+      <!-- Preferred delivery date -->
+      <div class="form-section">
+        <h3>Preferred Delivery Date <span style="font-size:.82rem;color:var(--text-soft);font-weight:300;">(optional)</span></h3>
+        <div class="form-group">
+          <label>When would you like to receive it?</label>
+          <input type="date" name="preferred_delivery_date" id="prefDateInput"
+                 min="{{ min_date }}"
+                 style="width:100%;padding:.75rem;border:1px solid var(--rose);border-radius:4px;font-family:'Jost',sans-serif;font-size:.9rem;">
+          <p class="form-hint" style="margin-top:.4rem;">
+            Leave blank if you have no preference. Note: crafting takes time — we'll confirm if your date is achievable.
+          </p>
+        </div>
+      </div>
+
       <button type="submit" class="btn-primary btn-full">Place Order</button>
       <p class="checkout-note">No payment at checkout — we'll review and share payment details.</p>
     </form>

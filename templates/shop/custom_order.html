@@ -106,6 +106,16 @@
       </div>
     </div>
 
+    <div class="form-section">
+      <h3>Preferred Delivery Date <span style="font-size:.82rem;color:var(--text-soft);font-weight:300;">(optional)</span></h3>
+      <div class="form-group">
+        <label>When do you need it by?</label>
+        <input type="date" name="preferred_delivery_date" min="{{ min_date }}"
+               style="width:100%;padding:.75rem;border:1px solid var(--rose);border-radius:4px;font-family:'Jost',sans-serif;font-size:.9rem;">
+        <p class="form-hint" style="margin-top:.4rem;">Leave blank if flexible. We'll let you know during quoting if the date is achievable.</p>
+      </div>
+    </div>
+
     <button type="submit" class="btn-primary btn-full">Submit Request</button>
     <p class="checkout-note">We'll review your request and send a quote within 2–3 business days.</p>
   </form>
