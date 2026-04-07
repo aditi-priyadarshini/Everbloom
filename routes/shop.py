@@ -356,6 +356,7 @@ def checkout():
 
 
 @shop_bp.route("/custom-order", methods=["GET", "POST"])
+@login_required
 def custom_order():
     success = False
     tracking_token = None
@@ -413,7 +414,6 @@ def custom_order_track(token):
 
 
 @shop_bp.route("/custom-order/respond/<token>/<response>")
-@login_required
 def custom_order_respond(token, response):
     req = models.get_custom_request_by_token(token)
     if not req or req.get("status") != "quoted":
