@@ -887,42 +887,6 @@ def product_costs():
     return render_template("admin/product_costs.html", products=products)
 
 
-@admin_bp.route("/product-costs/<pid>", methods=["GET", "POST"])
-@admin_only
-def product_cost_detail(pid):
-    product = models.get_product(pid)
-    if not product:
-        flash("Product not found.", "error")
-        return redirect(url_for("admin.product_costs"))
-
-    materials = models.get_raw_materials()
-
-    if request.method == "POST":
-        # Save cost info
-        models.save_product_cost(pid, {
-            "labour_cost":   float(request.form.get("labour_cost", 0)),
-            "overhead_cost": float(request.form.get("overhead_cost", 0)),
-            "margin_percent": float(request.form.get("margin_percent", 30)),
-            "notes":         request.form.get("notes", "").strip(),
-        })
-        # Save materials used
-        mat_ids  = request.form.getlist("material_id[]")
-        mat_qtys = request.form.getlist("quantity_used[]")
-        mats_data = [{"material_id": mid, "quantity_used": qty}
-                     for mid, qty in zip(mat_ids, mat_qtys)]
-        models.save_product_materials(pid, mats_data)
-        flash("Cost breakdown saved!", "success")
-        return redirect(url_for("admin.product_cost_detail", pid=pid))
-
-    product_cost   = models.get_product_cost(pid)
-    product_mats   = models.get_product_materials(pid)
-    cost_breakdown = models.calculate_product_cost(pid)
-    return render_template("admin/product_cost_detail.html",
-                           product=product,
-                           materials=materials,
-                           product_cost=product_cost,
-                           product_mats=product_mats,
-                           cost_breakdown=cost_breakdown)
 
 
 # ═══════════════════════════════════════════════════════════
