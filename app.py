@@ -2,9 +2,11 @@ import os
 from flask import Flask
 from flask_mail import Mail
 from flask_wtf.csrf import CSRFProtect
+from authlib.integrations.flask_client import OAuth
 
 mail = Mail()
 csrf = CSRFProtect()
+oauth = OAuth()
 
 
 def create_app():
@@ -40,6 +42,16 @@ def create_app():
 
     mail.init_app(app)
     csrf.init_app(app)
+    oauth.init_app(app)
+
+    # Google OAuth
+    oauth.register(
+        name="google",
+        client_id=os.environ.get("GOOGLE_CLIENT_ID", ""),
+        client_secret=os.environ.get("GOOGLE_CLIENT_SECRET", ""),
+        server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+        client_kwargs={"scope": "openid email profile"},
+    )
 
     from routes.auth import auth_bp
     from routes.shop import shop_bp
