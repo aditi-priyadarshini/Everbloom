@@ -883,7 +883,7 @@ def inventory_detail(mid):
 @admin_bp.route("/product-costs")
 @admin_only
 def product_costs():
-    products = models.get_products()
+    products = models.get_products(listed_only=False)
     return render_template("admin/product_costs.html", products=products)
 
 
