@@ -143,3 +143,111 @@ document.querySelectorAll('input[type="file"][accept*="image"]').forEach(input =
     input.parentElement.appendChild(row);
   });
 });
+// ── Instagram / Facebook In-App Browser Detection ────────
+(function() {
+  const ua = navigator.userAgent || '';
+  const isIAB = /Instagram|FBAN|FBAV|FB_IAB|FB4A|FBIOS|musical_ly|TikTok|Snapchat|Twitter|LinkedInApp/i.test(ua);
+
+  if (!isIAB) return;
+
+  // Don't show if user already dismissed
+  if (sessionStorage.getItem('iab_dismissed')) return;
+
+  const isAndroid = /Android/i.test(ua);
+  const isIOS = /iPhone|iPad|iPod/i.test(ua);
+  const currentUrl = window.location.href;
+
+  // Build banner
+  const banner = document.createElement('div');
+  banner.id = 'iab-banner';
+  banner.style.cssText = `
+    position: fixed; top: 0; left: 0; right: 0; z-index: 99999;
+    background: #5c3d3d; color: #fdf6f0;
+    padding: 14px 16px; display: flex;
+    align-items: center; gap: 12px;
+    font-family: 'Jost', sans-serif; font-size: 13px;
+    box-shadow: 0 2px 12px rgba(0,0,0,.25);
+  `;
+
+  banner.innerHTML = `
+    <span style="font-size:1.3rem;flex-shrink:0;">🌸</span>
+    <div style="flex:1;line-height:1.5;">
+      <strong style="display:block;font-size:14px;margin-bottom:2px;">Open in your browser for full experience</strong>
+      <span style="opacity:.8;font-size:12px;">Google sign-in & all features work best in Chrome or Safari.</span>
+    </div>
+    <div style="display:flex;gap:8px;flex-shrink:0;">
+      <button id="iab-open-btn" style="
+        background:#e8c4b8; color:#3a2a2a; border:none;
+        padding:8px 14px; border-radius:4px; font-size:12px;
+        font-weight:500; cursor:pointer; font-family:'Jost',sans-serif;
+        white-space:nowrap;
+      ">Open in Browser</button>
+      <button id="iab-dismiss-btn" style="
+        background:none; border:none; color:#e8c4b8;
+        font-size:18px; cursor:pointer; padding:4px 6px; line-height:1;
+      ">&times;</button>
+    </div>
+  `;
+
+  document.body.insertBefore(banner, document.body.firstChild);
+
+  // Push page content down
+  document.body.style.paddingTop = (parseInt(document.body.style.paddingTop || 0) + 72) + 'px';
+
+  // Dismiss button
+  document.getElementById('iab-dismiss-btn').addEventListener('click', function() {
+    banner.remove();
+    document.body.style.paddingTop = '';
+    sessionStorage.setItem('iab_dismissed', '1');
+  });
+
+  // Open in browser button
+  document.getElementById('iab-open-btn').addEventListener('click', function() {
+    if (isAndroid) {
+      // Android: intent:// scheme forces Chrome
+      const intentUrl = 'intent://' + currentUrl.replace(/^https?:\/\//, '') +
+        '#Intent;scheme=https;package=com.android.chrome;end';
+      window.location.href = intentUrl;
+      // Fallback after 1.5s: show manual instructions
+      setTimeout(showInstructions, 1500);
+    } else if (isIOS) {
+      // iOS: can't force browser, show instructions
+      showInstructions();
+    } else {
+      window.open(currentUrl, '_blank');
+    }
+  });
+
+  function showInstructions() {
+    const isInstagram = /Instagram/i.test(ua);
+    const appName = isInstagram ? 'Instagram' : 'this app';
+    const instructions = isIOS
+      ? `Tap the <strong>···</strong> menu (top right) → <strong>"Open in Safari"</strong> or <strong>"Open in Browser"</strong>`
+      : `Tap the <strong>⋮</strong> menu (top right) → <strong>"Open in Chrome"</strong>`;
+
+    banner.innerHTML = `
+      <span style="font-size:1.3rem;flex-shrink:0;">📱</span>
+      <div style="flex:1;line-height:1.6;font-size:13px;">
+        <strong style="display:block;margin-bottom:4px;">To open in your browser:</strong>
+        <span style="opacity:.9;">${instructions}</span>
+      </div>
+      <button id="iab-dismiss-btn2" style="
+        background:none; border:none; color:#e8c4b8;
+        font-size:18px; cursor:pointer; padding:4px 6px; line-height:1; flex-shrink:0;
+      ">&times;</button>
+    `;
+    document.getElementById('iab-dismiss-btn2').addEventListener('click', function() {
+      banner.remove();
+      document.body.style.paddingTop = '';
+      sessionStorage.setItem('iab_dismissed', '1');
+    });
+  }
+})();
+
+// Mark body so CSS can hide Google button in IAB
+(function() {
+  const ua = navigator.userAgent || '';
+  if (/Instagram|FBAN|FBAV|FB_IAB|FBIOS/i.test(ua)) {
+    document.body.classList.add('in-app-browser');
+  }
+})();
