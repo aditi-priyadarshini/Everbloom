@@ -1,0 +1,70 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}{{ material.name }} History{% endblock %}
+{% block page_title %}{{ material.name }} — Purchase History{% endblock %}
+{% block content %}
+<a href="{{ url_for('admin.inventory') }}" class="back-link" style="display:inline-flex;align-items:center;gap:.4rem;margin-bottom:1.5rem;font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-soft);text-decoration:none;">← Inventory</a>
+
+<div class="stats-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:1.5rem;">
+  <div class="stat-card">
+    <div class="stat-icon stat-icon-orders"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div>
+    <div class="stat-info">
+      <span class="stat-value">{{ material.current_stock }} {{ material.unit }}</span>
+      <span class="stat-label">Current Stock</span>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon stat-icon-revenue"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+    <div class="stat-info">
+      <span class="stat-value">₹{{ "%.2f"|format(material.cost_per_unit) }}/{{ material.unit }}</span>
+      <span class="stat-label">Current Cost</span>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon stat-icon-pending"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+    <div class="stat-info">
+      <span class="stat-value">{{ material.reorder_level }} {{ material.unit }}</span>
+      <span class="stat-label">Reorder Level</span>
+    </div>
+  </div>
+</div>
+
+<!-- Add purchase -->
+<div class="admin-card" style="margin-bottom:1.5rem;">
+  <h3>Add Stock Purchase</h3>
+  <form method="post" action="{{ url_for('admin.inventory_purchase', mid=material.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-row-4">
+      <div class="form-group"><label>Quantity ({{ material.unit }})</label>
+        <input type="number" name="quantity" min="0.01" step="0.01" required></div>
+      <div class="form-group"><label>Cost per Unit (₹)</label>
+        <input type="number" name="cost_per_unit" value="{{ material.cost_per_unit }}" min="0" step="0.01" required></div>
+      <div class="form-group"><label>Supplier</label>
+        <input type="text" name="supplier" value="{{ material.supplier or '' }}"></div>
+      <div class="form-group"><label>Note</label>
+        <input type="text" name="note" placeholder="Invoice no., etc."></div>
+    </div>
+    <button type="submit" class="btn-primary">Add Stock</button>
+  </form>
+</div>
+
+<!-- Purchase history -->
+<div class="admin-table-wrap">
+  <table class="admin-table">
+    <thead><tr><th>Date</th><th>Qty Added</th><th>Cost/Unit</th><th>Total Cost</th><th>Supplier</th><th>Note</th></tr></thead>
+    <tbody>
+      {% for e in expenditures %}
+      <tr>
+        <td>{{ e.purchased_at }}</td>
+        <td>{{ e.quantity }} {{ material.unit }}</td>
+        <td>₹{{ "%.2f"|format(e.cost_per_unit) }}</td>
+        <td>₹{{ "%.2f"|format(e.total_cost) }}</td>
+        <td>{{ e.supplier or '—' }}</td>
+        <td>{{ e.note or '—' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="empty-row">No purchase history yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

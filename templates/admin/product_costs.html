@@ -1,0 +1,35 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Product Cost Builder{% endblock %}
+{% block page_title %}Product Cost Builder{% endblock %}
+{% block content %}
+<p style="color:var(--text-soft);font-size:.9rem;margin-bottom:1.5rem;">
+  Set raw materials, labour, and overhead per product — automatically calculate your manufacturing cost and suggested selling price.
+</p>
+<div class="admin-table-wrap">
+  <table class="admin-table">
+    <thead><tr><th>Product</th><th>Category</th><th>Material Cost</th><th>Total Cost</th><th>Margin</th><th>Suggested Price</th><th>Current Price</th><th></th></tr></thead>
+    <tbody>
+      {% for p in products %}
+      {% set cb = namespace(mat=0, total=0, margin=30, suggested=0) %}
+      <tr>
+        <td>
+          <div class="item-row">
+            {% if p.images %}<img src="{{ p.images[0] }}" class="item-thumb" alt="">{% endif %}
+            {{ p.title }}
+          </div>
+        </td>
+        <td>{{ p.category_id or '—' }}</td>
+        <td style="color:var(--text-soft);">—</td>
+        <td style="color:var(--text-soft);">—</td>
+        <td style="color:var(--text-soft);">—</td>
+        <td style="color:var(--text-soft);">—</td>
+        <td>₹{{ "%.0f"|format(p.price) }}</td>
+        <td><a href="{{ url_for('admin.product_cost_detail', pid=p.id) }}" class="btn-primary-sm">Set Cost →</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="empty-row">No products yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

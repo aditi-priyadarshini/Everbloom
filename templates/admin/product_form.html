@@ -76,6 +76,12 @@
         <div class="admin-card">
           <h3>Visibility</h3>
           <label class="toggle-label" style="margin-bottom:.8rem;">
+            <input type="checkbox" name="is_listed" {% if product and product.is_listed != false %}checked{% endif %}>
+            <span class="toggle-track-ui"></span>
+            Listed in Shop
+          </label>
+          <p style="font-size:.75rem;color:var(--text-soft);margin-bottom:.8rem;">Uncheck to hide this product from customers without deleting it.</p>
+          <label class="toggle-label" style="margin-bottom:.8rem;">
             <input type="checkbox" name="featured" {% if product and product.featured %}checked{% endif %}>
             <span class="toggle-track-ui"></span>
             Featured on Homepage

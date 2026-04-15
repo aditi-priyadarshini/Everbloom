@@ -106,6 +106,21 @@
       {% endif %}
     </div>
 
+    <div class="admin-card" style="background:#e8f0fe;border-color:#b0c4f8;">
+      <h3 style="color:#1a3a8a;">📦 Materials Check</h3>
+      <p style="font-size:.84rem;color:#1a3a8a;margin-bottom:.8rem;">See what raw materials & components are needed for this order.</p>
+      <a href="{{ url_for('admin.order_requirements', oid=order.id) }}" class="btn-primary btn-full" style="background:#1a3a8a;">Check Inventory →</a>
+    </div>
+
+    {% if order.preferred_delivery_date %}
+    <div class="admin-card" style="border-color:#c9a96e;background:#fffbf0;">
+      <h3 style="color:#5c3d3d;">📅 Preferred Delivery Date</h3>
+      <p style="font-size:1.1rem;font-weight:500;color:#3a2a2a;">{{ order.preferred_delivery_date }}</p>
+      {% set today = now.strftime('%Y-%m-%d') if now else '' %}
+      <p style="font-size:.8rem;color:var(--text-soft);margin-top:.3rem;">Customer requested this date — confirm if achievable when setting advance.</p>
+    </div>
+    {% endif %}
+
     <div class="admin-card">
       <h3>Status</h3>
       <span class="status-pill status-{{ order.status }}">{{ status_labels.get(order.status, order.status) }}</span>

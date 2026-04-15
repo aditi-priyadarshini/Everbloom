@@ -19,7 +19,7 @@
 <div class="admin-table-wrap">
   <table class="admin-table">
     <thead><tr>
-      <th>Image</th><th>Title</th><th>Price</th><th>Discount</th><th>Stock</th><th>Featured</th><th>Flash</th><th></th>
+      <th>Image</th><th>Title</th><th>Price</th><th>Discount</th><th>Stock</th><th>Featured</th><th>Flash</th><th>Listed</th><th></th>
     </tr></thead>
     <tbody>
       {% for p in products %}
@@ -35,6 +35,14 @@
         <td class="{% if p.stock == 0 %}stock-zero{% endif %}">{{ p.stock }}</td>
         <td>{% if p.featured %}<span class="badge-yes">Yes</span>{% else %}—{% endif %}</td>
         <td>{% if p.is_flash_sale and is_flash_active(p) %}<span class="badge-flash-sm">⚡</span>{% else %}—{% endif %}</td>
+        <td>
+          <form method="post" action="{{ url_for('admin.product_toggle_listing', pid=p.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" style="border:none;background:none;cursor:pointer;font-size:.8rem;padding:.2rem .6rem;border-radius:20px;{% if p.is_listed != false %}background:#e8f5e9;color:#2e7d32;{% else %}background:#fce4e4;color:#c0392b;{% endif %}">
+              {% if p.is_listed != false %}✓ Listed{% else %}✗ Unlisted{% endif %}
+            </button>
+          </form>
+        </td>
         <td class="table-actions">
           <a href="{{ url_for('admin.product_edit', pid=p.id) }}" class="table-action">Edit</a>
           <form method="post" action="{{ url_for('admin.product_delete', pid=p.id) }}" style="display:inline;">

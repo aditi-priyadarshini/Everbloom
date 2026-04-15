@@ -91,11 +91,11 @@
           <label>Budget Range</label>
           <select name="budget">
             <option value="">Select a range</option>
-            <option>Under ₹500</option>
-            <option>₹500 – ₹1,000</option>
-            <option>₹1,000 – ₹3,000</option>
-            <option>₹3,000 – ₹5,000</option>
-            <option>Above ₹5,000</option>
+            <option>Below ₹100</option>
+            <option>₹200 – ₹300</option>
+            <option>₹300 – ₹400</option>
+            <option>₹400 – ₹500</option>
+            <option>I'm Rich</option>
           </select>
         </div>
       </div>
@@ -103,6 +103,16 @@
         <label>Reference Image (optional)</label>
         <input type="file" name="reference_image" accept="image/*" class="file-input">
         <p class="form-hint">Upload any inspiration image to help us understand your vision.</p>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <h3>Preferred Delivery Date <span style="font-size:.82rem;color:var(--text-soft);font-weight:300;">(optional)</span></h3>
+      <div class="form-group">
+        <label>When do you need it by?</label>
+        <input type="date" name="preferred_delivery_date" min="{{ min_date }}"
+               style="width:100%;padding:.75rem;border:1px solid var(--rose);border-radius:4px;font-family:'Jost',sans-serif;font-size:.9rem;">
+        <p class="form-hint" style="margin-top:.4rem;">Leave blank if flexible. We'll let you know during quoting if the date is achievable.</p>
       </div>
     </div>
 

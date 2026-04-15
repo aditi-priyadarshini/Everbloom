@@ -3,6 +3,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, sessio
 from werkzeug.security import generate_password_hash, check_password_hash
 import models
 import emails
+import secrets
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
@@ -108,6 +109,7 @@ def login():
                                        error=None,
                                        show_resend=True,
                                        resend_email=email)
+            session.permanent = True   # use PERMANENT_SESSION_LIFETIME (15 days)
             session["user_id"]   = str(user["id"])
             session["user_name"] = user.get("name", "")
             session["is_admin"]  = user.get("is_admin", False)
@@ -156,6 +158,69 @@ def reset_password(token):
             flash("Password reset successfully! Please log in.", "success")
             return redirect(url_for("auth.login"))
     return render_template("auth/reset_password.html", token=token, error=error)
+
+
+# ── Google OAuth ─────────────────────────────────────────
+
+@auth_bp.route("/google/login")
+def google_login():
+    from app import oauth
+    redirect_uri = url_for("auth.google_callback", _external=True)
+    return oauth.google.authorize_redirect(redirect_uri)
+
+
+@auth_bp.route("/google/callback")
+def google_callback():
+    from app import oauth
+    try:
+        token = oauth.google.authorize_access_token()
+        user_info = token.get("userinfo")
+        if not user_info:
+            flash("Google sign-in failed. Please try again.", "error")
+            return redirect(url_for("auth.login"))
+
+        email = user_info.get("email", "").lower()
+        name  = user_info.get("name", "")
+
+        if not email:
+            flash("Could not get email from Google.", "error")
+            return redirect(url_for("auth.login"))
+
+        # Find or create user
+        user = models.get_user_by_email(email)
+        if not user:
+            # Create account — random password since they use Google
+            pw_hash = generate_password_hash(secrets.token_urlsafe(32), method="pbkdf2:sha256")
+            user = models.create_user(email, pw_hash, name)
+            if user:
+                models.verify_user_email(user["id"])  # auto-verified via Google
+                try:
+                    emails.send_welcome(email, name)
+                except Exception:
+                    pass
+
+        if not user:
+            flash("Could not create account. Please try again.", "error")
+            return redirect(url_for("auth.login"))
+
+        session.permanent = True
+        session["user_id"]   = str(user["id"])
+        session["user_name"] = user.get("name") or name
+        session["is_admin"]  = user.get("is_admin", False)
+
+        # Mark as verified if not already
+        if not user.get("email_verified"):
+            models.verify_user_email(user["id"])
+
+        flash(f"Welcome, {session['user_name']}!", "success")
+        next_url = request.args.get("next")
+        return redirect(next_url if next_url else url_for("shop.index"))
+
+    except Exception as e:
+        import sys
+        print(f"[Google OAuth error] {e}", file=sys.stderr)
+        flash("Google sign-in failed. Please try again or use email.", "error")
+        return redirect(url_for("auth.login"))
 
 
 # ── Logout ────────────────────────────────────────────────

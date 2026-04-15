@@ -40,7 +40,7 @@ def get_category(cid):
 # ── Products ──────────────────────────────────────────────
 
 def get_products(category_id=None, featured=False, in_stock=False,
-                 on_sale=False, flash=False, order="created_at.desc", limit=None, search=None):
+                 on_sale=False, flash=False, order="created_at.desc", limit=None, search=None, listed_only=True):
     filters = {}
     if category_id:
         filters["category_id"] = f"eq.{category_id}"
@@ -54,6 +54,8 @@ def get_products(category_id=None, featured=False, in_stock=False,
         filters["is_flash_sale"] = "eq.true"
     if search:
         filters["title"] = f"ilike.*{search}*"
+    if listed_only:
+        filters["is_listed"] = "eq.true"
     return supa.select("products", filters, order=order, limit=limit)
 
 
@@ -475,28 +477,56 @@ def get_broadcasts():
 # ── Dashboard Stats ───────────────────────────────────────
 
 def get_stats():
+    from datetime import datetime, timezone, timedelta
     all_orders = supa.select("orders") or []
     all_users = supa.select("users", {"is_admin": "eq.false"}) or []
     all_products = supa.select("products") or []
     pending = [o for o in all_orders if o["status"] not in ("delivered", "cancelled")]
-    revenue = sum(float(o.get("total", 0)) for o in all_orders if o["status"] == "delivered")
-    # Monthly revenue (last 6 months)
-    from datetime import datetime, timezone, timedelta
+    delivered = [o for o in all_orders if o["status"] == "delivered"]
+    revenue = sum(float(o.get("total", 0)) for o in delivered)
+    cancelled = [o for o in all_orders if o["status"] == "cancelled"]
+
+    # Monthly revenue & order count (last 6 months)
     now = datetime.now(timezone.utc)
     monthly = {}
+    monthly_orders = {}
     for i in range(5, -1, -1):
         d = now - timedelta(days=30 * i)
         key = d.strftime("%b")
         monthly[key] = 0
+        monthly_orders[key] = 0
     for o in all_orders:
-        if o["status"] == "delivered" and o.get("created_at"):
+        if o.get("created_at"):
             try:
                 dt = datetime.fromisoformat(o["created_at"].replace("Z", "+00:00"))
                 key = dt.strftime("%b")
-                if key in monthly:
+                if key in monthly_orders:
+                    monthly_orders[key] += 1
+                if o["status"] == "delivered" and key in monthly:
                     monthly[key] += float(o.get("total", 0))
             except Exception:
                 pass
+
+    avg_order_value = revenue / len(delivered) if delivered else 0
+    cancel_rate = round(len(cancelled) / len(all_orders) * 100, 1) if all_orders else 0
+
+    # Status breakdown for funnel
+    status_counts = {}
+    for o in all_orders:
+        s = o.get("status", "unknown")
+        status_counts[s] = status_counts.get(s, 0) + 1
+
+    # New customers this month
+    new_customers_month = 0
+    cutoff = now - timedelta(days=30)
+    for u in all_users:
+        try:
+            dt = datetime.fromisoformat((u.get("created_at") or "").replace("Z", "+00:00"))
+            if dt > cutoff:
+                new_customers_month += 1
+        except Exception:
+            pass
+
     return {
         "total_orders": len(all_orders),
         "pending_orders": len(pending),
@@ -506,7 +536,14 @@ def get_stats():
         "placed": len([o for o in all_orders if o["status"] == "placed"]),
         "advance_paid": len([o for o in all_orders if o["status"] == "advance_paid"]),
         "shipped": len([o for o in all_orders if o["status"] == "shipped"]),
+        "delivered": len(delivered),
+        "cancelled": len(cancelled),
         "monthly_revenue": monthly,
+        "monthly_orders": monthly_orders,
+        "avg_order_value": round(avg_order_value, 2),
+        "cancel_rate": cancel_rate,
+        "status_counts": status_counts,
+        "new_customers_month": new_customers_month,
     }
 
 
@@ -651,3 +688,383 @@ def get_email_log(related_type, related_id):
         "related_type": f"eq.{related_type}",
         "related_id": f"eq.{related_id}",
     }, order="sent_at.desc")
+
+
+# ── Raw Materials ─────────────────────────────────────────
+
+def get_raw_materials():
+    return supa.select("raw_materials", order="name.asc")
+
+def get_raw_material(mid):
+    rows = supa.select("raw_materials", {"id": f"eq.{mid}"})
+    return rows[0] if rows else None
+
+def create_raw_material(data):
+    return supa.insert("raw_materials", data)
+
+def update_raw_material(mid, data):
+    return supa.update("raw_materials", {"id": f"eq.{mid}"}, data)
+
+def delete_raw_material(mid):
+    return supa.delete("raw_materials", {"id": f"eq.{mid}"})
+
+def get_low_stock_materials():
+    """Materials where current_stock <= reorder_level."""
+    materials = get_raw_materials()
+    return [m for m in materials
+            if float(m.get("current_stock", 0)) <= float(m.get("reorder_level", 0))
+            and float(m.get("reorder_level", 0)) > 0]
+
+# ── Expenditures ──────────────────────────────────────────
+
+def get_expenditures(material_id=None):
+    filters = {}
+    if material_id:
+        filters["material_id"] = f"eq.{material_id}"
+    return supa.select("expenditures", filters, order="purchased_at.desc")
+
+def add_expenditure(data):
+    exp = supa.insert("expenditures", data)
+    if exp:
+        # Update material stock and cost_per_unit
+        mat = get_raw_material(data["material_id"])
+        if mat:
+            new_stock = float(mat.get("current_stock", 0)) + float(data["quantity"])
+            supa.update("raw_materials", {"id": f"eq.{data['material_id']}"}, {
+                "current_stock": new_stock,
+                "cost_per_unit": float(data["cost_per_unit"]),
+            })
+    return exp
+
+def deduct_material_stock(material_id, quantity):
+    mat = get_raw_material(material_id)
+    if mat:
+        new_stock = max(0, float(mat.get("current_stock", 0)) - float(quantity))
+        supa.update("raw_materials", {"id": f"eq.{material_id}"}, {"current_stock": new_stock})
+
+# ── Product Costs ─────────────────────────────────────────
+
+def get_product_cost(product_id):
+    rows = supa.select("product_costs", {"product_id": f"eq.{product_id}"})
+    return rows[0] if rows else None
+
+def save_product_cost(product_id, data):
+    existing = get_product_cost(product_id)
+    data["product_id"] = str(product_id)
+    data["updated_at"] = "now()"
+    if existing:
+        return supa.update("product_costs", {"product_id": f"eq.{product_id}"}, data)
+    return supa.insert("product_costs", data)
+
+def get_product_materials(product_id):
+    return supa.select("product_materials", {"product_id": f"eq.{product_id}"})
+
+def save_product_materials(product_id, materials_data):
+    # Delete existing and re-insert
+    supa.delete("product_materials", {"product_id": f"eq.{product_id}"})
+    for m in materials_data:
+        if m.get("material_id") and float(m.get("quantity_used", 0)) > 0:
+            supa.insert("product_materials", {
+                "product_id": str(product_id),
+                "material_id": int(m["material_id"]),
+                "quantity_used": float(m["quantity_used"]),
+            })
+
+def calculate_product_cost(product_id):
+    """Calculate total material cost + labour + overhead, return suggested price."""
+    pm = get_product_materials(product_id)
+    pc = get_product_cost(product_id) or {}
+    material_cost = 0
+    for item in pm:
+        mat = get_raw_material(item["material_id"])
+        if mat:
+            material_cost += float(mat.get("cost_per_unit", 0)) * float(item.get("quantity_used", 0))
+    labour    = float(pc.get("labour_cost", 0))
+    overhead  = float(pc.get("overhead_cost", 0))
+    total_cost = material_cost + labour + overhead
+    margin    = float(pc.get("margin_percent", 30))
+    suggested = round(total_cost * (1 + margin / 100), 2) if total_cost > 0 else 0
+    return {
+        "material_cost": round(material_cost, 2),
+        "labour_cost":   round(labour, 2),
+        "overhead_cost": round(overhead, 2),
+        "total_cost":    round(total_cost, 2),
+        "margin_percent": margin,
+        "suggested_price": suggested,
+    }
+
+
+# ── Components ────────────────────────────────────────────
+
+def get_components():
+    return supa.select("components", order="name.asc")
+
+def get_component(cid):
+    rows = supa.select("components", {"id": f"eq.{cid}"})
+    return rows[0] if rows else None
+
+def create_component(data):
+    return supa.insert("components", data)
+
+def update_component(cid, data):
+    return supa.update("components", {"id": f"eq.{cid}"}, data)
+
+def delete_component(cid):
+    return supa.delete("components", {"id": f"eq.{cid}"})
+
+def get_low_stock_components():
+    comps = get_components()
+    return [c for c in comps
+            if float(c.get("current_stock", 0)) <= float(c.get("reorder_level", 0))
+            and float(c.get("reorder_level", 0)) > 0]
+
+# ── Component BOM ─────────────────────────────────────────
+
+def get_component_bom(component_id):
+    return supa.select("component_bom", {"component_id": f"eq.{component_id}"})
+
+def save_component_bom(component_id, items):
+    supa.delete("component_bom", {"component_id": f"eq.{component_id}"})
+    for item in items:
+        if item.get("material_id") and float(item.get("quantity_used", 0)) > 0:
+            supa.insert("component_bom", {
+                "component_id": int(component_id),
+                "material_id": int(item["material_id"]),
+                "quantity_used": float(item["quantity_used"]),
+            })
+
+def calculate_component_cost(component_id):
+    bom = get_component_bom(component_id)
+    total = 0
+    for item in bom:
+        mat = get_raw_material(item["material_id"])
+        if mat:
+            total += float(mat.get("cost_per_unit", 0)) * float(item.get("quantity_used", 0))
+    return round(total, 2)
+
+def manufacture_component(component_id, quantity, notes="", wastage_percent=0):
+    """Deduct raw materials and add to component stock, accounting for wastage."""
+    bom = get_component_bom(component_id)
+    errors = []
+    wastage_factor = 1 + float(wastage_percent or 0) / 100.0
+    for item in bom:
+        mat = get_raw_material(item["material_id"])
+        if not mat:
+            continue
+        needed = float(item["quantity_used"]) * float(quantity) * wastage_factor
+        available = float(mat.get("current_stock", 0))
+        if available < needed:
+            errors.append(f"Not enough {mat['name']}: need {needed:.2f} {mat['unit']} (incl. {wastage_percent}% waste), have {available}")
+    if errors:
+        return False, errors
+    # Deduct materials (including waste)
+    total_waste_cost = 0.0
+    for item in bom:
+        mat = get_raw_material(item["material_id"])
+        if mat:
+            base_needed = float(item["quantity_used"]) * float(quantity)
+            waste_qty = base_needed * float(wastage_percent or 0) / 100.0
+            total_needed = base_needed + waste_qty
+            new_stock = max(0, float(mat.get("current_stock", 0)) - total_needed)
+            supa.update("raw_materials", {"id": f"eq.{item['material_id']}"}, {"current_stock": new_stock})
+            total_waste_cost += waste_qty * float(mat.get("cost_per_unit", 0))
+    # Add to component stock (only non-wasted quantity)
+    comp = get_component(component_id)
+    if comp:
+        new_stock = float(comp.get("current_stock", 0)) + float(quantity)
+        supa.update("components", {"id": f"eq.{component_id}"}, {"current_stock": new_stock})
+    # Log it with waste info
+    supa.insert("manufacture_log", {
+        "component_id": int(component_id),
+        "quantity_made": float(quantity),
+        "wastage_percent": float(wastage_percent or 0),
+        "waste_cost": round(total_waste_cost, 2),
+        "notes": notes,
+    })
+    return True, []
+
+
+def get_manufacturing_analytics():
+    """Aggregate manufacture_log for analytics: total runs, total waste cost, waste rate."""
+    from datetime import datetime, timezone, timedelta
+    logs = supa.select("manufacture_log", order="manufactured_at.desc") or []
+    now = datetime.now(timezone.utc)
+    total_runs = len(logs)
+    total_waste_cost = sum(float(l.get("waste_cost", 0)) for l in logs)
+    total_qty = sum(float(l.get("quantity_made", 0)) for l in logs)
+    avg_waste_pct = (
+        sum(float(l.get("wastage_percent", 0)) for l in logs) / total_runs
+        if total_runs > 0 else 0
+    )
+    # Monthly waste cost (last 6 months)
+    monthly_waste = {}
+    monthly_qty = {}
+    for i in range(5, -1, -1):
+        d = now - timedelta(days=30 * i)
+        key = d.strftime("%b")
+        monthly_waste[key] = 0
+        monthly_qty[key] = 0
+    for l in logs:
+        ts = l.get("manufactured_at") or l.get("created_at", "")
+        if ts:
+            try:
+                dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                key = dt.strftime("%b")
+                if key in monthly_waste:
+                    monthly_waste[key] += float(l.get("waste_cost", 0))
+                    monthly_qty[key] += float(l.get("quantity_made", 0))
+            except Exception:
+                pass
+    return {
+        "total_runs": total_runs,
+        "total_waste_cost": round(total_waste_cost, 2),
+        "total_qty_made": round(total_qty, 2),
+        "avg_waste_pct": round(avg_waste_pct, 1),
+        "monthly_waste": monthly_waste,
+        "monthly_qty": monthly_qty,
+        "recent_logs": logs[:20],
+    }
+
+# ── Product BOM ───────────────────────────────────────────
+
+def get_product_bom(product_id):
+    return supa.select("product_bom", {"product_id": f"eq.{product_id}"})
+
+def save_product_bom(product_id, items):
+    supa.delete("product_bom", {"product_id": f"eq.{product_id}"})
+    for item in items:
+        qty = float(item.get("quantity_used", 0))
+        if qty <= 0:
+            continue
+        row = {"product_id": str(product_id), "item_type": item["item_type"], "quantity_used": qty}
+        if item["item_type"] == "material" and item.get("material_id"):
+            row["material_id"] = int(item["material_id"])
+        elif item["item_type"] == "component" and item.get("component_id"):
+            row["component_id"] = int(item["component_id"])
+        else:
+            continue
+        supa.insert("product_bom", row)
+
+def calculate_product_bom_cost(product_id):
+    bom = get_product_bom(product_id)
+    pc = get_product_cost(product_id) or {}
+    material_cost = 0
+    breakdown = []
+    for item in bom:
+        if item["item_type"] == "material" and item.get("material_id"):
+            mat = get_raw_material(item["material_id"])
+            if mat:
+                cost = float(mat.get("cost_per_unit", 0)) * float(item["quantity_used"])
+                material_cost += cost
+                breakdown.append({
+                    "name": mat["name"], "icon": mat.get("icon", "🧪"),
+                    "type": "material", "qty": item["quantity_used"],
+                    "unit": mat["unit"], "cost": round(cost, 2)
+                })
+        elif item["item_type"] == "component" and item.get("component_id"):
+            comp = get_component(item["component_id"])
+            if comp:
+                comp_cost = calculate_component_cost(item["component_id"])
+                cost = comp_cost * float(item["quantity_used"])
+                material_cost += cost
+                breakdown.append({
+                    "name": comp["name"], "icon": comp.get("icon", "🔧"),
+                    "type": "component", "qty": item["quantity_used"],
+                    "unit": comp["unit"], "cost": round(cost, 2)
+                })
+    labour = float(pc.get("labour_cost", 0))
+    overhead = float(pc.get("overhead_cost", 0))
+    margin = float(pc.get("margin_percent", 30))
+    total = material_cost + labour + overhead
+    suggested = round(total * (1 + margin / 100), 2) if total > 0 else 0
+    return {
+        "breakdown": breakdown,
+        "material_cost": round(material_cost, 2),
+        "labour_cost": round(labour, 2),
+        "overhead_cost": round(overhead, 2),
+        "total_cost": round(total, 2),
+        "margin_percent": margin,
+        "suggested_price": suggested,
+    }
+
+# ── Order Requirements & Auto-deduction ──────────────────
+
+def get_order_requirements(order_id):
+    return supa.select("order_requirements", {"order_id": f"eq.{order_id}"})
+
+def calculate_order_requirements(order_id):
+    """Work out all materials + components needed for an order."""
+    items = get_order_items(order_id)
+    requirements = {}  # key: 'material_X' or 'component_X'
+    for item in items:
+        qty = int(item.get("quantity", 1))
+        bom = get_product_bom(str(item["product_id"]))
+        for b in bom:
+            needed = float(b["quantity_used"]) * qty
+            if b["item_type"] == "material" and b.get("material_id"):
+                key = f"material_{b['material_id']}"
+                requirements[key] = requirements.get(key, {
+                    "item_type": "material", "material_id": b["material_id"],
+                    "component_id": None, "quantity_needed": 0
+                })
+                requirements[key]["quantity_needed"] += needed
+            elif b["item_type"] == "component" and b.get("component_id"):
+                key = f"component_{b['component_id']}"
+                requirements[key] = requirements.get(key, {
+                    "item_type": "component", "material_id": None,
+                    "component_id": b["component_id"], "quantity_needed": 0
+                })
+                requirements[key]["quantity_needed"] += needed
+    return list(requirements.values())
+
+def check_requirements_availability(requirements):
+    """Check if we have enough stock for each requirement."""
+    result = []
+    for req in requirements:
+        r = dict(req)
+        if r["item_type"] == "material":
+            mat = get_raw_material(r["material_id"])
+            if mat:
+                r["name"] = mat["name"]
+                r["icon"] = mat.get("icon", "🧪")
+                r["unit"] = mat["unit"]
+                r["available"] = float(mat.get("current_stock", 0))
+                r["is_available"] = r["available"] >= r["quantity_needed"]
+            else:
+                r["name"] = "Unknown"
+                r["icon"] = "❓"
+                r["unit"] = ""
+                r["available"] = 0
+                r["is_available"] = False
+        elif r["item_type"] == "component":
+            comp = get_component(r["component_id"])
+            if comp:
+                r["name"] = comp["name"]
+                r["icon"] = comp.get("icon", "🔧")
+                r["unit"] = comp["unit"]
+                r["available"] = float(comp.get("current_stock", 0))
+                r["is_available"] = r["available"] >= r["quantity_needed"]
+            else:
+                r["name"] = "Unknown"
+                r["icon"] = "❓"
+                r["unit"] = ""
+                r["available"] = 0
+                r["is_available"] = False
+        result.append(r)
+    return result
+
+def deduct_order_materials(order_id):
+    """Deduct all materials and components when order is confirmed."""
+    reqs = calculate_order_requirements(order_id)
+    for req in reqs:
+        needed = float(req["quantity_needed"])
+        if req["item_type"] == "material" and req.get("material_id"):
+            mat = get_raw_material(req["material_id"])
+            if mat:
+                new_stock = max(0, float(mat.get("current_stock", 0)) - needed)
+                supa.update("raw_materials", {"id": f"eq.{req['material_id']}"}, {"current_stock": new_stock})
+        elif req["item_type"] == "component" and req.get("component_id"):
+            comp = get_component(req["component_id"])
+            if comp:
+                new_stock = max(0, float(comp.get("current_stock", 0)) - needed)
+                supa.update("components", {"id": f"eq.{req['component_id']}"}, {"current_stock": new_stock})

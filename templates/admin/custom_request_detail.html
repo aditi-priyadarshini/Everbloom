@@ -10,6 +10,12 @@
       <h3>Request Details</h3>
       <table class="admin-table">
         <tbody>
+          {% if req.preferred_delivery_date %}
+          <tr style="background:#fffbf0;">
+            <td style="color:#5c3d3d;font-weight:500;width:35%;">📅 Preferred Date</td>
+            <td><strong>{{ req.preferred_delivery_date }}</strong></td>
+          </tr>
+          {% endif %}
           <tr><td style="color:var(--text-soft);width:35%;">From</td><td><strong>{{ req.name }}</strong> — {{ req.email }}{% if req.phone %} | {{ req.phone }}{% endif %}</td></tr>
           {% if req.craft_type %}<tr><td style="color:var(--text-soft);">Craft Type</td><td>{{ req.craft_type }}</td></tr>{% endif %}
           {% if req.occasion %}<tr><td style="color:var(--text-soft);">Occasion</td><td>{{ req.occasion }}</td></tr>{% endif %}

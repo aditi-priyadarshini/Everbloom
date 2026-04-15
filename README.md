@@ -1,9 +1,9 @@
-# 🌿 Everbloom — Full Flask E-Commerce App
+
 
 A complete handcrafted goods store with admin panel, UPI payments, order tracking, coupons, flash sales, custom orders, and reviews.
 
 ---
-
+ 
 
 ## Features
 

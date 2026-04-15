@@ -771,3 +771,31 @@ main { padding-top: var(--nav-h); }
   padding: .2rem .6rem; border-radius: 20px;
   margin-top: .4rem; backdrop-filter: blur(4px);
 }
+
+/* ── Google OAuth Button ── */
+.btn-google {
+  display: flex; align-items: center; justify-content: center;
+  gap: .7rem; width: 100%;
+  padding: .8rem 1.2rem;
+  background: #fff; color: #3c4043;
+  border: 1px solid #dadce0; border-radius: 4px;
+  font-family: 'Jost', sans-serif; font-size: .88rem; font-weight: 500;
+  text-decoration: none; cursor: pointer;
+  transition: background .15s, box-shadow .15s;
+  margin-bottom: .8rem;
+}
+.btn-google:hover { background: #f8f9fa; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
+
+/* ── Auth Divider ── */
+.auth-divider {
+  display: flex; align-items: center; gap: .8rem;
+  margin: .8rem 0 1rem; color: var(--text-soft); font-size: .8rem;
+}
+.auth-divider::before, .auth-divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--rose);
+}
+
+/* ── Hide Google button in Instagram/Facebook IAB ── */
+/* Applied via JS class on body */
+body.in-app-browser .btn-google { display: none !important; }
+body.in-app-browser .auth-divider { display: none !important; }
