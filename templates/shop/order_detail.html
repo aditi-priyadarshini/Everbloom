@@ -2,11 +2,23 @@
 {% block title %}Order #{{ order.id[:8]|upper }}{% endblock %}
 {% block content %}
 <div class="page-wrap">
-  <a href="{{ url_for('orders.orders_list') }}" class="back-link">← My Orders</a>
+  <a href="{{ url_for('orders.orders_list') }}" class="back-link">&larr; My Orders</a>
   <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:2rem;">
     <h1 class="page-title" style="margin:0;">Order #{{ order.id[:8]|upper }}</h1>
     <span class="status-pill status-{{ order.status }}">{{ STATUS_LABELS.get(order.status, order.status) }}</span>
+    {% if order.get('is_custom_order') %}
+    <span style="background:#f5eeff;color:#7b4fa6;border:1px solid #c4a8e8;border-radius:20px;font-size:.72rem;padding:.2rem .75rem;letter-spacing:.04em;font-weight:500;">&#10022; Custom Order</span>
+    {% endif %}
   </div>
+
+  {% if order.get('is_custom_order') %}
+  <div style="background:#fdf6ff;border:1px solid #c4a8e8;border-radius:8px;padding:1rem 1.2rem;margin-bottom:1.4rem;font-size:.88rem;color:#5c3d6e;line-height:1.6;">
+    <strong>This is your custom order.</strong> Our artisans will craft this piece especially for you based on your original request.
+    {% if order.get('custom_notes') %}
+    <div style="margin-top:.4rem;color:#7a5c5c;font-style:italic;">&ldquo;{{ order.custom_notes[:200] }}{% if order.custom_notes|length > 200 %}&hellip;{% endif %}&rdquo;</div>
+    {% endif %}
+  </div>
+  {% endif %}
 
   <div class="cart-layout">
     <div>
@@ -20,20 +32,28 @@
             {% else %}<div class="cart-img-ph"></div>{% endif %}
           </div>
           <div class="cart-info" style="flex:1;">
-            <div class="cart-name">{{ item.title }}</div>
-            <div class="cart-price">₹{{ "%.0f"|format(item.price) }} × {{ item.quantity }}</div>
+            <div class="cart-name">
+              {{ item.title }}
+              {% if item.get('is_custom') %}
+              <span style="font-size:.68rem;background:#f5eeff;color:#7b4fa6;border:1px solid #c4a8e8;border-radius:10px;padding:.1rem .45rem;margin-left:.4rem;vertical-align:middle;">custom</span>
+              {% endif %}
+            </div>
+            <div class="cart-price">&#8377;{{ "%.0f"|format(item.price) }} &times; {{ item.quantity }}</div>
           </div>
-          <div class="cart-subtotal">₹{{ "%.0f"|format(item.price * item.quantity) }}</div>
+          <div class="cart-subtotal">&#8377;{{ "%.0f"|format(item.price * item.quantity) }}</div>
         </div>
         {% endfor %}
+        {% if not items %}
+        <p style="text-align:center;color:var(--text-soft);font-style:italic;padding:1rem 0;">No item details available yet.</p>
+        {% endif %}
         <div style="padding-top:1rem;border-top:1px solid var(--rose);margin-top:.5rem;">
           {% if order.discount_amount and order.discount_amount > 0 %}
-          <div class="summary-row"><span>Coupon ({{ order.coupon_code }})</span><span style="color:var(--sage-dark);">-₹{{ "%.0f"|format(order.discount_amount) }}</span></div>
+          <div class="summary-row"><span>Coupon ({{ order.coupon_code }})</span><span style="color:var(--sage-dark);">-&#8377;{{ "%.0f"|format(order.discount_amount) }}</span></div>
           {% endif %}
-          <div class="summary-total"><span>Total</span><span>₹{{ "%.0f"|format(order.total) }}</span></div>
+          <div class="summary-total"><span>Total</span><span>&#8377;{{ "%.0f"|format(order.total) }}</span></div>
           {% if order.advance_amount %}
-          <div class="summary-row muted"><span>Advance Paid</span><span>₹{{ "%.0f"|format(order.advance_amount) }}</span></div>
-          <div class="summary-row"><span><strong>Balance (Pay on Delivery)</strong></span><span><strong>₹{{ "%.0f"|format(order.total - order.advance_amount) }}</strong></span></div>
+          <div class="summary-row muted"><span>Advance Paid</span><span>&#8377;{{ "%.0f"|format(order.advance_amount) }}</span></div>
+          <div class="summary-row"><span><strong>Balance (Pay on Delivery)</strong></span><span><strong>&#8377;{{ "%.0f"|format(order.total - order.advance_amount) }}</strong></span></div>
           {% endif %}
         </div>
       </div>
@@ -43,7 +63,11 @@
         <h3 style="font-family:'Cormorant Garamond',serif;font-size:1.2rem;color:var(--bark);margin-bottom:.8rem;">Delivery Details</h3>
         <p style="font-size:.9rem;color:var(--text);">{{ order.name }}</p>
         <p style="font-size:.9rem;color:var(--text-soft);">{{ order.phone }}</p>
+        {% if order.address and order.address != 'To be confirmed' %}
         <p style="font-size:.9rem;color:var(--text-soft);margin-top:.4rem;white-space:pre-wrap;">{{ order.address }}</p>
+        {% else %}
+        <p style="font-size:.84rem;color:var(--text-soft);font-style:italic;margin-top:.4rem;">Delivery address will be confirmed with you shortly.</p>
+        {% endif %}
       </div>
     </div>
 
@@ -54,7 +78,7 @@
         <div style="display:flex;flex-direction:column;gap:.7rem;">
           <a href="{{ url_for('orders.track', oid=order.id) }}" class="btn-primary btn-full">Track Order</a>
           {% if order.status == 'advance_requested' %}
-          <a href="{{ url_for('orders.pay_advance', oid=order.id) }}" class="btn-outline btn-full">Pay Advance ₹{{ "%.0f"|format(order.advance_amount) }}</a>
+          <a href="{{ url_for('orders.pay_advance', oid=order.id) }}" class="btn-outline btn-full">Pay Advance &#8377;{{ "%.0f"|format(order.advance_amount) }}</a>
           {% endif %}
         </div>
         <div style="margin-top:1.2rem;padding-top:1.2rem;border-top:1px solid var(--rose);">

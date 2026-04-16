@@ -245,10 +245,12 @@ def avg_rating(reviews):
 
 # ── Custom Requests ───────────────────────────────────────
 
-def get_custom_requests(status=None):
+def get_custom_requests(status=None, user_id=None):
     filters = {}
     if status:
         filters["status"] = f"eq.{status}"
+    if user_id:
+        filters["user_id"] = f"eq.{user_id}"
     return supa.select("custom_requests", filters, order="created_at.desc")
 
 
@@ -477,28 +479,56 @@ def get_broadcasts():
 # ── Dashboard Stats ───────────────────────────────────────
 
 def get_stats():
+    from datetime import datetime, timezone, timedelta
     all_orders = supa.select("orders") or []
     all_users = supa.select("users", {"is_admin": "eq.false"}) or []
     all_products = supa.select("products") or []
     pending = [o for o in all_orders if o["status"] not in ("delivered", "cancelled")]
-    revenue = sum(float(o.get("total", 0)) for o in all_orders if o["status"] == "delivered")
-    # Monthly revenue (last 6 months)
-    from datetime import datetime, timezone, timedelta
+    delivered = [o for o in all_orders if o["status"] == "delivered"]
+    revenue = sum(float(o.get("total", 0)) for o in delivered)
+    cancelled = [o for o in all_orders if o["status"] == "cancelled"]
+
+    # Monthly revenue & order count (last 6 months)
     now = datetime.now(timezone.utc)
     monthly = {}
+    monthly_orders = {}
     for i in range(5, -1, -1):
         d = now - timedelta(days=30 * i)
         key = d.strftime("%b")
         monthly[key] = 0
+        monthly_orders[key] = 0
     for o in all_orders:
-        if o["status"] == "delivered" and o.get("created_at"):
+        if o.get("created_at"):
             try:
                 dt = datetime.fromisoformat(o["created_at"].replace("Z", "+00:00"))
                 key = dt.strftime("%b")
-                if key in monthly:
+                if key in monthly_orders:
+                    monthly_orders[key] += 1
+                if o["status"] == "delivered" and key in monthly:
                     monthly[key] += float(o.get("total", 0))
             except Exception:
                 pass
+
+    avg_order_value = revenue / len(delivered) if delivered else 0
+    cancel_rate = round(len(cancelled) / len(all_orders) * 100, 1) if all_orders else 0
+
+    # Status breakdown for funnel
+    status_counts = {}
+    for o in all_orders:
+        s = o.get("status", "unknown")
+        status_counts[s] = status_counts.get(s, 0) + 1
+
+    # New customers this month
+    new_customers_month = 0
+    cutoff = now - timedelta(days=30)
+    for u in all_users:
+        try:
+            dt = datetime.fromisoformat((u.get("created_at") or "").replace("Z", "+00:00"))
+            if dt > cutoff:
+                new_customers_month += 1
+        except Exception:
+            pass
+
     return {
         "total_orders": len(all_orders),
         "pending_orders": len(pending),
@@ -508,7 +538,14 @@ def get_stats():
         "placed": len([o for o in all_orders if o["status"] == "placed"]),
         "advance_paid": len([o for o in all_orders if o["status"] == "advance_paid"]),
         "shipped": len([o for o in all_orders if o["status"] == "shipped"]),
+        "delivered": len(delivered),
+        "cancelled": len(cancelled),
         "monthly_revenue": monthly,
+        "monthly_orders": monthly_orders,
+        "avg_order_value": round(avg_order_value, 2),
+        "cancel_rate": cancel_rate,
+        "status_counts": status_counts,
+        "new_customers_month": new_customers_month,
     }
 
 
@@ -807,39 +844,88 @@ def calculate_component_cost(component_id):
             total += float(mat.get("cost_per_unit", 0)) * float(item.get("quantity_used", 0))
     return round(total, 2)
 
-def manufacture_component(component_id, quantity, notes=""):
-    """Deduct raw materials and add to component stock."""
+def manufacture_component(component_id, quantity, notes="", wastage_percent=0):
+    """Deduct raw materials and add to component stock, accounting for wastage."""
     bom = get_component_bom(component_id)
     errors = []
+    wastage_factor = 1 + float(wastage_percent or 0) / 100.0
     for item in bom:
         mat = get_raw_material(item["material_id"])
         if not mat:
             continue
-        needed = float(item["quantity_used"]) * float(quantity)
+        needed = float(item["quantity_used"]) * float(quantity) * wastage_factor
         available = float(mat.get("current_stock", 0))
         if available < needed:
-            errors.append(f"Not enough {mat['name']}: need {needed} {mat['unit']}, have {available}")
+            errors.append(f"Not enough {mat['name']}: need {needed:.2f} {mat['unit']} (incl. {wastage_percent}% waste), have {available}")
     if errors:
         return False, errors
-    # Deduct materials
+    # Deduct materials (including waste)
+    total_waste_cost = 0.0
     for item in bom:
         mat = get_raw_material(item["material_id"])
         if mat:
-            needed = float(item["quantity_used"]) * float(quantity)
-            new_stock = max(0, float(mat.get("current_stock", 0)) - needed)
+            base_needed = float(item["quantity_used"]) * float(quantity)
+            waste_qty = base_needed * float(wastage_percent or 0) / 100.0
+            total_needed = base_needed + waste_qty
+            new_stock = max(0, float(mat.get("current_stock", 0)) - total_needed)
             supa.update("raw_materials", {"id": f"eq.{item['material_id']}"}, {"current_stock": new_stock})
-    # Add to component stock
+            total_waste_cost += waste_qty * float(mat.get("cost_per_unit", 0))
+    # Add to component stock (only non-wasted quantity)
     comp = get_component(component_id)
     if comp:
         new_stock = float(comp.get("current_stock", 0)) + float(quantity)
         supa.update("components", {"id": f"eq.{component_id}"}, {"current_stock": new_stock})
-    # Log it
+    # Log it with waste info
     supa.insert("manufacture_log", {
         "component_id": int(component_id),
         "quantity_made": float(quantity),
+        "wastage_percent": float(wastage_percent or 0),
+        "waste_cost": round(total_waste_cost, 2),
         "notes": notes,
     })
     return True, []
+
+
+def get_manufacturing_analytics():
+    """Aggregate manufacture_log for analytics: total runs, total waste cost, waste rate."""
+    from datetime import datetime, timezone, timedelta
+    logs = supa.select("manufacture_log", order="manufactured_at.desc") or []
+    now = datetime.now(timezone.utc)
+    total_runs = len(logs)
+    total_waste_cost = sum(float(l.get("waste_cost", 0)) for l in logs)
+    total_qty = sum(float(l.get("quantity_made", 0)) for l in logs)
+    avg_waste_pct = (
+        sum(float(l.get("wastage_percent", 0)) for l in logs) / total_runs
+        if total_runs > 0 else 0
+    )
+    # Monthly waste cost (last 6 months)
+    monthly_waste = {}
+    monthly_qty = {}
+    for i in range(5, -1, -1):
+        d = now - timedelta(days=30 * i)
+        key = d.strftime("%b")
+        monthly_waste[key] = 0
+        monthly_qty[key] = 0
+    for l in logs:
+        ts = l.get("manufactured_at") or l.get("created_at", "")
+        if ts:
+            try:
+                dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                key = dt.strftime("%b")
+                if key in monthly_waste:
+                    monthly_waste[key] += float(l.get("waste_cost", 0))
+                    monthly_qty[key] += float(l.get("quantity_made", 0))
+            except Exception:
+                pass
+    return {
+        "total_runs": total_runs,
+        "total_waste_cost": round(total_waste_cost, 2),
+        "total_qty_made": round(total_qty, 2),
+        "avg_waste_pct": round(avg_waste_pct, 1),
+        "monthly_waste": monthly_waste,
+        "monthly_qty": monthly_qty,
+        "recent_logs": logs[:20],
+    }
 
 # ── Product BOM ───────────────────────────────────────────
 

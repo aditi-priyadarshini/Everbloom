@@ -355,8 +355,22 @@ def analytics():
         low_stock = models.get_low_stock_products(threshold=5)
     except Exception:
         low_stock = []
+    try:
+        mfg_analytics = models.get_manufacturing_analytics()
+    except Exception:
+        mfg_analytics = {"total_runs": 0, "total_waste_cost": 0, "avg_waste_pct": 0,
+                         "monthly_waste": {}, "monthly_qty": {}, "recent_logs": [], "total_qty_made": 0}
+    try:
+        low_stock_materials = models.get_low_stock_materials()
+        low_stock_components = models.get_low_stock_components()
+    except Exception:
+        low_stock_materials = []
+        low_stock_components = []
     return render_template("admin/analytics.html", stats=stats,
-                           all_orders=all_orders, low_stock=low_stock)
+                           all_orders=all_orders, low_stock=low_stock,
+                           mfg=mfg_analytics,
+                           low_stock_materials=low_stock_materials,
+                           low_stock_components=low_stock_components)
 
 
 @admin_bp.route("/analytics/export")
@@ -951,9 +965,11 @@ def component_detail(cid):
         elif action == "manufacture":
             qty   = float(request.form.get("quantity", 1))
             notes = request.form.get("notes", "").strip()
-            ok, errors = models.manufacture_component(cid, qty, notes)
+            wastage_pct = float(request.form.get("wastage_percent", 0) or 0)
+            ok, errors = models.manufacture_component(cid, qty, notes, wastage_percent=wastage_pct)
             if ok:
-                flash(f"Manufactured {qty} × {comp['name']}. Stock updated!", "success")
+                waste_msg = f" ({wastage_pct}% wastage applied)" if wastage_pct > 0 else ""
+                flash(f"Manufactured {qty} × {comp['name']}. Stock updated!{waste_msg}", "success")
             else:
                 for e in errors:
                     flash(e, "error")

@@ -421,29 +421,64 @@ def custom_order_respond(token, response):
         return redirect(url_for("shop.index"))
     import os, emails
     site_url = os.environ.get("SITE_URL", "http://localhost:5000")
+
     if response == "accepted":
-        # Create a real order
+        # The user_id on the custom request must match the logged-in user, or the user
+        # must log in first so the converted order is always owned by a real account.
+        req_user_id = req.get("user_id")
+        if not req_user_id:
+            # Guest custom request — we can't attach to an account; just mark accepted
+            # and create the order without a user_id (admin-only visibility).
+            flash("Your quote has been accepted. Please contact us to finalise your account.", "info")
+        elif not session.get("user_id"):
+            # User is not logged in — redirect to login, then back here
+            login_url = url_for("auth.login", next=url_for("shop.custom_order_respond", token=token, response=response))
+            flash("Please log in to confirm your custom order.", "info")
+            return redirect(login_url)
+        elif str(session["user_id"]) != str(req_user_id):
+            # Logged-in user is NOT the one who made the request
+            flash("This quote belongs to a different account.", "error")
+            return redirect(url_for("shop.index"))
+
+        # Create the regular order, explicitly marked as a custom conversion
         order = models.create_order({
-            "user_id": req.get("user_id"),
+            "user_id": req_user_id,
             "name": req["name"],
             "phone": req.get("phone", ""),
             "address": "To be confirmed",
             "total": float(req["quoted_price"]),
             "status": "placed",
             "is_custom_order": True,
+            "custom_request_id": req["id"],
             "custom_notes": req["description"],
             "delivery_type": "delivery",
             "shipping_charge": 0,
         })
         if order:
+            # Create a synthetic order_item so the order is never empty
+            models.create_order_item({
+                "order_id": order["id"],
+                "product_id": None,               # no shop product — this is custom
+                "title": f"Custom Order — {req.get('craft_type') or req['description'][:60]}",
+                "price": float(req["quoted_price"]),
+                "quantity": 1,
+                "image_url": req.get("reference_image_url") or "",
+                "is_custom": True,
+            })
             models.add_tracking(order["id"], "placed", "Custom order accepted by customer.")
             models.update_custom_request(req["id"], {
                 "status": "accepted",
                 "customer_response": "accepted",
                 "converted_order_id": order["id"],
             })
+            if req_user_id:
+                models.create_notification(
+                    req_user_id,
+                    f"Custom order confirmed! Order #{str(order['id'])[:8].upper()} created.",
+                    url_for("orders.order_detail", oid=order["id"])
+                )
             emails.send_custom_accepted(req["email"], req["name"], order["id"], site_url)
-            flash("Quote accepted! Your order has been created.", "success")
+            flash("Quote accepted! Your custom order has been created.", "success")
             return redirect(url_for("shop.custom_order_track", token=token))
     else:
         models.update_custom_request(req["id"], {

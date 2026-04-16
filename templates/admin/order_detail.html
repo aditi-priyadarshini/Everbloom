@@ -7,7 +7,21 @@
   <!-- Left: items + tracking -->
   <div class="order-detail-main">
     <div class="admin-card">
-      <h3>Order Items</h3>
+      <h3>Order Items
+        {% if order.get('is_custom_order') %}
+          <span style="margin-left:.6rem;background:#f5eeff;color:#7b4fa6;border:1px solid #c4a8e8;border-radius:20px;font-size:.68rem;padding:.2rem .7rem;letter-spacing:.05em;font-weight:500;vertical-align:middle;">&#10022; Custom Order</span>
+        {% endif %}
+      </h3>
+      {% if order.get('is_custom_order') and order.get('custom_request_id') %}
+      <div style="background:#fdf6ff;border:1px solid #c4a8e8;border-radius:6px;padding:.6rem .9rem;margin-bottom:.8rem;font-size:.82rem;color:#5c3d6e;display:flex;align-items:center;justify-content:space-between;gap:1rem;">
+        <span>&#9432; This order was converted from a custom request.</span>
+        <a href="{{ url_for('admin.custom_request_detail', rid=order.custom_request_id) }}" class="btn-outline-sm" style="white-space:nowrap;flex-shrink:0;">View Request &rarr;</a>
+      </div>
+      {% elif order.get('is_custom_order') and order.get('custom_notes') %}
+      <div style="background:#fdf6ff;border:1px solid #c4a8e8;border-radius:6px;padding:.6rem .9rem;margin-bottom:.8rem;font-size:.82rem;color:#5c3d6e;">
+        &#9432; Custom order &mdash; <em>{{ order.custom_notes[:120] }}{% if order.custom_notes|length > 120 %}&hellip;{% endif %}</em>
+      </div>
+      {% endif %}
       <table class="admin-table">
         <thead><tr><th>Product</th><th>Price</th><th>Qty</th><th>Subtotal</th></tr></thead>
         <tbody>
@@ -15,15 +29,21 @@
           <tr>
             <td>
               <div class="item-row">
-                {% if item.image_url %}<img src="{{ item.image_url }}" class="item-thumb" alt="">{% endif %}
-                {{ item.title }}
+                {% if item.image_url %}<img src="{{ item.image_url }}" class="item-thumb" alt="">{% else %}<div class="item-thumb-ph"></div>{% endif %}
+                <span>
+                  {{ item.title }}
+                  {% if item.get('is_custom') %}<span style="font-size:.68rem;background:#f5eeff;color:#7b4fa6;border:1px solid #c4a8e8;border-radius:10px;padding:.1rem .45rem;margin-left:.4rem;">custom</span>{% endif %}
+                </span>
               </div>
             </td>
-            <td>₹{{ "%.0f"|format(item.price) }}</td>
+            <td>&#8377;{{ "%.0f"|format(item.price) }}</td>
             <td>{{ item.quantity }}</td>
-            <td>₹{{ "%.0f"|format(item.price * item.quantity) }}</td>
+            <td>&#8377;{{ "%.0f"|format(item.price * item.quantity) }}</td>
           </tr>
           {% endfor %}
+          {% if not items %}
+          <tr><td colspan="4" class="empty-row">No items recorded for this order.</td></tr>
+          {% endif %}
         </tbody>
       </table>
       <div class="order-totals">
