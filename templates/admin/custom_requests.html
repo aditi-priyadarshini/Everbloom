@@ -1,28 +1,75 @@
 {% extends "admin/base_admin.html" %}
 {% block title %}Custom Requests{% endblock %}
-{% block page_title %}Custom Order Requests{% endblock %}
+{% block page_title %}Custom Requests{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('shop.custom_order') }}" target="_blank" class="btn-outline-sm">View Form →</a>
+{% endblock %}
+
 {% block content %}
 <div class="filter-tabs">
-  <a href="{{ url_for('admin.custom_requests') }}" class="tab {% if not selected_status %}active{% endif %}">All</a>
-  {% for s in ['pending','reviewing','quoted','accepted','rejected'] %}
-  <a href="{{ url_for('admin.custom_requests') }}?status={{ s }}" class="tab {% if selected_status == s %}active{% endif %}">{{ s|capitalize }}</a>
+  <a href="{{ url_for('admin.custom_requests') }}" class="tab {% if not selected_status %}active{% endif %}">
+    All <span class="tab-count">{{ requests|length }}</span>
+  </a>
+  {% set statuses = {'pending':'⏳','reviewing':'👀','quoted':'💬','accepted':'✅','rejected':'❌'} %}
+  {% for s, icon in statuses.items() %}
+  <a href="{{ url_for('admin.custom_requests') }}?status={{ s }}" class="tab {% if selected_status == s %}active{% endif %}">
+    {{ icon }} {{ s|capitalize }}
+  </a>
   {% endfor %}
 </div>
+
 <div class="admin-table-wrap">
   <table class="admin-table">
-    <thead><tr><th>Name</th><th>Email</th><th>Budget</th><th>Status</th><th>Date</th><th></th></tr></thead>
+    <thead>
+      <tr>
+        <th>Customer</th>
+        <th>Craft Type</th>
+        <th>Budget</th>
+        <th>Preferred Date</th>
+        <th>Linked Product</th>
+        <th>Status</th>
+        <th>Submitted</th>
+        <th></th>
+      </tr>
+    </thead>
     <tbody>
       {% for r in requests %}
-      <tr>
-        <td>{{ r.name }}</td>
-        <td>{{ r.email }}</td>
+      <tr onclick="location.href='{{ url_for('admin.custom_request_detail', rid=r.id) }}'" style="cursor:pointer;">
+        <td>
+          <div style="font-weight:500;">{{ r.name }}</div>
+          <div style="font-size:.76rem;color:var(--admin-muted);">{{ r.email }}</div>
+        </td>
+        <td>
+          {% if r.craft_type %}
+          <span style="font-size:.84rem;">{{ r.craft_type }}</span>
+          {% if r.occasion %}<br><span style="font-size:.74rem;color:var(--admin-muted);">{{ r.occasion }}</span>{% endif %}
+          {% else %}—{% endif %}
+        </td>
         <td>{{ r.budget or '—' }}</td>
-        <td><span class="status-pill status-{{ r.status }}">{{ r.status|capitalize }}</span></td>
-        <td>{{ r.created_at[:10] }}</td>
-        <td><a href="{{ url_for('admin.custom_request_detail', rid=r.id) }}" class="table-action">Review →</a></td>
+        <td>
+          {% if r.preferred_delivery_date %}
+          <span style="background:#fffbf0;border:1px solid #c9a96e;color:#5c3d3d;font-size:.72rem;padding:.2rem .5rem;border-radius:4px;">
+            📅 {{ r.preferred_delivery_date }}
+          </span>
+          {% else %}—{% endif %}
+        </td>
+        <td>
+          {% if r.linked_product_id %}
+          <span class="badge-yes">🔗 Linked</span>
+          {% else %}—{% endif %}
+        </td>
+        <td>
+          {% set status_map = {'pending':'status-pending','reviewing':'status-reviewing','quoted':'status-quoted','accepted':'status-accepted','rejected':'status-rejected'} %}
+          <span class="status-pill {{ status_map.get(r.status,'status-pending') }}">{{ r.status|capitalize }}</span>
+        </td>
+        <td style="font-size:.78rem;color:var(--admin-muted);">{{ r.created_at[:10] }}</td>
+        <td onclick="event.stopPropagation()">
+          <a href="{{ url_for('admin.custom_request_detail', rid=r.id) }}" class="btn-primary-sm">Review →</a>
+        </td>
       </tr>
       {% else %}
-      <tr><td colspan="6" class="empty-row">No custom requests yet.</td></tr>
+      <tr><td colspan="8" class="empty-row">No custom requests yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>
