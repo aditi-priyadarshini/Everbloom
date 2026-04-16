@@ -343,6 +343,20 @@ def custom_request_detail(rid):
     email_log = models.get_email_log("custom_request", rid)
     return render_template("admin/custom_request_detail.html", req=req_obj, email_log=email_log)
 
+# THIS IS THE MISSING ROUTE THAT FIXES YOUR BUILD ERROR
+@admin_bp.route("/custom-requests/<rid>/create-product", methods=["GET", "POST"])
+@admin_only
+def custom_request_create_product(rid):
+    req_obj = models.get_custom_request(rid)
+    if not req_obj:
+        flash("Request not found.", "error")
+        return redirect(url_for("admin.custom_requests"))
+    
+    # Redirects the admin to the new product form, 
+    # potentially passing custom request context if your template expects it.
+    categories = models.get_categories()
+    return render_template("admin/product_form.html", product=None, categories=categories, action="new", custom_req=req_obj)
+
 
 # ── Analytics ─────────────────────────────────────────────
 
