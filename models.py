@@ -245,10 +245,12 @@ def avg_rating(reviews):
 
 # ── Custom Requests ───────────────────────────────────────
 
-def get_custom_requests(status=None):
+def get_custom_requests(status=None, user_id=None):
     filters = {}
     if status:
         filters["status"] = f"eq.{status}"
+    if user_id:
+        filters["user_id"] = f"eq.{user_id}"
     return supa.select("custom_requests", filters, order="created_at.desc")
 
 
