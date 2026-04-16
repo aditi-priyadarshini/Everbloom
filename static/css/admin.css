@@ -470,3 +470,19 @@ input:checked + .toggle-track-ui::after { transform: translateX(17px); }
   .form-row { grid-template-columns: 1fr; }
   .form-row-4 { grid-template-columns: 1fr 1fr; }
 }
+
+/* ── Quick Action Buttons (Dashboard) ── */
+.quick-action-btn {
+  display: flex; align-items: center; gap: .6rem;
+  padding: .75rem 1rem;
+  background: #faf7f4; border: 1px solid var(--admin-border);
+  border-radius: var(--radius-sm); font-size: .84rem;
+  color: var(--admin-text); text-decoration: none;
+  transition: all .18s; font-family: 'Jost', sans-serif;
+}
+.quick-action-btn:hover {
+  background: var(--admin-accent); color: #fff;
+  border-color: var(--admin-accent);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(124,79,58,.2);
+}
