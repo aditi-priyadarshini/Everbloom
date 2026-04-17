@@ -9,142 +9,104 @@
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/css/main.css">
 <link rel="stylesheet" href="/static/css/admin.css">
+{% block head %}{% endblock %}
 </head>
 <body class="admin-body">
-
-<script>
-// Pick a random palette each session (persisted for the session)
-const palettes = {
-  blush: {
-    '--blush':'#f5e6e0','--rose':'#e8c4b8','--petal':'#d4a0a0',
-    '--mauve':'#b07878','--bark':'#5c3d3d','--cream':'#fdf6f0',
-    '--sage':'#c8d8c0','--sage-dark':'#8aaa7e','--gold':'#c9a96e',
-    '--text':'#3a2a2a','--text-soft':'#7a5c5c','--white':'#ffffff'
-  },
-  sage: {
-    '--blush':'#e8f0e4','--rose':'#c0d4b8','--petal':'#9ab88a',
-    '--mauve':'#6a9a58','--bark':'#2d4a20','--cream':'#f4f8f2',
-    '--sage':'#d4e8cc','--sage-dark':'#6a9a58','--gold':'#b8a84e',
-    '--text':'#1e3018','--text-soft':'#4a6a3a','--white':'#ffffff'
-  },
-  lavender: {
-    '--blush':'#f0eaf8','--rose':'#d8c8f0','--petal':'#bba0e0',
-    '--mauve':'#8a6ab8','--bark':'#3d2a5c','--cream':'#f8f4fd',
-    '--sage':'#d0d8f0','--sage-dark':'#6870b8','--gold':'#c9a96e',
-    '--text':'#2a1a3a','--text-soft':'#6a4a8a','--white':'#ffffff'
-  },
-  terracotta: {
-    '--blush':'#f8ede6','--rose':'#e8c4a8','--petal':'#d4986a',
-    '--mauve':'#b86840','--bark':'#5c2d10','--cream':'#fdf6f0',
-    '--sage':'#d8c8a8','--sage-dark':'#9a8850','--gold':'#c9952e',
-    '--text':'#3a1a08','--text-soft':'#7a4a28','--white':'#ffffff'
-  },
-  midnight: {
-    '--blush':'#e8eaf8','--rose':'#b8bce8','--petal':'#8890d8',
-    '--mauve':'#5058b8','--bark':'#1a2060','--cream':'#f2f4fd',
-    '--sage':'#c8d8e8','--sage-dark':'#5888b8','--gold':'#c9a96e',
-    '--text':'#0a1040','--text-soft':'#3848a0','--white':'#ffffff'
-  },
-  rose_gold: {
-    '--blush':'#faeee8','--rose':'#f0c8b8','--petal':'#e0988a',
-    '--mauve':'#c06858','--bark':'#6a2820','--cream':'#fdf8f6',
-    '--sage':'#e8d8c8','--sage-dark':'#b09070','--gold':'#d4a060',
-    '--text':'#3a1010','--text-soft':'#8a4840','--white':'#ffffff'
-  },
-  forest: {
-    '--blush':'#e8f4ec','--rose':'#b8d8c0','--petal':'#80b890',
-    '--mauve':'#488858','--bark':'#1a4028','--cream':'#f2f9f4',
-    '--sage':'#d0e8d4','--sage-dark':'#488858','--gold':'#b8a040',
-    '--text':'#0c2818','--text-soft':'#386848','--white':'#ffffff'
-  },
-  dusty_blue: {
-    '--blush':'#e8eef8','--rose':'#b8c8e8','--petal':'#88a0c8',
-    '--mauve':'#587098','--bark':'#1e3050','--cream':'#f2f6fd',
-    '--sage':'#c8d8e0','--sage-dark':'#5888a0','--gold':'#c9a96e',
-    '--text':'#0e2040','--text-soft':'#385878','--white':'#ffffff'
-  }
-};
-
-const keys = Object.keys(palettes);
-let stored = sessionStorage.getItem('eb_palette');
-if (!stored) {
-  stored = keys[Math.floor(Math.random() * keys.length)];
-  sessionStorage.setItem('eb_palette', stored);
-}
-const palette = palettes[stored] || palettes.blush;
-const root = document.documentElement;
-Object.entries(palette).forEach(([k, v]) => root.style.setProperty(k, v));
-</script>
 <div class="admin-layout">
+
+  <!-- ── Sidebar ── -->
   <aside class="admin-sidebar">
     <a class="admin-logo" href="{{ url_for('admin.dashboard') }}">Ever<span>bloom</span></a>
     <nav class="admin-nav">
+
+      <div class="nav-section-label">Overview</div>
       <a href="{{ url_for('admin.dashboard') }}" class="{% if request.endpoint == 'admin.dashboard' %}active{% endif %}">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
         Dashboard
       </a>
-      <a href="{{ url_for('admin.orders') }}" class="{% if 'order' in request.endpoint %}active{% endif %}">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/></svg>
+
+      <div class="nav-section-label">Sales</div>
+      <a href="{{ url_for('admin.orders') }}" class="{% if 'order' in request.endpoint and 'custom' not in request.endpoint and 'requirement' not in request.endpoint %}active{% endif %}">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
         Orders
       </a>
-      <a href="{{ url_for('admin.products') }}" class="{% if 'product' in request.endpoint %}active{% endif %}">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-        Products
-      </a>
-      <a href="{{ url_for('admin.coupons') }}" class="{% if 'coupon' in request.endpoint %}active{% endif %}">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
-        Coupons
-      </a>
       <a href="{{ url_for('admin.custom_requests') }}" class="{% if 'custom' in request.endpoint %}active{% endif %}">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
         Custom Requests
       </a>
       <a href="{{ url_for('admin.customers') }}" class="{% if 'customer' in request.endpoint %}active{% endif %}">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         Customers
       </a>
-      <a href="{{ url_for('admin.email_templates') }}" class="{% if 'email_template' in request.endpoint %}active{% endif %}">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-        Email Templates
+      <a href="{{ url_for('admin.coupons') }}" class="{% if 'coupon' in request.endpoint %}active{% endif %}">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+        Coupons
       </a>
-      <a href="{{ url_for('admin.inventory') }}" class="{% if request.endpoint == 'admin.inventory' or request.endpoint == 'admin.inventory_detail' %}active{% endif %}">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+
+      <div class="nav-section-label">Catalogue</div>
+      <a href="{{ url_for('admin.products') }}" class="{% if 'product' in request.endpoint and 'cost' not in request.endpoint %}active{% endif %}">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        Products
+      </a>
+
+      <div class="nav-section-label">Manufacturing</div>
+      <a href="{{ url_for('admin.inventory') }}" class="{% if request.endpoint in ['admin.inventory','admin.inventory_detail'] %}active{% endif %}">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
         Raw Materials
       </a>
       <a href="{{ url_for('admin.components') }}" class="{% if 'component' in request.endpoint %}active{% endif %}">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
         Components
       </a>
       <a href="{{ url_for('admin.product_costs') }}" class="{% if 'product_cost' in request.endpoint %}active{% endif %}">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
         Cost Builder
       </a>
+
+
+      <div class="nav-section-label">Settings</div>
+      <a href="{{ url_for('admin.email_templates') }}" class="{% if 'email_template' in request.endpoint %}active{% endif %}">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        Email Templates
+      </a>
       <a href="{{ url_for('admin.settings') }}" class="{% if 'settings' in request.endpoint %}active{% endif %}">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         Settings
       </a>
     </nav>
+
     <div class="admin-sidebar-footer">
-      <a href="{{ url_for('shop.index') }}">← View Store</a>
-      <a href="{{ url_for('auth.logout') }}">Logout</a>
+      <a href="{{ url_for('shop.index') }}" target="_blank">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        View Store
+      </a>
+      <a href="{{ url_for('auth.logout') }}">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Logout
+      </a>
     </div>
   </aside>
+
+  <!-- ── Main ── -->
   <div class="admin-main">
     <div class="admin-topbar">
       <h1 class="admin-page-title">{% block page_title %}{% endblock %}</h1>
       <div class="admin-topbar-right">
-        <span class="admin-user">{{ session.user_name }}</span>
+        {% block topbar_actions %}{% endblock %}
+        <span class="admin-topbar-user">{{ session.user_name }}</span>
       </div>
     </div>
+
     {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
-    <div class="flash-wrap" style="position:static;margin:0 0 1rem;">
+    <div style="padding:1rem 2rem 0;">
       {% for cat, msg in messages %}
       <div class="flash flash-{{ cat }}">{{ msg }}<button onclick="this.parentElement.remove()">&times;</button></div>
       {% endfor %}
     </div>
     {% endif %}
     {% endwith %}
+
     <div class="admin-content">
       {% block content %}{% endblock %}
     </div>
