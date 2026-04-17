@@ -4,224 +4,253 @@
 
 {% block content %}
 
-{# TOP KPI ROW #}
-<div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:1.5rem;">
-  <div class="stat-card stat-card-revenue">
+<!-- ── Low Stock Alert ── -->
+{% if low_stock_materials or low_stock_components %}
+<div style="background:#fef3cd;border:1px solid #f0c040;border-radius:8px;padding:.9rem 1.2rem;margin-bottom:1.4rem;display:flex;align-items:center;gap:.9rem;">
+  <span style="font-size:1.3rem;flex-shrink:0;">⚠️</span>
+  <div style="flex:1;font-size:.84rem;color:#7a5000;">
+    <strong>Low Stock — </strong>
+    {% for m in low_stock_materials %}{{ m.icon or '🧪' }} {{ m.name }} ({{ m.current_stock }} {{ m.unit }}){% if not loop.last %} · {% endif %}{% endfor %}
+    {% if low_stock_components %}{% if low_stock_materials %} &nbsp;|&nbsp; {% endif %}{% for c in low_stock_components %}{{ c.icon or '🔧' }} {{ c.name }} ({{ c.current_stock }}){% if not loop.last %} · {% endif %}{% endfor %}{% endif %}
+  </div>
+  <a href="{{ url_for('admin.inventory') }}" class="btn-primary-sm" style="flex-shrink:0;">Restock →</a>
+</div>
+{% endif %}
+
+<!-- ── KPI Row 1 ── -->
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1rem;">
+  <div class="admin-card" style="margin:0;display:flex;align-items:center;gap:1rem;padding:1.2rem 1.3rem;">
     <div class="stat-icon stat-icon-revenue">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
     </div>
-    <div class="stat-info">
-      <span class="stat-value">&#8377;{{ "%.0f"|format(stats.total_revenue) }}</span>
-      <span class="stat-label">Total Revenue</span>
+    <div>
+      <div style="font-family:'Cormorant Garamond',serif;font-size:1.8rem;font-weight:300;line-height:1;color:var(--admin-text);">₹{{ "%.0f"|format(stats.total_revenue) }}</div>
+      <div style="font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--admin-muted);margin-top:.3rem;">Total Revenue</div>
     </div>
   </div>
-  <div class="stat-card">
+  <div class="admin-card" style="margin:0;display:flex;align-items:center;gap:1rem;padding:1.2rem 1.3rem;">
     <div class="stat-icon stat-icon-orders">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/></svg>
     </div>
-    <div class="stat-info">
-      <span class="stat-value">{{ stats.total_orders }}</span>
-      <span class="stat-label">Total Orders</span>
+    <div>
+      <div style="font-family:'Cormorant Garamond',serif;font-size:1.8rem;font-weight:300;line-height:1;color:var(--admin-text);">{{ stats.total_orders }}</div>
+      <div style="font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--admin-muted);margin-top:.3rem;">Total Orders</div>
     </div>
   </div>
-  <div class="stat-card">
+  <div class="admin-card" style="margin:0;display:flex;align-items:center;gap:1rem;padding:1.2rem 1.3rem;">
     <div class="stat-icon stat-icon-customers">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
     </div>
-    <div class="stat-info">
-      <span class="stat-value">{{ stats.total_customers }}</span>
-      <span class="stat-label">Customers</span>
+    <div>
+      <div style="font-family:'Cormorant Garamond',serif;font-size:1.8rem;font-weight:300;line-height:1;color:var(--admin-text);">{{ stats.total_customers }}</div>
+      <div style="font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--admin-muted);margin-top:.3rem;">Customers</div>
+      <div style="font-size:.72rem;color:#2e7d32;margin-top:.2rem;">+{{ stats.new_customers_month }} this month</div>
     </div>
   </div>
-  <div class="stat-card">
+  <div class="admin-card" style="margin:0;display:flex;align-items:center;gap:1rem;padding:1.2rem 1.3rem;">
     <div class="stat-icon stat-icon-products">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
     </div>
-    <div class="stat-info">
-      <span class="stat-value">{{ stats.total_products }}</span>
-      <span class="stat-label">Products</span>
+    <div>
+      <div style="font-family:'Cormorant Garamond',serif;font-size:1.8rem;font-weight:300;line-height:1;color:var(--admin-text);">{{ stats.total_products }}</div>
+      <div style="font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--admin-muted);margin-top:.3rem;">Products</div>
     </div>
   </div>
 </div>
 
-{# SECONDARY KPI ROW #}
-<div class="kpi-row">
-  <div class="kpi-card kpi-pending">
-    <div class="kpi-icon">&#9203;</div>
-    <div><div class="kpi-value">{{ stats.pending_orders }}</div><div class="kpi-label">Pending Orders</div></div>
+<!-- ── KPI Row 2 ── -->
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.4rem;">
+  <div class="admin-card" style="margin:0;padding:1rem 1.2rem;border-left:3px solid #e65100;">
+    <div style="font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--admin-muted);margin-bottom:.3rem;">Pending</div>
+    <div style="font-family:'Cormorant Garamond',serif;font-size:1.6rem;font-weight:300;color:var(--admin-text);">{{ stats.pending_orders }}</div>
+    <div style="font-size:.76rem;color:var(--admin-muted);margin-top:.2rem;">{{ stats.placed }} new · {{ stats.advance_paid }} paying</div>
   </div>
-  <div class="kpi-card kpi-aov">
-    <div class="kpi-icon">&#128202;</div>
-    <div><div class="kpi-value">&#8377;{{ "%.0f"|format(stats.avg_order_value) }}</div><div class="kpi-label">Avg Order Value</div></div>
+  <div class="admin-card" style="margin:0;padding:1rem 1.2rem;border-left:3px solid #c9a96e;">
+    <div style="font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--admin-muted);margin-bottom:.3rem;">Avg Order Value</div>
+    <div style="font-family:'Cormorant Garamond',serif;font-size:1.6rem;font-weight:300;color:var(--admin-text);">₹{{ "%.0f"|format(stats.avg_order_value) }}</div>
+    <div style="font-size:.76rem;color:var(--admin-muted);margin-top:.2rem;">per delivered order</div>
   </div>
-  <div class="kpi-card kpi-new">
-    <div class="kpi-icon">&#127807;</div>
-    <div><div class="kpi-value">{{ stats.new_customers_month }}</div><div class="kpi-label">New Customers (30d)</div></div>
+  <div class="admin-card" style="margin:0;padding:1rem 1.2rem;border-left:3px solid #2980b9;">
+    <div style="font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--admin-muted);margin-bottom:.3rem;">Shipped</div>
+    <div style="font-family:'Cormorant Garamond',serif;font-size:1.6rem;font-weight:300;color:var(--admin-text);">{{ stats.shipped }}</div>
+    <div style="font-size:.76rem;color:var(--admin-muted);margin-top:.2rem;">in transit</div>
   </div>
-  <div class="kpi-card {% if stats.cancel_rate > 15 %}kpi-danger{% else %}kpi-ok{% endif %}">
-    <div class="kpi-icon">{% if stats.cancel_rate > 15 %}&#128308;{% else %}&#9989;{% endif %}</div>
-    <div><div class="kpi-value">{{ stats.cancel_rate }}%</div><div class="kpi-label">Cancellation Rate</div></div>
-  </div>
-  <div class="kpi-card kpi-placed">
-    <div class="kpi-icon">&#128230;</div>
-    <div><div class="kpi-value">{{ stats.placed }}</div><div class="kpi-label">New (Placed)</div></div>
-  </div>
-  <div class="kpi-card kpi-shipped">
-    <div class="kpi-icon">&#128666;</div>
-    <div><div class="kpi-value">{{ stats.shipped }}</div><div class="kpi-label">Shipped</div></div>
+  <div class="admin-card" style="margin:0;padding:1rem 1.2rem;border-left:3px solid {% if stats.cancel_rate > 15 %}#c0392b{% else %}#2e7d32{% endif %};">
+    <div style="font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--admin-muted);margin-bottom:.3rem;">Cancellation Rate</div>
+    <div style="font-family:'Cormorant Garamond',serif;font-size:1.6rem;font-weight:300;color:{% if stats.cancel_rate > 15 %}#c0392b{% else %}var(--admin-text){% endif %};">{{ stats.cancel_rate }}%</div>
+    <div style="font-size:.76rem;color:var(--admin-muted);margin-top:.2rem;">{% if stats.cancel_rate > 15 %}⚠ above threshold{% else %}✓ healthy{% endif %}</div>
   </div>
 </div>
 
-{# CHARTS ROW #}
-<div style="display:grid;grid-template-columns:2fr 1fr;gap:1.2rem;margin-bottom:1.5rem;">
-  <div class="chart-card">
-    <div class="chart-card-header">
-      <h3>Revenue — Last 6 Months</h3>
-      <a href="{{ url_for('admin.analytics') }}" class="btn-outline-sm">Full Analytics &rarr;</a>
+<!-- ── Charts + Side Panel ── -->
+<div style="display:grid;grid-template-columns:1fr 300px;gap:1.2rem;margin-bottom:1.4rem;">
+
+  <!-- Revenue Chart -->
+  <div class="admin-card" style="margin:0;padding:1.3rem;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+      <h3 style="margin:0;font-family:'Cormorant Garamond',serif;font-size:1rem;font-weight:400;">Revenue — Last 6 Months</h3>
+      <a href="{{ url_for('admin.analytics') }}" class="btn-outline-sm">Full Analytics →</a>
     </div>
-    <canvas id="revenueChart" height="100"></canvas>
+    <canvas id="revenueChart" height="110"></canvas>
   </div>
-  <div class="chart-card">
-    <div class="chart-card-header"><h3>Order Status Breakdown</h3></div>
-    <canvas id="statusDonut" height="180"></canvas>
-    <div id="donut-legend" style="display:flex;flex-wrap:wrap;gap:.35rem .7rem;margin-top:.8rem;font-size:.73rem;color:#3a2a2a;"></div>
+
+  <!-- Status Donut -->
+  <div class="admin-card" style="margin:0;padding:1.3rem;">
+    <h3 style="margin:0 0 1rem;font-family:'Cormorant Garamond',serif;font-size:1rem;font-weight:400;">Order Status</h3>
+    <canvas id="statusDonut" height="160"></canvas>
+    <div id="donut-legend" style="display:flex;flex-wrap:wrap;gap:.3rem .6rem;margin-top:.8rem;font-size:.72rem;color:var(--admin-text);"></div>
   </div>
 </div>
 
-{# RECENT ORDERS + ALERTS PANEL #}
-<div style="display:grid;grid-template-columns:1fr 310px;gap:1.2rem;">
+<!-- ── Recent Orders + Side ── -->
+<div style="display:grid;grid-template-columns:1fr 300px;gap:1.2rem;">
 
-  <div class="admin-section" style="margin:0;">
-    <div class="admin-section-header">
-      <h2>Recent Orders</h2>
+  <!-- Recent Orders -->
+  <div class="admin-card" style="margin:0;padding:1.3rem;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+      <h3 style="margin:0;font-family:'Cormorant Garamond',serif;font-size:1rem;font-weight:400;">Recent Orders</h3>
       <a href="{{ url_for('admin.orders') }}" class="btn-outline-sm">View All</a>
     </div>
-    <div class="admin-table-wrap">
-      <table class="admin-table">
-        <thead><tr>
-          <th>Order ID</th><th>Customer</th><th>Total</th><th>Status</th><th>Date</th><th></th>
-        </tr></thead>
-        <tbody>
-          {% for o in recent_orders %}
-          <tr>
-            <td><code>#{{ o.id[:8]|upper }}</code></td>
-            <td>{{ o.name }}</td>
-            <td>&#8377;{{ "%.0f"|format(o.total) }}</td>
-            <td><span class="status-pill status-{{ o.status }}">{{ STATUS_LABELS.get(o.status, o.status) }}</span></td>
-            <td>{{ o.created_at[:10] }}</td>
-            <td><a href="{{ url_for('admin.order_detail', oid=o.id) }}" class="table-action">View &rarr;</a></td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+    <table class="admin-table">
+      <thead><tr>
+        <th>Order</th><th>Customer</th><th>Total</th><th>Status</th><th>Date</th><th></th>
+      </tr></thead>
+      <tbody>
+        {% for o in recent_orders %}
+        <tr style="cursor:pointer;" onclick="location.href='{{ url_for('admin.order_detail', oid=o.id) }}'">
+          <td><code style="font-size:.74rem;background:#f5f0eb;padding:.15rem .4rem;border-radius:3px;">#{{ o.id[:7]|upper }}</code></td>
+          <td style="font-weight:500;">{{ o.name }}</td>
+          <td>₹{{ "%.0f"|format(o.total) }}</td>
+          <td><span class="status-pill status-{{ o.status }}">{{ STATUS_LABELS.get(o.status, o.status) }}</span></td>
+          <td style="font-size:.76rem;color:var(--admin-muted);">{{ o.created_at[:10] }}</td>
+          <td onclick="event.stopPropagation()"><a href="{{ url_for('admin.order_detail', oid=o.id) }}" class="table-action">View →</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="empty-row">No orders yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 
+  <!-- Right side panel -->
   <div style="display:flex;flex-direction:column;gap:1rem;">
-    <div class="chart-card" style="padding:1.1rem;">
-      <div class="chart-card-header" style="margin-bottom:.6rem;"><h3>&#9888; Stock Alerts</h3></div>
+
+    <!-- Stock Alerts -->
+    <div class="admin-card" style="margin:0;padding:1.2rem;">
+      <h3 style="margin:0 0 .9rem;font-family:'Cormorant Garamond',serif;font-size:.95rem;font-weight:400;">⚠️ Stock Alerts</h3>
       {% set has_alerts = low_stock_materials or low_stock_components %}
       {% if has_alerts %}
         {% if low_stock_materials %}
-          <p style="font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:#7a5c5c;margin-bottom:.35rem;">Raw Materials</p>
-          {% for m in low_stock_materials[:4] %}
-          <div class="alert-row alert-row-mat">
-            <span>{{ m.icon or '&#129514;' }} {{ m.name }}</span>
-            <span class="alert-qty">{{ m.current_stock }}/{{ m.reorder_level }} {{ m.unit }}</span>
-          </div>
-          {% endfor %}
+        <div style="font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--admin-muted);margin-bottom:.4rem;">Raw Materials</div>
+        {% for m in low_stock_materials[:3] %}
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem .5rem;background:#fef3cd;border-radius:5px;margin-bottom:.3rem;font-size:.8rem;">
+          <span>{{ m.icon or '🧪' }} {{ m.name }}</span>
+          <span style="color:#c0392b;font-weight:500;font-size:.75rem;">{{ m.current_stock }}/{{ m.reorder_level }}</span>
+        </div>
+        {% endfor %}
         {% endif %}
         {% if low_stock_components %}
-          <p style="font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:#7a5c5c;margin:.7rem 0 .35rem;">Components</p>
-          {% for c in low_stock_components[:4] %}
-          <div class="alert-row alert-row-comp">
-            <span>{{ c.icon or '&#128296;' }} {{ c.name }}</span>
-            <span class="alert-qty">{{ c.current_stock }}/{{ c.reorder_level }} {{ c.unit }}</span>
-          </div>
-          {% endfor %}
+        <div style="font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--admin-muted);margin:.7rem 0 .4rem;">Components</div>
+        {% for c in low_stock_components[:3] %}
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem .5rem;background:#fef3cd;border-radius:5px;margin-bottom:.3rem;font-size:.8rem;">
+          <span>{{ c.icon or '🔧' }} {{ c.name }}</span>
+          <span style="color:#c0392b;font-weight:500;font-size:.75rem;">{{ c.current_stock }}/{{ c.reorder_level }}</span>
+        </div>
+        {% endfor %}
         {% endif %}
-        <a href="{{ url_for('admin.inventory') }}" class="btn-outline-sm" style="display:block;text-align:center;margin-top:.7rem;">View Inventory &rarr;</a>
+        <a href="{{ url_for('admin.inventory') }}" class="btn-outline btn-full" style="margin-top:.8rem;font-size:.78rem;padding:.5rem;">View Inventory →</a>
       {% else %}
-        <div style="text-align:center;padding:1.2rem 0;color:#7a5c5c;font-style:italic;font-size:.84rem;">All stock levels healthy &#10003;</div>
+        <div style="text-align:center;padding:1rem 0;color:var(--admin-muted);font-size:.84rem;">✓ All stock levels healthy</div>
       {% endif %}
     </div>
 
-    <div class="chart-card" style="padding:1.1rem;">
-      <h3 style="font-family:'Cormorant Garamond',serif;font-size:1rem;font-weight:300;color:#3a2a2a;margin-bottom:.7rem;">Quick Actions</h3>
-      <div style="display:flex;flex-direction:column;gap:.35rem;">
-        <a href="{{ url_for('admin.orders', status='placed') }}" class="quick-action-btn">&#128203; New Orders ({{ stats.placed }})</a>
-        <a href="{{ url_for('admin.orders', status='advance_paid') }}" class="quick-action-btn">&#128179; Verify Payments ({{ stats.advance_paid }})</a>
-        <a href="{{ url_for('admin.orders', status='crafting') }}" class="quick-action-btn">&#128296; In Crafting ({{ (stats.status_counts or {}).get('crafting', 0) }})</a>
-        <a href="{{ url_for('admin.analytics') }}" class="quick-action-btn">&#128200; Full Analytics</a>
+    <!-- Quick Actions -->
+    <div class="admin-card" style="margin:0;padding:1.2rem;">
+      <h3 style="margin:0 0 .9rem;font-family:'Cormorant Garamond',serif;font-size:.95rem;font-weight:400;">Quick Actions</h3>
+      <div style="display:flex;flex-direction:column;gap:.4rem;">
+        <a href="{{ url_for('admin.orders') }}?status=placed" class="quick-action-btn">
+          📋 New Orders <span style="margin-left:auto;background:#e3f2fd;color:#1565c0;font-size:.65rem;padding:.1rem .4rem;border-radius:10px;">{{ stats.placed }}</span>
+        </a>
+        <a href="{{ url_for('admin.orders') }}?status=advance_paid" class="quick-action-btn">
+          💳 Verify Payments <span style="margin-left:auto;background:#fff3e0;color:#e65100;font-size:.65rem;padding:.1rem .4rem;border-radius:10px;">{{ stats.advance_paid }}</span>
+        </a>
+        <a href="{{ url_for('admin.orders') }}?status=crafting" class="quick-action-btn">
+          🔨 In Crafting <span style="margin-left:auto;background:#fce4ec;color:#880e4f;font-size:.65rem;padding:.1rem .4rem;border-radius:10px;">{{ (stats.status_counts or {}).get('crafting', 0) }}</span>
+        </a>
+        <a href="{{ url_for('admin.analytics') }}" class="quick-action-btn">📊 Full Analytics</a>
+        <a href="{{ url_for('admin.custom_requests') }}" class="quick-action-btn">✏️ Custom Requests</a>
       </div>
     </div>
+
   </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" crossorigin="anonymous"></script>
 <script>
 Chart.defaults.font.family = "'Jost', sans-serif";
-Chart.defaults.color = '#7a5c5c';
+Chart.defaults.color = '#8a7060';
 
-const monthlyRevenue = {{ stats.monthly_revenue | tojson }};
+// Revenue chart
+const rev = {{ stats.monthly_revenue | tojson }};
 new Chart(document.getElementById('revenueChart'), {
   type: 'line',
   data: {
-    labels: Object.keys(monthlyRevenue),
+    labels: Object.keys(rev),
     datasets: [{
       label: 'Revenue',
-      data: Object.values(monthlyRevenue),
-      borderColor: '#b07878',
-      backgroundColor: 'rgba(176,120,120,0.10)',
+      data: Object.values(rev),
+      borderColor: '#7c4f3a',
+      backgroundColor: 'rgba(124,79,58,.08)',
       borderWidth: 2.5,
-      pointBackgroundColor: '#b07878',
-      pointRadius: 5,
-      pointHoverRadius: 7,
+      pointBackgroundColor: '#7c4f3a',
+      pointRadius: 4,
+      pointHoverRadius: 6,
       fill: true,
-      tension: 0.38,
+      tension: 0.4,
     }]
   },
   options: {
     responsive: true,
     plugins: {
       legend: { display: false },
-      tooltip: { callbacks: { label: ctx => ' \u20B9' + ctx.parsed.y.toLocaleString('en-IN') } }
+      tooltip: { callbacks: { label: ctx => ' ₹' + ctx.parsed.y.toLocaleString('en-IN') } }
     },
     scales: {
-      x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+      x: { grid: { display: false } },
       y: {
-        grid: { color: 'rgba(0,0,0,.05)' },
-        ticks: { callback: v => '\u20B9' + (v >= 1000 ? (v/1000).toFixed(0)+'k' : v), font: { size: 11 } }
+        grid: { color: 'rgba(0,0,0,.04)' },
+        ticks: { callback: v => '₹' + (v >= 1000 ? (v/1000).toFixed(0)+'k' : v) }
       }
     }
   }
 });
 
-const statusCounts = {{ (stats.status_counts or {}) | tojson }};
-const statusColors = {
+// Status donut
+const sc = {{ (stats.status_counts or {}) | tojson }};
+const sColors = {
   placed:'#5b8dd9', advance_requested:'#e0a835', advance_paid:'#d48a00',
   advance_confirmed:'#8fc47a', crafting:'#9b7dd4', quality_check:'#5bc4c4',
   shipped:'#4caf7d', delivered:'#2e7d52', cancelled:'#c97a7a'
 };
-const statusLabels = {
+const sLabels = {
   placed:'Placed', advance_requested:'Adv. Req.', advance_paid:'Adv. Paid',
-  advance_confirmed:'Adv. Confirmed', crafting:'Crafting', quality_check:'QC',
+  advance_confirmed:'Confirmed', crafting:'Crafting', quality_check:'QC',
   shipped:'Shipped', delivered:'Delivered', cancelled:'Cancelled'
 };
-const dk = Object.keys(statusCounts).filter(k => statusCounts[k] > 0);
-const dd = dk.map(k => statusCounts[k]);
-const dc = dk.map(k => statusColors[k] || '#aaa');
-
+const dk = Object.keys(sc).filter(k => sc[k] > 0);
 new Chart(document.getElementById('statusDonut'), {
   type: 'doughnut',
-  data: { labels: dk.map(k => statusLabels[k]||k), datasets: [{ data: dd, backgroundColor: dc, borderWidth: 2, borderColor:'#fff' }] },
+  data: {
+    labels: dk.map(k => sLabels[k] || k),
+    datasets: [{ data: dk.map(k => sc[k]), backgroundColor: dk.map(k => sColors[k] || '#aaa'), borderWidth: 2, borderColor: '#fff' }]
+  },
   options: { responsive: true, cutout: '62%', plugins: { legend: { display: false } } }
 });
 const leg = document.getElementById('donut-legend');
-dk.forEach((k,i) => {
+dk.forEach((k, i) => {
   const s = document.createElement('span');
   s.style.cssText = 'display:flex;align-items:center;gap:.25rem;';
-  s.innerHTML = `<span style="width:9px;height:9px;border-radius:50%;background:${dc[i]};display:inline-block;flex-shrink:0;"></span>${statusLabels[k]||k} (${dd[i]})`;
+  s.innerHTML = `<span style="width:8px;height:8px;border-radius:50%;background:${sColors[k]||'#aaa'};display:inline-block;flex-shrink:0;"></span>${sLabels[k]||k} (${sc[k]})`;
   leg.appendChild(s);
 });
 </script>
