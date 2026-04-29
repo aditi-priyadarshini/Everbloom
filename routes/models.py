@@ -1078,3 +1078,61 @@ def delete_order(oid):
     supa.delete("tracking",     {"order_id": f"eq.{oid}"})
     supa.delete("notifications",{"order_id": f"eq.{oid}"})
     return supa.delete("orders", {"id": f"eq.{oid}"})
+
+
+# ── New Custom Request Workflow ───────────────────────────
+
+CUSTOM_STATUSES = ["new", "discussing", "agreed", "converted", "closed"]
+CUSTOM_STATUS_LABELS = {
+    "new":       "New Request",
+    "discussing":"Discussing",
+    "agreed":    "Price Agreed",
+    "converted": "Order Created",
+    "closed":    "Closed",
+}
+
+def convert_custom_to_order(rid, admin_price, admin_note=""):
+    """Admin manually converts a custom request into a real order."""
+    req = get_custom_request(rid)
+    if not req:
+        return None, "Request not found"
+
+    order = create_order({
+        "user_id":       req.get("user_id"),
+        "name":          req.get("name", ""),
+        "phone":         req.get("phone", ""),
+        "address":       "To be confirmed",
+        "total":         float(admin_price),
+        "status":        "placed",
+        "delivery_type": "delivery",
+        "shipping_charge": 0,
+        "is_preorder":   False,
+        "custom_notes":  req.get("description", ""),
+        "from_custom_request": True,
+    })
+    if not order:
+        return None, "Could not create order"
+
+    update_custom_request(str(req["id"]), {
+        "status":             "converted",
+        "converted_order_id": str(order["id"]),
+        "quoted_price":       float(admin_price),
+        "admin_note":         admin_note,
+        "customer_response":  "admin_converted",
+    })
+    add_tracking(str(order["id"]), "placed",
+                 f"Custom order converted by admin. {admin_note}".strip())
+    return order, None
+
+
+def add_custom_internal_note(rid, note):
+    req = get_custom_request(rid)
+    if not req:
+        return False
+    existing = req.get("admin_note") or ""
+    from datetime import datetime, timezone
+    ts = datetime.now(timezone.utc).strftime("%d %b %H:%M")
+    new_note = f"[{ts}] {note}"
+    combined = f"{existing}\n{new_note}".strip() if existing else new_note
+    update_custom_request(rid, {"admin_note": combined})
+    return True
