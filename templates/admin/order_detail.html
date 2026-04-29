@@ -243,5 +243,43 @@
 
   </div>
 </div>
-{% endblock %}
 
+  <!-- ── Danger Zone ── -->
+  <div class="admin-card" style="border-color:#ef9a9a;margin-top:.5rem;">
+    <h3 style="color:#c0392b;">⚠️ Danger Zone</h3>
+    {% if order.status in ['placed','cancelled'] %}
+    <p style="font-size:.83rem;color:var(--admin-muted);margin-bottom:.9rem;line-height:1.6;">
+      This order is <strong>{{ order.status }}</strong>. It can be safely deleted (e.g. duplicate or test order). This action cannot be undone.
+    </p>
+    <form method="post" action="{{ url_for('admin.order_delete', oid=order.id) }}"
+          onsubmit="return confirm('Delete order #{{ order.id[:7]|upper }}? This cannot be undone.')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn-danger btn-full">Delete Order</button>
+    </form>
+    {% else %}
+    <p style="font-size:.83rem;color:var(--admin-muted);margin-bottom:.9rem;line-height:1.6;">
+      This order is <strong>{{ order.status }}</strong>. Cancel it first, then you can delete it. Or force-delete if it's a duplicate.
+    </p>
+    <form method="post" action="{{ url_for('admin.order_detail', oid=order.id) }}"
+          style="margin-bottom:.5rem;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="update_status">
+      <input type="hidden" name="new_status" value="cancelled">
+      <input type="hidden" name="note" value="Cancelled by admin.">
+      <button type="submit" class="btn-danger btn-full"
+              onclick="return confirm('Cancel this order and notify customer?')">
+        Cancel Order First
+      </button>
+    </form>
+    <form method="post" action="{{ url_for('admin.order_delete', oid=order.id) }}"
+          onsubmit="return confirm('Force delete #{{ order.id[:7]|upper }}? Customer will NOT be notified. Cannot be undone.')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="force" value="1">
+      <button type="submit" style="width:100%;background:none;border:1px solid #ef9a9a;color:#c0392b;padding:.6rem;border-radius:6px;cursor:pointer;font-size:.82rem;font-family:'Jost',sans-serif;">
+        Force Delete (no notification)
+      </button>
+    </form>
+    {% endif %}
+  </div>
+
+{% endblock %}
