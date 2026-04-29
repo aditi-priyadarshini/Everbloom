@@ -327,21 +327,73 @@ def custom_requests():
     return render_template("admin/custom_requests.html", requests=reqs, selected_status=status)
 
 
-@admin_bp.route("/custom-requests/<rid>", methods=["GET", "POST"])
+@admin_bp.route("/custom-requests/<rid>", methods=["GET"])
 @admin_only
 def custom_request_detail(rid):
     req_obj = models.get_custom_request(rid)
     if not req_obj:
         flash("Request not found.", "error")
         return redirect(url_for("admin.custom_requests"))
-    if request.method == "POST":
-        status = request.form.get("status")
-        note = request.form.get("admin_note", "")
-        models.update_custom_request(rid, {"status": status, "admin_note": note})
-        flash("Request updated.", "success")
-        return redirect(url_for("admin.custom_request_detail", rid=rid))
     email_log = models.get_email_log("custom_request", rid)
-    return render_template("admin/custom_request_detail.html", req=req_obj, email_log=email_log)
+    categories = models.get_categories()
+    all_products = models.get_products(listed_only=False)
+    linked_product = None
+    if req_obj.get("linked_product_id"):
+        linked_product = models.get_product(str(req_obj["linked_product_id"]))
+    return render_template("admin/custom_request_detail.html",
+                           req=req_obj, email_log=email_log,
+                           categories=categories, all_products=all_products,
+                           linked_product=linked_product)
+
+
+@admin_bp.route("/custom-requests/<rid>/create-product", methods=["POST"])
+@admin_only
+def custom_request_create_product(rid):
+    req = models.get_custom_request(rid)
+    if not req:
+        flash("Request not found.", "error")
+        return redirect(url_for("admin.custom_requests"))
+    title       = request.form.get("title", "").strip()
+    price       = float(request.form.get("price", 0) or 0)
+    category_id = request.form.get("category_id") or None
+    stock       = int(request.form.get("stock", 0) or 0)
+    description = request.form.get("description", "").strip()
+    is_listed   = request.form.get("is_listed") == "on"
+    images = [req["reference_image_url"]] if req.get("reference_image_url") else []
+    product = models.create_product({
+        "title": title, "price": price, "category_id": category_id,
+        "stock": stock, "description": description, "is_listed": is_listed,
+        "images": images, "crafting_days": int(req.get("quoted_days") or 14),
+    })
+    if product:
+        models.update_custom_request(str(req["id"]), {
+            "linked_product_id": str(product["id"]),
+            "listed_in_shop": is_listed,
+        })
+        flash(f"Product '{title}' created and linked!", "success")
+    else:
+        flash("Could not create product.", "error")
+    return redirect(url_for("admin.custom_request_detail", rid=rid))
+
+
+@admin_bp.route("/custom-requests/<rid>/link-product", methods=["POST"])
+@admin_only
+def custom_request_link_product(rid):
+    product_id = request.form.get("product_id", "").strip()
+    if product_id:
+        models.update_custom_request(rid, {"linked_product_id": product_id})
+        flash("Product linked!", "success")
+    else:
+        flash("Please select a product.", "error")
+    return redirect(url_for("admin.custom_request_detail", rid=rid))
+
+
+@admin_bp.route("/custom-requests/<rid>/unlink", methods=["POST"])
+@admin_only
+def custom_request_unlink(rid):
+    models.update_custom_request(rid, {"linked_product_id": None})
+    flash("Product unlinked.", "success")
+    return redirect(url_for("admin.custom_request_detail", rid=rid))
 
 
 # ── Order Delete ──────────────────────────────────────────
