@@ -81,7 +81,10 @@
         </div>
       </div>
 
-      <button type="submit" class="btn-primary btn-full">Place Order</button>
+      <button type="submit" class="btn-primary btn-full" id="placeOrderBtn"
+              onclick="this.disabled=true;this.textContent='Placing Order…';this.form.submit();">
+        Place Order
+      </button>
       <p class="checkout-note">No payment at checkout — we'll review and share payment details.</p>
     </form>
 
