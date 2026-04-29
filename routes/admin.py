@@ -322,17 +322,9 @@ def coupon_delete(cid):
 @admin_bp.route("/custom-requests")
 @admin_only
 def custom_requests():
-    status = request.args.get("status")
-    reqs = models.get_custom_requests_all(status=status)
-    counts = {}
-    all_r = models.get_custom_requests_all()
-    for r in all_r:
-        s = r.get("status","new")
-        counts[s] = counts.get(s,0) + 1
-    return render_template("admin/custom_requests.html",
-                           requests=reqs, selected_status=status,
-                           counts=counts,
-                           status_labels=models.CUSTOM_STATUS_LABELS)
+    status = request.args.get("status", "")
+    reqs = models.get_custom_requests(status=status or None)
+    return render_template("admin/custom_requests.html", requests=reqs, selected_status=status)
 
 
 @admin_bp.route("/custom-requests/<rid>", methods=["GET"])
@@ -348,85 +340,10 @@ def custom_request_detail(rid):
     linked_product = None
     if req_obj.get("linked_product_id"):
         linked_product = models.get_product(str(req_obj["linked_product_id"]))
-    converted_order = None
-    if req_obj.get("converted_order_id"):
-        converted_order = models.get_order(str(req_obj["converted_order_id"]))
     return render_template("admin/custom_request_detail.html",
                            req=req_obj, email_log=email_log,
                            categories=categories, all_products=all_products,
-                           linked_product=linked_product,
-                           converted_order=converted_order,
-                           status_labels=models.CUSTOM_STATUS_LABELS)
-
-
-@admin_bp.route("/custom-requests/<rid>/convert", methods=["POST"])
-@admin_only
-def custom_request_convert(rid):
-    """Admin manually converts request to real order."""
-    price = request.form.get("agreed_price", "0")
-    note  = request.form.get("note", "").strip()
-    try:
-        price = float(price)
-    except Exception:
-        price = 0
-    if price <= 0:
-        flash("Please enter a valid agreed price.", "error")
-        return redirect(url_for("admin.custom_request_detail", rid=rid))
-    order, err = models.convert_custom_to_order(rid, price, note)
-    if err:
-        flash(f"Error: {err}", "error")
-    else:
-        req = models.get_custom_request(rid)
-        user_id = req.get("user_id") if req else None
-        if user_id:
-            models.create_notification(user_id,
-                f"Your custom order has been confirmed! Total: ₹{price:.0f}",
-                url_for("orders.order_detail", oid=order["id"]))
-        import emails, os
-        site_url = os.environ.get("SITE_URL","http://localhost:5000")
-        if req and req.get("email"):
-            emails.send_custom_accepted(req["email"], req.get("name",""),
-                                        order["id"], site_url)
-        flash(f"Order created successfully! Order #{str(order['id'])[:7].upper()}", "success")
-    return redirect(url_for("admin.custom_request_detail", rid=rid))
-
-
-@admin_bp.route("/custom-requests/<rid>/note", methods=["POST"])
-@admin_only
-def custom_request_add_note(rid):
-    note = request.form.get("note","").strip()
-    if note:
-        models.add_custom_internal_note(rid, note)
-        flash("Note added.", "success")
-    return redirect(url_for("admin.custom_request_detail", rid=rid))
-
-
-@admin_bp.route("/custom-requests/<rid>/status", methods=["POST"])
-@admin_only
-def custom_request_status(rid):
-    status = request.form.get("status")
-    if status in models.CUSTOM_STATUSES:
-        models.update_custom_request(rid, {"status": status})
-        flash("Status updated.", "success")
-    return redirect(url_for("admin.custom_request_detail", rid=rid))
-
-
-@admin_bp.route("/custom-requests/<rid>/email", methods=["POST"])
-@admin_only
-def custom_request_email(rid):
-    import emails
-    req = models.get_custom_request(rid)
-    if not req:
-        flash("Request not found.", "error")
-        return redirect(url_for("admin.custom_requests"))
-    subject = request.form.get("subject","").strip()
-    message = request.form.get("message","").strip()
-    if subject and message:
-        emails.send_manual_email(req["email"], subject, message)
-        models.log_email(req["email"], subject, message,
-                         session["user_id"], "custom_request", rid)
-        flash("Email sent!", "success")
-    return redirect(url_for("admin.custom_request_detail", rid=rid))
+                           linked_product=linked_product)
 
 
 @admin_bp.route("/custom-requests/<rid>/create-product", methods=["POST"])
@@ -436,11 +353,11 @@ def custom_request_create_product(rid):
     if not req:
         flash("Request not found.", "error")
         return redirect(url_for("admin.custom_requests"))
-    title       = request.form.get("title","").strip()
-    price       = float(request.form.get("price",0) or 0)
+    title       = request.form.get("title", "").strip()
+    price       = float(request.form.get("price", 0) or 0)
     category_id = request.form.get("category_id") or None
-    stock       = int(request.form.get("stock",0) or 0)
-    description = request.form.get("description","").strip()
+    stock       = int(request.form.get("stock", 0) or 0)
+    description = request.form.get("description", "").strip()
     is_listed   = request.form.get("is_listed") == "on"
     images = [req["reference_image_url"]] if req.get("reference_image_url") else []
     product = models.create_product({
@@ -449,7 +366,7 @@ def custom_request_create_product(rid):
         "images": images, "crafting_days": int(req.get("quoted_days") or 14),
     })
     if product:
-        models.update_custom_request(str(req["id"]),{
+        models.update_custom_request(str(req["id"]), {
             "linked_product_id": str(product["id"]),
             "listed_in_shop": is_listed,
         })
@@ -462,10 +379,12 @@ def custom_request_create_product(rid):
 @admin_bp.route("/custom-requests/<rid>/link-product", methods=["POST"])
 @admin_only
 def custom_request_link_product(rid):
-    product_id = request.form.get("product_id","").strip()
+    product_id = request.form.get("product_id", "").strip()
     if product_id:
         models.update_custom_request(rid, {"linked_product_id": product_id})
         flash("Product linked!", "success")
+    else:
+        flash("Please select a product.", "error")
     return redirect(url_for("admin.custom_request_detail", rid=rid))
 
 
@@ -478,6 +397,22 @@ def custom_request_unlink(rid):
 
 
 # ── Order Delete ──────────────────────────────────────────
+
+@admin_bp.route("/orders/<oid>/delete", methods=["POST"])
+@admin_only
+def order_delete(oid):
+    order = models.get_order(oid)
+    if not order:
+        flash("Order not found.", "error")
+        return redirect(url_for("admin.orders"))
+    safe_statuses = ["placed", "cancelled"]
+    force = request.form.get("force") == "1"
+    if order.get("status") not in safe_statuses and not force:
+        flash("Only placed or cancelled orders can be deleted. Use force delete for others.", "error")
+        return redirect(url_for("admin.order_detail", oid=oid))
+    models.delete_order(oid)
+    flash("Order deleted.", "success")
+    return redirect(url_for("admin.orders"))
 
 
 # ── Analytics ─────────────────────────────────────────────
@@ -841,6 +776,78 @@ def email_template_edit(key):
                            label=TEMPLATE_LABELS[key],
                            template=template,
                            vars=TEMPLATE_VARS.get(key, []))
+
+
+# ── Enhanced Custom Request Actions ───────────────────────
+
+@admin_bp.route("/custom-requests/<rid>/status", methods=["POST"])
+@admin_only
+def custom_request_status(rid):
+    status = request.form.get("status")
+    note = request.form.get("admin_note", "")
+    models.update_custom_request(rid, {"status": status, "admin_note": note})
+    flash("Status updated.", "success")
+    return redirect(url_for("admin.custom_request_detail", rid=rid))
+
+
+@admin_bp.route("/custom-requests/<rid>/quote", methods=["POST"])
+@admin_only
+def custom_request_quote(rid):
+    import os, emails
+    from datetime import datetime, timezone
+    req = models.get_custom_request(rid)
+    if not req:
+        flash("Request not found.", "error")
+        return redirect(url_for("admin.custom_requests"))
+
+    quoted_price = float(request.form.get("quoted_price", 0))
+    quoted_days  = int(request.form.get("quoted_days", 14))
+    quote_msg    = request.form.get("quote_message", "").strip()
+    site_url     = os.environ.get("SITE_URL", "http://localhost:5000")
+    token        = req.get("tracking_token", "")
+    accept_url   = f"{site_url}/custom-order/respond/{token}/accepted"
+    decline_url  = f"{site_url}/custom-order/respond/{token}/declined"
+
+    models.update_custom_request(rid, {
+        "status": "quoted",
+        "quoted_price": quoted_price,
+        "quoted_days": quoted_days,
+        "quote_message": quote_msg,
+        "quote_sent_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+    emails.send_custom_quote(req["email"], req["name"],
+                             {**req, "quoted_price": quoted_price,
+                              "quoted_days": quoted_days,
+                              "quote_message": quote_msg},
+                             accept_url, decline_url)
+
+    models.log_email(req["email"],
+                     "Custom Order Quote — Everbloom",
+                     f"Quoted ₹{quoted_price} / {quoted_days} days",
+                     session["user_id"], "custom_request", rid)
+
+    flash("Quote sent to customer!", "success")
+    return redirect(url_for("admin.custom_request_detail", rid=rid))
+
+
+@admin_bp.route("/custom-requests/<rid>/email", methods=["POST"])
+@admin_only
+def custom_request_email(rid):
+    import emails
+    req = models.get_custom_request(rid)
+    if not req:
+        flash("Request not found.", "error")
+        return redirect(url_for("admin.custom_requests"))
+
+    subject = request.form.get("subject", "").strip()
+    message = request.form.get("message", "").strip()
+
+    emails.send_manual_email(req["email"], subject, message)
+    models.log_email(req["email"], subject, message,
+                     session["user_id"], "custom_request", rid)
+    flash("Email sent!", "success")
+    return redirect(url_for("admin.custom_request_detail", rid=rid))
 
 
 # ── Manual email from order detail ────────────────────────
