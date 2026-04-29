@@ -1136,3 +1136,11 @@ def add_custom_internal_note(rid, note):
     combined = f"{existing}\n{new_note}".strip() if existing else new_note
     update_custom_request(rid, {"admin_note": combined})
     return True
+# ── PASTE THIS AT THE VERY BOTTOM OF YOUR models.py ──────
+
+def delete_order(oid):
+    """Hard delete an order and all its items/tracking."""
+    supa.delete("order_items",   {"order_id": f"eq.{oid}"})
+    supa.delete("tracking",      {"order_id": f"eq.{oid}"})
+    supa.delete("notifications", {"order_id": f"eq.{oid}"})
+    return supa.delete("orders", {"id": f"eq.{oid}"})
