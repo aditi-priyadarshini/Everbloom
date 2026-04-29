@@ -479,27 +479,6 @@ def custom_request_unlink(rid):
 
 # ── Order Delete ──────────────────────────────────────────
 
-@admin_bp.route("/orders/<oid>/delete", methods=["POST"])
-@admin_only
-def order_delete(oid):
-    import supa as _supa
-    order = models.get_order(oid)
-    if not order:
-        flash("Order not found.", "error")
-        return redirect(url_for("admin.orders"))
-    safe_statuses = ["placed", "cancelled"]
-    force = request.form.get("force") == "1"
-    if order.get("status") not in safe_statuses and not force:
-        flash("Only placed or cancelled orders can be deleted. Use force delete for others.", "error")
-        return redirect(url_for("admin.order_detail", oid=oid))
-    # Inline delete — does not rely on models.delete_order
-    _supa.delete("order_items",   {"order_id": f"eq.{oid}"})
-    _supa.delete("tracking",      {"order_id": f"eq.{oid}"})
-    _supa.delete("notifications", {"order_id": f"eq.{oid}"})
-    _supa.delete("orders",        {"id": f"eq.{oid}"})
-    flash("Order deleted.", "success")
-    return redirect(url_for("admin.orders"))
-
 
 # ── Analytics ─────────────────────────────────────────────
 
