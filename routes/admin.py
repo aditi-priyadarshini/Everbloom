@@ -449,11 +449,24 @@ def custom_request_create_product(rid):
         "images": images, "crafting_days": int(req.get("quoted_days") or 14),
     })
     if product:
+        # Link product to custom request
         models.update_custom_request(str(req["id"]),{
             "linked_product_id": str(product["id"]),
             "listed_in_shop": is_listed,
         })
-        flash(f"Product '{title}' created and linked!", "success")
+        # If order already exists, update its order item to link to this product
+        if req.get("converted_order_id"):
+            oid = str(req["converted_order_id"])
+            items = models.get_order_items(oid)
+            if items:
+                # Update first item to link to the product
+                import supa as supa_mod
+                supa_mod.update("order_items",
+                    {"order_id": f"eq.{oid}"},
+                    {"product_id": str(product["id"]),
+                     "title": title,
+                     "image_url": images[0] if images else ""})
+        flash(f"Product '{title}' created, linked to this request and the order!", "success")
     else:
         flash("Could not create product.", "error")
     return redirect(url_for("admin.custom_request_detail", rid=rid))
