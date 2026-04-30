@@ -4,69 +4,121 @@
 <div class="page-wrap">
   <h1 class="page-title">My Orders</h1>
 
+  <!-- ── Custom Requests ── -->
   {% if custom_requests %}
-  <h2 class="section-subtitle" style="margin: 1.5rem 0 0.75rem; font-size: 1rem; font-weight: 600;">Custom Order Requests</h2>
-  <div class="orders-list" style="margin-bottom: 2rem;">
-    {% for r in custom_requests %}
-    <div class="order-card">
-      <div class="order-card-header">
-        <div>
-          <span class="order-id">Custom Request</span>
-          <span class="order-date">{{ r.created_at[:10] }}</span>
-        </div>
-        <span class="status-pill status-{{ r.status }}">{{ r.status|capitalize }}</span>
-      </div>
-      <div style="padding: 0.5rem 0; font-size: 0.875rem; color: #666;">
-        {{ r.craft_type or 'Custom item' }}{% if r.budget %} · Budget: {{ r.budget }}{% endif %}
-      </div>
-      <div class="order-card-footer">
-        <span class="order-total">{% if r.quoted_price %}₹{{ "%.0f"|format(r.quoted_price|float) }} quoted{% else %}Awaiting quote{% endif %}</span>
-        <div class="order-actions">
-          <a href="{{ url_for('shop.custom_order_track', token=r.tracking_token) }}" class="btn-outline-sm">Track Request</a>
-        </div>
-      </div>
+  <div style="margin-bottom:2rem;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.9rem;">
+      <h2 style="font-family:'Cormorant Garamond',serif;font-size:1.3rem;font-weight:400;color:var(--bark);">Custom Requests</h2>
+      <a href="{{ url_for('shop.custom_order') }}" class="btn-outline-sm">+ New Request</a>
     </div>
-    {% endfor %}
+    <div class="orders-list">
+      {% for r in custom_requests %}
+      {% set status_display = {
+        'new':'Received','discussing':'Being Reviewed',
+        'agreed':'Price Agreed','converted':'Order Created!',
+        'closed':'Closed','pending':'Received','reviewing':'Being Reviewed',
+        'quoted':'Quote Sent','accepted':'Accepted','rejected':'Declined'
+      } %}
+      {% set status_pill = {
+        'new':'status-placed','discussing':'status-advance_requested',
+        'agreed':'status-advance_confirmed','converted':'status-delivered',
+        'closed':'status-cancelled','pending':'status-placed',
+        'reviewing':'status-advance_requested','quoted':'status-crafting',
+        'accepted':'status-delivered','rejected':'status-cancelled'
+      } %}
+      <div class="order-card" style="{% if r.status=='converted' %}border-color:var(--sage-dark);{% endif %}">
+        <div class="order-card-header">
+          <div>
+            <span class="order-id">✏️ Custom Request</span>
+            <span class="order-date">{{ r.created_at[:10] }}</span>
+          </div>
+          <span class="status-pill {{ status_pill.get(r.status,'status-placed') }}">
+            {{ status_display.get(r.status, r.status|capitalize) }}
+          </span>
+        </div>
+
+        <div style="padding:.6rem 0;font-size:.88rem;color:var(--text-soft);line-height:1.6;">
+          {% if r.craft_type %}<strong style="color:var(--bark);">{{ r.craft_type }}</strong>{% if r.occasion %} · {{ r.occasion }}{% endif %}<br>{% endif %}
+          {{ r.description[:100] }}{% if r.description|length > 100 %}…{% endif %}
+        </div>
+
+        {% if r.status == 'converted' and r.converted_order_id %}
+        <div style="background:#e8f5e9;border-radius:6px;padding:.6rem .8rem;margin:.3rem 0;font-size:.84rem;color:#2e7d32;">
+          ✅ Your order has been created! Track it below.
+        </div>
+        {% endif %}
+
+        <div class="order-card-footer">
+          <span class="order-total">
+            {% if r.quoted_price %}₹{{ "%.0f"|format(r.quoted_price|float) }}{% else %}<span style="font-size:.82rem;color:var(--text-soft);">Awaiting quote</span>{% endif %}
+          </span>
+          <div class="order-actions">
+            {% if r.status == 'converted' and r.converted_order_id %}
+            <a href="{{ url_for('orders.order_detail', oid=r.converted_order_id) }}" class="btn-primary-sm">View Order →</a>
+            {% elif r.tracking_token %}
+            <a href="{{ url_for('shop.custom_order_track', token=r.tracking_token) }}" class="btn-outline-sm">Track</a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
   </div>
   {% endif %}
 
+  <!-- ── Regular Orders ── -->
   {% if orders %}
-  {% if custom_requests %}<h2 class="section-subtitle" style="margin: 1.5rem 0 0.75rem; font-size: 1rem; font-weight: 600;">Orders</h2>{% endif %}
-  <div class="orders-list">
-    {% for o in orders %}
-    <div class="order-card">
-      <div class="order-card-header">
-        <div>
-          <span class="order-id">#{{ o.id[:8]|upper }}</span>
-          {% if o.get('is_custom_order') %}<span class="status-pill status-crafting" style="font-size:0.65rem;padding:2px 6px;margin-left:4px;">Custom</span>{% endif %}
-          <span class="order-date">{{ o.created_at[:10] }}</span>
-        </div>
-        <span class="status-pill status-{{ o.status }}">{{ STATUS_LABELS.get(o.status, o.status) }}</span>
-      </div>
-      <div class="order-progress">
-        {% set si = status_index(o.status) %}
-        {% for i in range(ORDER_STATUSES|length) %}
-        <div class="progress-step {% if i < si %}done{% elif i == si %}active{% endif %}"></div>
-        {% endfor %}
-      </div>
-      <div class="order-card-footer">
-        <span class="order-total">₹{{ "%.0f"|format(o.total) }}</span>
-        <div class="order-actions">
-          {% if o.status == 'advance_requested' %}
-          <a href="{{ url_for('orders.pay_advance', oid=o.id) }}" class="btn-primary-sm">Pay Advance</a>
-          {% endif %}
-          <a href="{{ url_for('orders.track', oid=o.id) }}" class="btn-outline-sm">Track</a>
-        </div>
-      </div>
+  <div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.9rem;">
+      <h2 style="font-family:'Cormorant Garamond',serif;font-size:1.3rem;font-weight:400;color:var(--bark);">
+        {% if custom_requests %}Orders{% else %}My Orders{% endif %}
+      </h2>
     </div>
-    {% endfor %}
+    <div class="orders-list">
+      {% for o in orders %}
+      <div class="order-card">
+        <div class="order-card-header">
+          <div>
+            <span class="order-id">#{{ o.id[:8]|upper }}</span>
+            {% if o.from_custom_request %}
+            <span class="status-pill status-crafting" style="font-size:.62rem;padding:.1rem .4rem;margin-left:.3rem;">Custom</span>
+            {% endif %}
+            <span class="order-date">{{ o.created_at[:10] }}</span>
+          </div>
+          <span class="status-pill status-{{ o.status }}">{{ STATUS_LABELS.get(o.status, o.status) }}</span>
+        </div>
+
+        <div class="order-progress">
+          {% set si = status_index(o.status) %}
+          {% for i in range(ORDER_STATUSES|length - 1) %}
+          <div class="progress-step {% if i < si %}done{% elif i == si %}active{% endif %}"></div>
+          {% endfor %}
+        </div>
+
+        <div class="order-card-footer">
+          <span class="order-total">₹{{ "%.0f"|format(o.total) }}</span>
+          <div class="order-actions">
+            {% if o.status == 'advance_requested' %}
+            <a href="{{ url_for('orders.pay_advance', oid=o.id) }}" class="btn-primary-sm">Pay Advance</a>
+            {% endif %}
+            <a href="{{ url_for('orders.track', oid=o.id) }}" class="btn-outline-sm">Track</a>
+            <a href="{{ url_for('orders.order_detail', oid=o.id) }}" class="btn-outline-sm">Details</a>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
   </div>
   {% endif %}
 
   {% if not orders and not custom_requests %}
-  <div class="empty-state">
-    <p>You haven't placed any orders yet.</p>
-    <a href="{{ url_for('shop.shop') }}" class="btn-primary">Start Shopping</a>
+  <div class="empty-state" style="text-align:center;padding:4rem 2rem;">
+    <div style="font-size:3rem;margin-bottom:1rem;">🌸</div>
+    <p style="color:var(--text-soft);margin-bottom:1.2rem;">You haven't placed any orders yet.</p>
+    <div style="display:flex;gap:.8rem;justify-content:center;flex-wrap:wrap;">
+      <a href="{{ url_for('shop.shop') }}" class="btn-primary">Browse Shop</a>
+      <a href="{{ url_for('shop.custom_order') }}" class="btn-outline">Request Custom Order</a>
+    </div>
   </div>
   {% endif %}
 </div>
