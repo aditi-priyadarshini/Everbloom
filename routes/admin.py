@@ -1138,3 +1138,12 @@ def order_deduct_stock(oid):
     models.add_tracking(oid, order["status"], "Inventory deducted for this order.")
     flash("Stock deducted from inventory!", "success")
     return redirect(url_for("admin.order_requirements", oid=oid))
+
+
+# ── Legacy alias — old templates may reference this ───────
+@admin_bp.route("/custom-requests/<rid>/quote", methods=["POST"])
+@admin_only
+def custom_request_quote(rid):
+    """Legacy route — redirects to new workflow."""
+    flash("Please use the new 'Create Order' workflow instead.", "info")
+    return redirect(url_for("admin.custom_request_detail", rid=rid))
