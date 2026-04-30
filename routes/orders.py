@@ -13,14 +13,16 @@ BUCKET = "everbloom"
 @login_required
 def orders_list():
     orders = models.get_orders(user_id=session["user_id"])
-    # Fetch only this user's custom requests that are still active (not yet converted or rejected)
-    custom_requests = models.get_custom_requests(
-        user_id=session["user_id"]
-    )
-    # Exclude ones already converted to orders or rejected
-    custom_requests = [r for r in custom_requests
-                       if r.get("status") not in ("accepted", "rejected")]
-    return render_template("shop/orders.html", orders=orders, custom_requests=custom_requests)
+    # Show ALL custom requests — including converted ones so customer can click through to their order
+    custom_requests = models.get_custom_requests(user_id=session["user_id"])
+    # Exclude closed/rejected only
+    custom_requests = [r for r in custom_requests if r.get("status") != "closed"]
+    return render_template("shop/orders.html",
+                           orders=orders,
+                           custom_requests=custom_requests,
+                           STATUS_LABELS=models.STATUS_LABELS,
+                           ORDER_STATUSES=models.ORDER_STATUSES,
+                           status_index=lambda s: models.ORDER_STATUSES.index(s) if s in models.ORDER_STATUSES else 0)
 
 
 @orders_bp.route("/<oid>")
