@@ -1085,6 +1085,22 @@ def convert_custom_to_order(rid, admin_price, admin_note=""):
     if not order:
         return None, "Could not create order. Check Supabase orders table has all required columns."
 
+    # ── Create an order item so the order shows what was ordered ──
+    # Use linked product if exists, otherwise create a placeholder item
+    linked_pid = req.get("linked_product_id")
+    linked_product = get_product(str(linked_pid)) if linked_pid else None
+
+    item_data = {
+        "order_id":  str(order["id"]),
+        "title":     linked_product["title"] if linked_product else (req.get("craft_type") or "Custom Order"),
+        "price":     float(admin_price),
+        "quantity":  1,
+        "image_url": (linked_product.get("images") or [""])[0] if linked_product else (req.get("reference_image_url") or ""),
+    }
+    if linked_pid:
+        item_data["product_id"] = str(linked_pid)
+    create_order_item(item_data)
+
     # Update custom request
     update_data = {
         "status":             "converted",
@@ -1097,7 +1113,7 @@ def convert_custom_to_order(rid, admin_price, admin_note=""):
     update_custom_request(str(req["id"]), update_data)
 
     # Add tracking
-    note_text = f"Custom order converted by admin."
+    note_text = "Custom order converted by admin."
     if admin_note:
         note_text += f" {admin_note}"
     add_tracking(str(order["id"]), "placed", note_text)
