@@ -1060,31 +1060,64 @@ def convert_custom_to_order(rid, admin_price, admin_note=""):
     if not req:
         return None, "Request not found"
 
-    order = create_order({
-        "user_id":       req.get("user_id"),
+    # Build order data — only include columns that definitely exist
+    order_data = {
         "name":          req.get("name", ""),
-        "phone":         req.get("phone", ""),
+        "phone":         req.get("phone") or "",
         "address":       "To be confirmed",
         "total":         float(admin_price),
         "status":        "placed",
         "delivery_type": "delivery",
         "shipping_charge": 0,
-        "is_preorder":   False,
-        "custom_notes":  req.get("description", ""),
-        "from_custom_request": True,
-    })
-    if not order:
-        return None, "Could not create order"
+    }
+    # Only set user_id if it exists (guest requests may not have one)
+    user_id = req.get("user_id")
+    if user_id:
+        order_data["user_id"] = str(user_id)
 
-    update_custom_request(str(req["id"]), {
+    # Add optional columns only if they exist in DB (safe to include, Supabase ignores unknown)
+    try:
+        order_data["is_preorder"] = False
+    except Exception:
+        pass
+
+    order = create_order(order_data)
+    if not order:
+        return None, "Could not create order. Check Supabase orders table has all required columns."
+
+    # ── Create an order item so the order shows what was ordered ──
+    # Use linked product if exists, otherwise create a placeholder item
+    linked_pid = req.get("linked_product_id")
+    linked_product = get_product(str(linked_pid)) if linked_pid else None
+
+    item_data = {
+        "order_id":  str(order["id"]),
+        "title":     linked_product["title"] if linked_product else (req.get("craft_type") or "Custom Order"),
+        "price":     float(admin_price),
+        "quantity":  1,
+        "image_url": (linked_product.get("images") or [""])[0] if linked_product else (req.get("reference_image_url") or ""),
+    }
+    if linked_pid:
+        item_data["product_id"] = str(linked_pid)
+    create_order_item(item_data)
+
+    # Update custom request
+    update_data = {
         "status":             "converted",
         "converted_order_id": str(order["id"]),
         "quoted_price":       float(admin_price),
-        "admin_note":         admin_note,
         "customer_response":  "admin_converted",
-    })
-    add_tracking(str(order["id"]), "placed",
-                 f"Custom order converted by admin. {admin_note}".strip())
+    }
+    if admin_note:
+        update_data["admin_note"] = admin_note
+    update_custom_request(str(req["id"]), update_data)
+
+    # Add tracking
+    note_text = "Custom order converted by admin."
+    if admin_note:
+        note_text += f" {admin_note}"
+    add_tracking(str(order["id"]), "placed", note_text)
+
     return order, None
 
 

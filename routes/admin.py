@@ -449,11 +449,24 @@ def custom_request_create_product(rid):
         "images": images, "crafting_days": int(req.get("quoted_days") or 14),
     })
     if product:
+        # Link product to custom request
         models.update_custom_request(str(req["id"]),{
             "linked_product_id": str(product["id"]),
             "listed_in_shop": is_listed,
         })
-        flash(f"Product '{title}' created and linked!", "success")
+        # If order already exists, update its order item to link to this product
+        if req.get("converted_order_id"):
+            oid = str(req["converted_order_id"])
+            items = models.get_order_items(oid)
+            if items:
+                # Update first item to link to the product
+                import supa as supa_mod
+                supa_mod.update("order_items",
+                    {"order_id": f"eq.{oid}"},
+                    {"product_id": str(product["id"]),
+                     "title": title,
+                     "image_url": images[0] if images else ""})
+        flash(f"Product '{title}' created, linked to this request and the order!", "success")
     else:
         flash("Could not create product.", "error")
     return redirect(url_for("admin.custom_request_detail", rid=rid))
@@ -1138,3 +1151,31 @@ def order_deduct_stock(oid):
     models.add_tracking(oid, order["status"], "Inventory deducted for this order.")
     flash("Stock deducted from inventory!", "success")
     return redirect(url_for("admin.order_requirements", oid=oid))
+
+
+# ── Legacy alias — old templates may reference this ───────
+@admin_bp.route("/custom-requests/<rid>/quote", methods=["POST"])
+@admin_only
+def custom_request_quote(rid):
+    """Legacy route — redirects to new workflow."""
+    flash("Please use the new 'Create Order' workflow instead.", "info")
+    return redirect(url_for("admin.custom_request_detail", rid=rid))
+
+
+# ── Order Delete ──────────────────────────────────────────
+
+@admin_bp.route("/orders/<oid>/delete", methods=["POST"])
+@admin_only
+def order_delete(oid):
+    order = models.get_order(oid)
+    if not order:
+        flash("Order not found.", "error")
+        return redirect(url_for("admin.orders"))
+    force = request.form.get("force") == "1"
+    safe = order.get("status") in ["placed", "cancelled"]
+    if not safe and not force:
+        flash("Cancel the order first before deleting.", "error")
+        return redirect(url_for("admin.order_detail", oid=oid))
+    models.delete_order(oid)
+    flash("Order deleted.", "success")
+    return redirect(url_for("admin.orders"))
