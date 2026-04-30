@@ -1147,3 +1147,22 @@ def custom_request_quote(rid):
     """Legacy route — redirects to new workflow."""
     flash("Please use the new 'Create Order' workflow instead.", "info")
     return redirect(url_for("admin.custom_request_detail", rid=rid))
+
+
+# ── Order Delete ──────────────────────────────────────────
+
+@admin_bp.route("/orders/<oid>/delete", methods=["POST"])
+@admin_only
+def order_delete(oid):
+    order = models.get_order(oid)
+    if not order:
+        flash("Order not found.", "error")
+        return redirect(url_for("admin.orders"))
+    force = request.form.get("force") == "1"
+    safe = order.get("status") in ["placed", "cancelled"]
+    if not safe and not force:
+        flash("Cancel the order first before deleting.", "error")
+        return redirect(url_for("admin.order_detail", oid=oid))
+    models.delete_order(oid)
+    flash("Order deleted.", "success")
+    return redirect(url_for("admin.orders"))
