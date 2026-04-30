@@ -240,7 +240,6 @@
       <form method="post" action="{{ url_for('admin.custom_request_link_product', rid=req.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
-          <label>Select Product</label>
           <select name="product_id" required>
             <option value="">Choose product…</option>
             {% for p in all_products %}
@@ -289,6 +288,7 @@
         <button type="submit" class="btn-outline btn-full">Create & Link</button>
       </form>
     </div>
+    {% endif %}
 
     {% else %}
     <!-- Already linked — show unlink option -->
