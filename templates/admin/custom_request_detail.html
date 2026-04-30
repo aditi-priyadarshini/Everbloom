@@ -1,145 +1,145 @@
 {% extends "admin/base_admin.html" %}
 {% block title %}Custom Request{% endblock %}
-{% block page_title %}Custom Request{% endblock %}
+{% block page_title %}Custom Request #{{ req.id }}{% endblock %}
 
 {% block topbar_actions %}
 <a href="{{ url_for('admin.custom_requests') }}" class="btn-outline-sm">← All Requests</a>
 {% endblock %}
 
 {% block content %}
+
+{% set status_colors = {
+  'new':'#1565c0','discussing':'#e65100','agreed':'#6a1b9a',
+  'converted':'#2e7d32','closed':'#7a5c5c'
+} %}
+{% set sc = status_colors.get(req.status,'#5c3d3d') %}
+
+<!-- ── Top status bar ── -->
+<div style="background:#fff;border:1px solid var(--admin-border);border-radius:10px;padding:1rem 1.4rem;margin-bottom:1.2rem;display:flex;align-items:center;gap:1.2rem;box-shadow:var(--shadow);">
+  <div style="display:flex;gap:.5rem;">
+    {% for s in ['new','discussing','agreed','converted','closed'] %}
+    {% set active = req.status == s %}
+    <div style="display:flex;align-items:center;gap:.4rem;">
+      <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:600;
+        background:{% if active %}{{ status_colors[s] }}{% else %}#f0ebe6{% endif %};
+        color:{% if active %}#fff{% else %}#aaa{% endif %};">
+        {{ loop.index }}
+      </div>
+      {% if not loop.last %}
+      <div style="width:32px;height:2px;background:{% if req.status in ['discussing','agreed','converted','closed'] and loop.index < ['new','discussing','agreed','converted','closed'].index(req.status)+1 %}{{ sc }}{% else %}#f0ebe6{% endif %};"></div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  <div style="margin-left:.5rem;">
+    <strong style="color:{{ sc }};font-size:.95rem;">{{ status_labels.get(req.status,'—') }}</strong>
+    <span style="font-size:.78rem;color:var(--admin-muted);margin-left:.6rem;">Submitted {{ req.created_at[:10] }}</span>
+  </div>
+  {% if req.preferred_delivery_date %}
+  <div style="margin-left:auto;background:#fffbf0;border:1px solid #c9a96e;border-radius:6px;padding:.3rem .8rem;font-size:.8rem;color:#5c3d3d;">
+    📅 Wants by {{ req.preferred_delivery_date }}
+  </div>
+  {% endif %}
+</div>
+
 <div class="order-detail-layout">
 
   <!-- ── LEFT ── -->
   <div class="order-detail-main">
 
-    <!-- Request info -->
+    <!-- Customer + Request info -->
     <div class="admin-card">
-      <h3>
-        <span style="font-size:1.3rem;">✏️</span> Request Details
-        <span style="margin-left:auto;">
-          {% set status_map = {'pending':'status-pending','reviewing':'status-reviewing','quoted':'status-quoted','accepted':'status-accepted','rejected':'status-rejected'} %}
-          <span class="status-pill {{ status_map.get(req.status,'status-pending') }}">{{ req.status|capitalize }}</span>
-        </span>
-      </h3>
-
-      <!-- Key details grid -->
+      <h3>📋 Request Details</h3>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.2rem;">
-        <div style="background:#faf7f4;border-radius:8px;padding:.9rem 1rem;">
-          <div style="font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--admin-muted);margin-bottom:.3rem;">Customer</div>
-          <div style="font-weight:500;color:var(--admin-text);">{{ req.name }}</div>
-          <div style="font-size:.82rem;color:var(--admin-muted);">{{ req.email }}</div>
-          {% if req.phone %}<div style="font-size:.82rem;color:var(--admin-muted);">{{ req.phone }}</div>{% endif %}
+        <div style="background:#faf7f4;border-radius:8px;padding:.9rem;">
+          <div style="font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--admin-muted);margin-bottom:.5rem;">Customer</div>
+          <div style="font-weight:600;font-size:.95rem;">{{ req.name }}</div>
+          <div style="font-size:.83rem;color:var(--admin-muted);margin-top:.2rem;">{{ req.email }}</div>
+          {% if req.phone %}<div style="font-size:.83rem;color:var(--admin-muted);">{{ req.phone }}</div>{% endif %}
         </div>
-        <div style="background:#faf7f4;border-radius:8px;padding:.9rem 1rem;">
-          <div style="font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--admin-muted);margin-bottom:.3rem;">Request Info</div>
-          {% if req.craft_type %}<div style="font-size:.85rem;margin-bottom:.2rem;">🎨 {{ req.craft_type }}{% if req.occasion %} · {{ req.occasion }}{% endif %}</div>{% endif %}
-          {% if req.size_preference %}<div style="font-size:.85rem;margin-bottom:.2rem;">📐 {{ req.size_preference }}</div>{% endif %}
-          {% if req.colour_preference %}<div style="font-size:.85rem;margin-bottom:.2rem;">🎨 {{ req.colour_preference }}</div>{% endif %}
-          {% if req.budget %}<div style="font-size:.85rem;">💰 {{ req.budget }}</div>{% endif %}
+        <div style="background:#faf7f4;border-radius:8px;padding:.9rem;">
+          <div style="font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--admin-muted);margin-bottom:.5rem;">Specifics</div>
+          {% if req.craft_type %}<div style="font-size:.84rem;margin-bottom:.2rem;">🎨 <strong>{{ req.craft_type }}</strong>{% if req.occasion %} · {{ req.occasion }}{% endif %}</div>{% endif %}
+          {% if req.size_preference %}<div style="font-size:.84rem;margin-bottom:.2rem;">📐 {{ req.size_preference }}</div>{% endif %}
+          {% if req.colour_preference %}<div style="font-size:.84rem;margin-bottom:.2rem;">🖌 {{ req.colour_preference }}</div>{% endif %}
+          {% if req.budget %}<div style="font-size:.84rem;">💰 {{ req.budget }}</div>{% endif %}
         </div>
       </div>
-
-      {% if req.preferred_delivery_date %}
-      <div class="banner-warn" style="margin-bottom:1rem;">
-        📅 Customer's preferred delivery date: <strong>{{ req.preferred_delivery_date }}</strong>
-      </div>
-      {% endif %}
-
-      <div style="margin-bottom:1.2rem;">
-        <div style="font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--admin-muted);margin-bottom:.5rem;">Description</div>
+      <div>
+        <div style="font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--admin-muted);margin-bottom:.5rem;">What they want</div>
         <div class="readonly-block">{{ req.description }}</div>
       </div>
-
       {% if req.reference_image_url %}
-      <div>
-        <div style="font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--admin-muted);margin-bottom:.6rem;">Reference Image</div>
+      <div style="margin-top:1rem;">
+        <div style="font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--admin-muted);margin-bottom:.5rem;">Reference Image</div>
         <a href="{{ req.reference_image_url }}" target="_blank">
-          <img src="{{ req.reference_image_url }}" style="max-width:240px;border-radius:8px;border:1px solid var(--admin-border);" alt="Reference">
+          <img src="{{ req.reference_image_url }}" style="max-width:180px;border-radius:8px;border:1px solid var(--admin-border);">
         </a>
       </div>
       {% endif %}
     </div>
 
-    <!-- Linked product -->
-    {% if linked_product %}
-    <div class="admin-card" style="border-color:#a5d6a7;">
-      <h3><span style="font-size:1.1rem;">🔗</span> Linked to Shop Product</h3>
-      <div class="linked-product-card">
-        {% if linked_product.images %}
-        <img src="{{ linked_product.images[0] }}" alt="{{ linked_product.title }}">
-        {% endif %}
-        <div style="flex:1;">
-          <div style="font-weight:500;font-size:.95rem;margin-bottom:.3rem;">{{ linked_product.title }}</div>
-          <div style="font-size:.82rem;color:var(--admin-muted);">₹{{ "%.0f"|format(linked_product.price) }} · Stock: {{ linked_product.stock }}</div>
-          <div style="margin-top:.4rem;font-size:.78rem;">
-            <span class="{{ 'badge-yes' if linked_product.is_listed else 'badge-no' }}">
-              {{ '✓ Listed in shop' if linked_product.is_listed else '✗ Unlisted' }}
-            </span>
+    <!-- Converted Order — if exists -->
+    {% if converted_order %}
+    <div class="admin-card" style="border-color:#a5d6a7;background:linear-gradient(135deg,#f1f8e9,#e8f5e9);">
+      <h3 style="color:#2e7d32;">✅ Order Created from this Request</h3>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
+        <div>
+          <div style="font-family:'Cormorant Garamond',serif;font-size:1.6rem;color:#1b5e20;">₹{{ "%.0f"|format(converted_order.total) }}</div>
+          <div style="font-size:.82rem;color:#2e7d32;margin-top:.2rem;">
+            Order #{{ converted_order.id[:7]|upper }} ·
+            <span class="status-pill status-{{ converted_order.status }}">{{ converted_order.status }}</span>
           </div>
         </div>
-        <div style="display:flex;flex-direction:column;gap:.5rem;align-items:flex-end;">
-          <a href="{{ url_for('admin.product_edit', pid=linked_product.id) }}" class="btn-outline-sm">Edit Product</a>
+        <a href="{{ url_for('admin.order_detail', oid=converted_order.id) }}" class="btn-primary">
+          Manage Order →
+        </a>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Linked Product -->
+    {% if linked_product %}
+    <div class="admin-card" style="border-color:#90caf9;">
+      <h3>🛍️ Listed in Shop</h3>
+      <div style="display:flex;align-items:center;gap:1rem;">
+        {% if linked_product.images %}
+        <img src="{{ linked_product.images[0] }}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;border:1px solid var(--admin-border);">
+        {% endif %}
+        <div style="flex:1;">
+          <div style="font-weight:500;">{{ linked_product.title }}</div>
+          <div style="font-size:.82rem;color:var(--admin-muted);">₹{{ "%.0f"|format(linked_product.price) }} · {{ linked_product.stock }} in stock</div>
+          <span class="{{ 'badge-yes' if linked_product.is_listed else 'badge-no' }}" style="margin-top:.3rem;display:inline-block;">
+            {{ '✓ Listed' if linked_product.is_listed else '✗ Unlisted' }}
+          </span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:.4rem;">
+          <a href="{{ url_for('admin.product_edit', pid=linked_product.id) }}" class="btn-outline-sm">Edit</a>
           <form method="post" action="{{ url_for('admin.custom_request_unlink', rid=req.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="table-action danger" onclick="return confirm('Unlink this product?')">Unlink</button>
+            <button class="table-action danger">Unlink</button>
           </form>
         </div>
       </div>
     </div>
+    {% endif %}
 
-    {% elif req.status == 'accepted' %}
-    <!-- Create product from this request -->
-    <div class="admin-card" style="border-color:#c9a96e;background:#fffbf0;">
-      <h3><span style="font-size:1.1rem;">🛍️</span> List in Shop</h3>
-      <p style="font-size:.86rem;color:var(--admin-muted);margin-bottom:1.2rem;line-height:1.6;">
-        This custom order was accepted. You can create a product listing from it so other customers can also buy it — the custom request will be linked to the product automatically.
-      </p>
-      <form method="post" action="{{ url_for('admin.custom_request_create_product', rid=req.id) }}">
+    <!-- Internal Notes -->
+    <div class="admin-card">
+      <h3>📝 Internal Notes <span style="font-size:.72rem;color:var(--admin-muted);font-weight:400;">(customer never sees this)</span></h3>
+      {% if req.admin_note %}
+      <div class="readonly-block" style="margin-bottom:1rem;white-space:pre-wrap;font-size:.84rem;">{{ req.admin_note }}</div>
+      {% endif %}
+      <form method="post" action="{{ url_for('admin.custom_request_add_note', rid=req.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="form-row">
-          <div class="form-group">
-            <label>Product Title *</label>
-            <input type="text" name="title" value="{{ req.craft_type or req.description[:50] }}" required>
-          </div>
-          <div class="form-group">
-            <label>Price (₹) *</label>
-            <input type="number" name="price" value="{{ req.quoted_price or '' }}" min="0" step="0.01" required>
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Category</label>
-            <select name="category_id">
-              <option value="">Select category</option>
-              {% for cat in categories %}
-              <option value="{{ cat.id }}">{{ cat.name }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Stock (for others to buy)</label>
-            <input type="number" name="stock" value="0" min="0">
-          </div>
-        </div>
-        <div class="form-group">
-          <label>Description</label>
-          <textarea name="description" rows="3">{{ req.description }}</textarea>
-        </div>
-        <div style="display:flex;align-items:center;gap:1rem;">
-          <label class="toggle-label">
-            <input type="checkbox" name="is_listed" checked>
-            <span class="toggle-track-ui"></span>
-            List in shop immediately
-          </label>
-        </div>
-        <div style="margin-top:1rem;">
-          <button type="submit" class="btn-primary">Create Product Listing →</button>
+        <div style="display:flex;gap:.6rem;">
+          <input type="text" name="note" placeholder="Add a note… (e.g. Called customer, agreed on blue tones)" style="flex:1;padding:.6rem .8rem;border:1px solid var(--admin-border);border-radius:6px;font-family:'Jost',sans-serif;font-size:.86rem;">
+          <button type="submit" class="btn-primary" style="flex-shrink:0;">Add</button>
         </div>
       </form>
     </div>
-    {% endif %}
 
-    <!-- Email log -->
+    <!-- Email Log -->
     {% if email_log %}
     <div class="admin-card">
       <h3>📧 Email History</h3>
@@ -149,7 +149,6 @@
           <div class="timeline-dot"></div>
           <div class="timeline-content">
             <strong>{{ e.subject }}</strong>
-            <p>To: {{ e.to_email }}</p>
             <span class="timeline-date">{{ e.sent_at[:16].replace('T',' ') }}</span>
           </div>
         </div>
@@ -163,96 +162,125 @@
   <!-- ── RIGHT ── -->
   <div class="order-detail-side">
 
-    <!-- Converted order link -->
-    {% if req.converted_order_id %}
-    <div class="admin-card" style="border-color:#a5d6a7;background:#e8f5e9;">
-      <h3 style="color:#2e7d32;">✅ Order Created</h3>
-      <p style="font-size:.84rem;color:#2e7d32;margin-bottom:.8rem;">This request has been converted to an order.</p>
-      <a href="{{ url_for('admin.order_detail', oid=req.converted_order_id) }}" class="btn-primary btn-full">View Order →</a>
+    <!-- THE BIG ACTION: Convert to Order -->
+    {% if req.status not in ['converted','closed'] %}
+    <div class="admin-card" style="border-color:#c9a96e;background:linear-gradient(135deg,#fffbf0,#fdf6f0);">
+      <h3 style="color:#7c4f3a;">🎯 Convert to Order</h3>
+      <p style="font-size:.84rem;color:var(--admin-muted);margin-bottom:1rem;line-height:1.7;">
+        Once you've agreed on a price with the customer (via WhatsApp/call/email), enter it here and create the order directly. No customer action needed.
+      </p>
+      <form method="post" action="{{ url_for('admin.custom_request_convert', rid=req.id) }}"
+            onsubmit="return confirm('Create a real order for ₹' + document.getElementById('agreedPrice').value + '?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+          <label>Agreed Total Price (₹) *</label>
+          <input type="number" id="agreedPrice" name="agreed_price"
+                 value="{{ req.quoted_price or '' }}"
+                 min="1" step="0.01" required
+                 style="font-size:1.1rem;font-weight:500;">
+        </div>
+        <div class="form-group">
+          <label>Note for order <span style="font-weight:300;font-size:.75rem;">(optional)</span></label>
+          <input type="text" name="note" placeholder="e.g. Customer agreed via WhatsApp">
+        </div>
+        <button type="submit" class="btn-primary btn-full" style="font-size:.95rem;padding:.8rem;">
+          ✓ Create Order Now
+        </button>
+        <p style="font-size:.74rem;color:var(--admin-muted);margin-top:.5rem;text-align:center;line-height:1.6;">
+          This creates a real order. Customer gets an email notification.
+        </p>
+      </form>
     </div>
     {% endif %}
 
     <!-- Update Status -->
-    {% if req.status not in ['accepted','rejected'] %}
     <div class="admin-card">
       <h3>Update Status</h3>
       <form method="post" action="{{ url_for('admin.custom_request_status', rid=req.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
-          <label>Status</label>
           <select name="status">
-            {% for s in ['pending','reviewing','quoted','rejected'] %}
+            {% for s in ['new','discussing','agreed','converted','closed'] %}
             <option value="{{ s }}" {% if req.status == s %}selected{% endif %}>
-              {{ {'pending':'⏳ Pending','reviewing':'👀 Reviewing','quoted':'💬 Quoted','rejected':'❌ Rejected'}[s] }}
+              {{ {'new':'⭕ New','discussing':'💬 Discussing','agreed':'🤝 Price Agreed','converted':'✅ Converted','closed':'🔒 Closed'}[s] }}
             </option>
             {% endfor %}
           </select>
         </div>
-        <div class="form-group">
-          <label>Internal Note</label>
-          <textarea name="admin_note" rows="2" placeholder="Private note…">{{ req.admin_note or '' }}</textarea>
-        </div>
-        <button type="submit" class="btn-outline btn-full">Save</button>
+        <button type="submit" class="btn-outline btn-full">Save Status</button>
       </form>
     </div>
 
-    <!-- Send Quote -->
-    <div class="admin-card" style="border-color:#c9a96e;">
-      <h3>💬 Send Quote</h3>
-      <form method="post" action="{{ url_for('admin.custom_request_quote', rid=req.id) }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="form-group">
-          <label>Price (₹) *</label>
-          <input type="number" name="quoted_price" value="{{ req.quoted_price or '' }}" min="0" step="0.01" required>
-        </div>
-        <div class="form-group">
-          <label>Crafting Days *</label>
-          <input type="number" name="quoted_days" value="{{ req.quoted_days or 14 }}" min="1" required>
-        </div>
-        <div class="form-group">
-          <label>Personal Message</label>
-          <textarea name="quote_message" rows="3" placeholder="Add a note about the piece…">{{ req.quote_message or '' }}</textarea>
-        </div>
-        <button type="submit" class="btn-primary btn-full">Send Quote to Customer</button>
-      </form>
-    </div>
-    {% endif %}
-
-    <!-- Manual Email -->
+    <!-- Send Email -->
     <div class="admin-card">
-      <h3>✉️ Send Email</h3>
+      <h3>✉️ Email Customer</h3>
       <form method="post" action="{{ url_for('admin.custom_request_email', rid=req.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
           <label>Subject</label>
-          <input type="text" name="subject" placeholder="e.g. Update on your request" required>
+          <input type="text" name="subject" placeholder="e.g. Your custom order update">
         </div>
         <div class="form-group">
           <label>Message</label>
-          <textarea name="message" rows="4" placeholder="Write your message…" required></textarea>
+          <textarea name="message" rows="4" placeholder="Write your message…"></textarea>
         </div>
-        <button type="submit" class="btn-primary btn-full">Send</button>
+        <button type="submit" class="btn-primary btn-full">Send Email</button>
       </form>
     </div>
 
-    <!-- Link to existing product -->
+    <!-- List in shop -->
+    {% if req.status == 'converted' and not linked_product %}
     <div class="admin-card">
-      <h3>🔗 Link to Existing Product</h3>
-      <p style="font-size:.82rem;color:var(--admin-muted);margin-bottom:.9rem;">Already have a product for this? Link them together.</p>
-      <form method="post" action="{{ url_for('admin.custom_request_link_product', rid=req.id) }}">
+      <h3>🛍️ Also List in Shop</h3>
+      <p style="font-size:.83rem;color:var(--admin-muted);margin-bottom:1rem;line-height:1.6;">Create a product listing so other customers can buy this too.</p>
+      <form method="post" action="{{ url_for('admin.custom_request_create_product', rid=req.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
-          <label>Select Product</label>
-          <select name="product_id" required>
-            <option value="">Choose product…</option>
-            {% for p in all_products %}
-            <option value="{{ p.id }}" {% if req.linked_product_id == p.id %}selected{% endif %}>{{ p.title }}</option>
+          <label>Title</label>
+          <input type="text" name="title" value="{{ req.craft_type or '' }}" required>
+        </div>
+        <div class="form-group">
+          <label>Price (₹)</label>
+          <input type="number" name="price" value="{{ req.quoted_price or '' }}" required>
+        </div>
+        <div class="form-group">
+          <label>Category</label>
+          <select name="category_id">
+            <option value="">Select…</option>
+            {% for cat in categories %}
+            <option value="{{ cat.id }}">{{ cat.name }}</option>
             {% endfor %}
           </select>
         </div>
-        <button type="submit" class="btn-outline btn-full">Link Product</button>
+        <div class="form-group">
+          <label>Stock for others</label>
+          <input type="number" name="stock" value="0" min="0">
+        </div>
+        <label class="toggle-label" style="margin-bottom:1rem;">
+          <input type="checkbox" name="is_listed" checked>
+          <span class="toggle-track-ui"></span>
+          List immediately
+        </label>
+        <button type="submit" class="btn-outline btn-full">Create Listing</button>
       </form>
     </div>
+    {% elif not linked_product %}
+    <div class="admin-card">
+      <h3>🔗 Link Existing Product</h3>
+      <form method="post" action="{{ url_for('admin.custom_request_link_product', rid=req.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+          <select name="product_id" required>
+            <option value="">Choose product…</option>
+            {% for p in all_products %}
+            <option value="{{ p.id }}">{{ p.title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn-outline btn-full">Link</button>
+      </form>
+    </div>
+    {% endif %}
 
   </div>
 </div>

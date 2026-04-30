@@ -2,66 +2,45 @@
 {% block title %}Custom Requests{% endblock %}
 {% block page_title %}Custom Requests{% endblock %}
 
-{% block topbar_actions %}
-<a href="{{ url_for('shop.custom_order') }}" target="_blank" class="btn-outline-sm">View Form →</a>
-{% endblock %}
-
 {% block content %}
 <div class="filter-tabs">
   <a href="{{ url_for('admin.custom_requests') }}" class="tab {% if not selected_status %}active{% endif %}">
     All <span class="tab-count">{{ requests|length }}</span>
   </a>
-  {% set statuses = {'pending':'⏳','reviewing':'👀','quoted':'💬','accepted':'✅','rejected':'❌'} %}
-  {% for s, icon in statuses.items() %}
-  <a href="{{ url_for('admin.custom_requests') }}?status={{ s }}" class="tab {% if selected_status == s %}active{% endif %}">
-    {{ icon }} {{ s|capitalize }}
+  {% for s,label in [('new','⭕ New'),('discussing','💬 Discussing'),('agreed','🤝 Agreed'),('converted','✅ Converted'),('closed','🔒 Closed')] %}
+  <a href="{{ url_for('admin.custom_requests') }}?status={{ s }}" class="tab {% if selected_status==s %}active{% endif %}">
+    {{ label }} {% if counts.get(s) %}<span class="tab-count">{{ counts[s] }}</span>{% endif %}
   </a>
   {% endfor %}
 </div>
 
 <div class="admin-table-wrap">
   <table class="admin-table">
-    <thead>
-      <tr>
-        <th>Customer</th>
-        <th>Craft Type</th>
-        <th>Budget</th>
-        <th>Preferred Date</th>
-        <th>Linked Product</th>
-        <th>Status</th>
-        <th>Submitted</th>
-        <th></th>
-      </tr>
-    </thead>
+    <thead><tr>
+      <th>Customer</th><th>Request</th><th>Budget</th>
+      <th>Pref. Date</th><th>Status</th><th>Submitted</th><th></th>
+    </tr></thead>
     <tbody>
       {% for r in requests %}
-      <tr onclick="location.href='{{ url_for('admin.custom_request_detail', rid=r.id) }}'" style="cursor:pointer;">
+      <tr style="cursor:pointer;" onclick="location.href='{{ url_for('admin.custom_request_detail', rid=r.id) }}'">
         <td>
           <div style="font-weight:500;">{{ r.name }}</div>
           <div style="font-size:.76rem;color:var(--admin-muted);">{{ r.email }}</div>
         </td>
         <td>
-          {% if r.craft_type %}
-          <span style="font-size:.84rem;">{{ r.craft_type }}</span>
-          {% if r.occasion %}<br><span style="font-size:.74rem;color:var(--admin-muted);">{{ r.occasion }}</span>{% endif %}
-          {% else %}—{% endif %}
+          {% if r.craft_type %}<div style="font-size:.85rem;font-weight:500;">{{ r.craft_type }}{% if r.occasion %} · {{ r.occasion }}{% endif %}</div>{% endif %}
+          <div style="font-size:.76rem;color:var(--admin-muted);max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ r.description }}</div>
         </td>
-        <td>{{ r.budget or '—' }}</td>
+        <td style="font-size:.84rem;">{{ r.budget or '—' }}</td>
         <td>
           {% if r.preferred_delivery_date %}
-          <span style="background:#fffbf0;border:1px solid #c9a96e;color:#5c3d3d;font-size:.72rem;padding:.2rem .5rem;border-radius:4px;">
-            📅 {{ r.preferred_delivery_date }}
-          </span>
+          <span style="background:#fffbf0;border:1px solid #c9a96e;color:#5c3d3d;font-size:.7rem;padding:.2rem .5rem;border-radius:4px;">📅 {{ r.preferred_delivery_date }}</span>
           {% else %}—{% endif %}
         </td>
         <td>
-          {% if r.linked_product_id %}
-          <span class="badge-yes">🔗 Linked</span>
-          {% else %}—{% endif %}
-        </td>
-        <td>
-          {% set status_map = {'pending':'status-pending','reviewing':'status-reviewing','quoted':'status-quoted','accepted':'status-accepted','rejected':'status-rejected'} %}
-          <span class="status-pill {{ status_map.get(r.status,'status-pending') }}">{{ r.status|capitalize }}</span>
+          {% set sc = {'new':'status-placed','discussing':'status-advance_requested','agreed':'status-advance_confirmed','converted':'status-delivered','closed':'status-cancelled'} %}
+          <span class="status-pill {{ sc.get(r.status,'status-placed') }}">{{ status_labels.get(r.status, r.status) }}</span>
+          {% if r.converted_order_id %}<div style="font-size:.7rem;color:#2e7d32;margin-top:.2rem;">🔗 Order created</div>{% endif %}
         </td>
         <td style="font-size:.78rem;color:var(--admin-muted);">{{ r.created_at[:10] }}</td>
         <td onclick="event.stopPropagation()">
@@ -69,7 +48,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="8" class="empty-row">No custom requests yet.</td></tr>
+      <tr><td colspan="7" class="empty-row">No custom requests{% if selected_status %} with status "{{ selected_status }}"{% endif %}.</td></tr>
       {% endfor %}
     </tbody>
   </table>
