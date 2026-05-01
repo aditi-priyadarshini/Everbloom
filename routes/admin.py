@@ -476,9 +476,42 @@ def custom_request_create_product(rid):
 @admin_only
 def custom_request_link_product(rid):
     product_id = request.form.get("product_id","").strip()
-    if product_id:
-        models.update_custom_request(rid, {"linked_product_id": product_id})
-        flash("Product linked!", "success")
+    if not product_id:
+        flash("Please select a product.", "error")
+        return redirect(url_for("admin.custom_request_detail", rid=rid))
+
+    # Link product to custom request
+    models.update_custom_request(rid, {"linked_product_id": product_id})
+
+    # Update the order item with product image + title if order exists
+    req = models.get_custom_request(rid)
+    product = models.get_product(product_id)
+    if req and product and req.get("converted_order_id"):
+        oid = str(req["converted_order_id"])
+        items = models.get_order_items(oid)
+        img = (product.get("images") or [""])[0]
+        if items:
+            # Update existing item
+            import supa as supa_mod
+            supa_mod.update("order_items",
+                {"order_id": f"eq.{oid}"},
+                {
+                    "product_id": product_id,
+                    "title":      product["title"],
+                    "image_url":  img,
+                })
+        else:
+            # No items yet — create one
+            models.create_order_item({
+                "order_id":   oid,
+                "product_id": product_id,
+                "title":      product["title"],
+                "price":      float(product.get("price", req.get("quoted_price") or 0)),
+                "quantity":   1,
+                "image_url":  img,
+            })
+
+    flash(f"Linked to '{product['title'] if product else product_id}'! Order items updated.", "success")
     return redirect(url_for("admin.custom_request_detail", rid=rid))
 
 
