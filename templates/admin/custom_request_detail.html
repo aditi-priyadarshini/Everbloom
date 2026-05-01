@@ -228,20 +228,45 @@
       </form>
     </div>
 
-    <!-- List in shop -->
-    {% if req.status == 'converted' and not linked_product %}
+    <!-- Product Linking — always visible -->
+    {% if not linked_product %}
+
+    <!-- Link to existing product -->
+    <div class="admin-card" style="border-color:#90caf9;">
+      <h3>🔗 Link to Existing Product</h3>
+      <p style="font-size:.82rem;color:var(--admin-muted);margin-bottom:.9rem;line-height:1.6;">
+        Already have this in your catalogue? Link it here. The order item will update automatically.
+      </p>
+      <form method="post" action="{{ url_for('admin.custom_request_link_product', rid=req.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+          <label>Select Product</label>
+          <select name="product_id" required>
+            <option value="">Choose product…</option>
+            {% for p in all_products %}
+            <option value="{{ p.id }}">{{ p.title }} — ₹{{ "%.0f"|format(p.price) }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn-primary btn-full">Link Product</button>
+      </form>
+    </div>
+
+    <!-- Create new product listing -->
     <div class="admin-card">
-      <h3>🛍️ Also List in Shop</h3>
-      <p style="font-size:.83rem;color:var(--admin-muted);margin-bottom:1rem;line-height:1.6;">Create a product listing so other customers can buy this too.</p>
+      <h3>🛍️ Create New Listing</h3>
+      <p style="font-size:.82rem;color:var(--admin-muted);margin-bottom:.9rem;line-height:1.6;">
+        List this as a new product in your shop so other customers can buy it too.
+      </p>
       <form method="post" action="{{ url_for('admin.custom_request_create_product', rid=req.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
-          <label>Title</label>
-          <input type="text" name="title" value="{{ req.craft_type or '' }}" required>
+          <label>Product Title *</label>
+          <input type="text" name="title" value="{{ req.craft_type or req.description[:40] or '' }}" required>
         </div>
         <div class="form-group">
-          <label>Price (₹)</label>
-          <input type="number" name="price" value="{{ req.quoted_price or '' }}" required>
+          <label>Price (₹) *</label>
+          <input type="number" name="price" value="{{ req.quoted_price or '' }}" min="0" step="0.01" required>
         </div>
         <div class="form-group">
           <label>Category</label>
@@ -253,31 +278,29 @@
           </select>
         </div>
         <div class="form-group">
-          <label>Stock for others</label>
+          <label>Extra Stock (for other buyers)</label>
           <input type="number" name="stock" value="0" min="0">
         </div>
         <label class="toggle-label" style="margin-bottom:1rem;">
           <input type="checkbox" name="is_listed" checked>
           <span class="toggle-track-ui"></span>
-          List immediately
+          List in shop immediately
         </label>
-        <button type="submit" class="btn-outline btn-full">Create Listing</button>
+        <button type="submit" class="btn-outline btn-full">Create & Link</button>
       </form>
     </div>
-    {% elif not linked_product %}
+
+    {% else %}
+    <!-- Already linked — show unlink option -->
     <div class="admin-card">
-      <h3>🔗 Link Existing Product</h3>
-      <form method="post" action="{{ url_for('admin.custom_request_link_product', rid=req.id) }}">
+      <h3>🔗 Product Linked</h3>
+      <p style="font-size:.82rem;color:var(--admin-muted);margin-bottom:.8rem;">Want to link a different product?</p>
+      <form method="post" action="{{ url_for('admin.custom_request_unlink', rid=req.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="form-group">
-          <select name="product_id" required>
-            <option value="">Choose product…</option>
-            {% for p in all_products %}
-            <option value="{{ p.id }}">{{ p.title }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <button type="submit" class="btn-outline btn-full">Link</button>
+        <button type="submit" class="btn-outline btn-full" onclick="return confirm('Unlink this product?')"
+                style="border-color:#ef9a9a;color:#c0392b;">
+          Unlink Product
+        </button>
       </form>
     </div>
     {% endif %}
