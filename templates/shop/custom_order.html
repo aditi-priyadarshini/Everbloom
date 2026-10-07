@@ -3,14 +3,14 @@
 {% block content %}
 <div class="page-wrap narrow">
   <div class="section-tag">Personalised</div>
-  <h1 class="page-title">Custom Order Request</h1>
-  <p class="subtitle">Tell us what you have in mind — our artisans will bring it to life.</p>
+  <h1 class="page-title">Let’s make it personal.</h1>
+  <p class="subtitle">Tell us what you have in mind — we’ll help shape the details.</p>
 
   {% if success %}
   <div class="success-card">
     <div class="success-icon">✓</div>
     <h3>Request Submitted!</h3>
-    <p>We'll review and get back to you with a quote within 2–3 business days.</p>
+    <p>We’ll review your idea and email you with the next steps.</p>
     <a href="{{ url_for('shop.custom_order_track', token=tracking_token) }}" class="btn-primary" style="margin-bottom:.8rem;">Track My Request</a>
     <a href="{{ url_for('shop.index') }}" class="btn-outline">Back to Home</a>
   </div>
@@ -19,47 +19,18 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <div class="form-section">
-      <h3>Your Details</h3>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Full Name *</label>
-          <input type="text" name="name" value="{{ session.user_name or '' }}" required>
-        </div>
-        <div class="form-group">
-          <label>Email *</label>
-          <input type="email" name="email" required>
-        </div>
-      </div>
-      <div class="form-group">
-        <label>Phone</label>
-        <input type="tel" name="phone">
-      </div>
-    </div>
-
-    <div class="form-section">
-      <h3>Your Request</h3>
+      <h3>What are we making?</h3>
       <div class="form-row">
         <div class="form-group">
           <label>Type of Craft *</label>
           <select name="craft_type" required>
             <option value="">Select type</option>
-            <option value="Painting">Painting</option>
-            <option value="Sculpture">Sculpture</option>
-            <option value="DIY Kit">DIY Kit</option>
-            <option value="Other">Other</option>
+            {% for c in nav_categories %}<option value="{{ c.name }}">{{ c.name }}</option>{% endfor %}<option value="Other">Something personal</option>
           </select>
         </div>
         <div class="form-group">
           <label>Occasion</label>
-          <select name="occasion">
-            <option value="">Select occasion</option>
-            <option value="Birthday">Birthday</option>
-            <option value="Wedding">Wedding</option>
-            <option value="Anniversary">Anniversary</option>
-            <option value="Home Decor">Home Decor</option>
-            <option value="Gift">Gift</option>
-            <option value="Other">Other</option>
-          </select>
+          <input name="occasion" maxlength="150" placeholder="Tell us what you’re celebrating">
         </div>
       </div>
       <div class="form-row">
@@ -85,7 +56,7 @@
     </div>
 
     <div class="form-section">
-      <h3>Budget & Reference</h3>
+      <h3>Budget & inspiration</h3>
       <div class="form-row">
         <div class="form-group">
           <label>Budget Range</label>
@@ -111,10 +82,29 @@
       <div class="form-group">
         <label>When do you need it by?</label>
         <input type="date" name="preferred_delivery_date" min="{{ min_date }}"
-               style="width:100%;padding:.75rem;border:1px solid var(--rose);border-radius:4px;font-family:'Jost',sans-serif;font-size:.9rem;">
+               style="width:100%;padding:.75rem;border:1px solid var(--rose);border-radius:4px;font-family:var(--font-body);font-size:.9rem;">
         <p class="form-hint" style="margin-top:.4rem;">Leave blank if flexible. We'll let you know during quoting if the date is achievable.</p>
       </div>
     </div>
+
+    <div class="form-section">
+      <h3>How can we reach you?</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Full Name *</label>
+          <input type="text" name="name" value="{{ session.user_name or '' }}" required>
+        </div>
+        <div class="form-group">
+          <label>Email *</label>
+          <input type="email" name="email" required>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Phone</label>
+        <input type="tel" name="phone">
+      </div>
+    </div>
+
 
     <button type="submit" class="btn-primary btn-full">Submit Request</button>
     <p class="checkout-note">We'll review your request and send a quote within 2–3 business days.</p>

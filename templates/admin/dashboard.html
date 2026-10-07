@@ -1,14 +1,10 @@
 {% extends 'admin/base_admin.html' %}
 {% block title %}Overview{% endblock %}
 {% block page_title %}Studio overview{% endblock %}
-{% block content %}<div class="metrics-grid">{% for label,value in [('Orders today',ops.today_orders),('Awaiting action',stats.pending_orders),('Delivered revenue this month','₹' ~ ('%.2f'|format(ops.month_revenue))),('Average delivered order','₹' ~ ('%.2f'|format(stats.avg_order_value)))] %}<article class="metric-card">
-<p>{{ label }}</p>
-<strong>{{ value }}</strong>
-</article>{% endfor %}</div>
-<section class="admin-card">
+{% block content %}<div class="admin-welcome"><h2>Your studio, at a glance.</h2><p>Here’s what needs your attention today.</p></div><section class="admin-card">
 <h3>What needs attention</h3>
-<div class="attention-grid">
-<a href="{{ url_for('admin.orders') }}">
+{% if ops.pending_payments or ops.custom_pending or low_stock_materials or low_stock_components %}<div class="attention-grid">
+<a href="{{ url_for('admin.orders',payment='advance_submitted') }}">
 <strong>{{ ops.pending_payments }}</strong> payments awaiting verification</a>
 <a href="{{ url_for('admin.custom_requests') }}">
 <strong>{{ ops.custom_pending }}</strong> open custom requests</a>
@@ -16,8 +12,12 @@
 <strong>{{ low_stock_materials|length }}</strong> materials below reorder level</a>
 <a href="{{ url_for('admin.components') }}">
 <strong>{{ low_stock_components|length }}</strong> components below reorder level</a>
-</div>
-</section>
+</div>{% else %}<div class="all-clear"><span class="status-pill status-visible">All clear for now</span><p>No payments awaiting verification, open custom requests, or inventory alerts.</p></div>{% endif %}
+</section><div class="metrics-grid">{% for label,value in [('Orders today',ops.today_orders),('Awaiting action',stats.pending_orders),('Delivered revenue this month','₹' ~ ('%.2f'|format(ops.month_revenue))),('Average delivered order','₹' ~ ('%.2f'|format(stats.avg_order_value)))] %}<article class="metric-card">
+<p>{{ label }}</p>
+<strong>{{ value }}</strong>
+</article>{% endfor %}</div>
+
 <div class="settings-grid">
 <section class="admin-card">
 <h3>Upcoming requested dates</h3>{% for o in ops.due_orders %}<a class="operation-row" href="{{ url_for('admin.order_detail',oid=o.id) }}">
@@ -54,8 +54,8 @@
 </td>
 <td>{{ o.name }}</td>
 <td>₹{{ '%.2f'|format(o.total) }}</td>
-<td>{{ o.payment_status|default('unpaid')|replace('_',' ')|title }}</td>
-<td>{{ o.fulfilment_status|default(o.status)|replace('_',' ')|title }}</td>
+<td><span class="status-pill {{ 'status-visible' if o.payment_status in ['paid','advance_verified'] else 'status-pending' }}">{{ o.payment_status|default('unpaid')|replace('_',' ')|title }}</span></td>
+<td><span class="status-pill status-hidden">{{ o.fulfilment_status|default(o.status)|replace('_',' ')|title }}</span></td>
 <td>{{ o.preferred_delivery_date or '—' }}</td>
 </tr>{% else %}<tr>
 <td colspan="6">Orders will appear here when customers place them.</td>

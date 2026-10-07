@@ -32,6 +32,44 @@ def get_categories():
     return supa.select("categories", order="name.asc")
 
 
+def merchandising_counts(kind, entries=None, products=None):
+    """Count catalogue membership in batches, using the commerce publication rule."""
+    from services.commerce import availability
+    entries = entries if entries is not None else supa.select(kind, order="name.asc")
+    products = products if products is not None else get_products(listed_only=False)
+    by_id = {str(p['id']): p for p in products}
+    memberships = {}
+    if kind == 'categories':
+        for product in products:
+            memberships.setdefault(str(product.get('category_id')), set()).add(str(product['id']))
+    else:
+        table, column = {'collections': ('collection_products', 'collection_id'),
+                         'occasions': ('product_occasions', 'occasion_id')}[kind]
+        for row in supa.select(table):
+            memberships.setdefault(str(row[column]), set()).add(str(row['product_id']))
+    result = []
+    for entry in entries:
+        ids = memberships.get(str(entry['id']), set())
+        live = sum(1 for pid in ids if pid in by_id and availability(by_id[pid])['published'])
+        result.append(dict(entry, product_count=len(ids), live_count=live,
+                           storefront_visible=entry.get('active', True) is True and live > 0))
+    return result
+
+
+def get_public_merchandising():
+    """One request-local snapshot; six batch reads regardless of catalogue size."""
+    from flask import g
+    if not hasattr(g, 'public_merchandising'):
+        products = get_products()
+        g.public_products = products
+        g.public_merchandising = {
+            kind: [entry for entry in merchandising_counts(kind, products=products)
+                   if entry['storefront_visible']]
+            for kind in ('categories', 'collections', 'occasions')
+        }
+    return g.public_merchandising
+
+
 def get_category(cid):
     rows = supa.select("categories", {"id": f"eq.{cid}"})
     return rows[0] if rows else None

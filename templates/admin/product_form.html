@@ -1,16 +1,17 @@
 {% extends "admin/base_admin.html" %}
 {% block title %}{{ 'Edit' if action == 'edit' else 'New' }} Product{% endblock %}
 {% block page_title %}{{ 'Edit Product' if action == 'edit' else 'Add New Product' }}{% endblock %}
+{% block topbar_actions %}<button type="submit" form="productEditor" class="btn-primary">{{ 'Save changes' if action=='edit' else 'Create product' }}</button>{% endblock %}
 {% block content %}
 <div class="form-page-wrap">
-  <form method="post" enctype="multipart/form-data" class="product-form">
+  <form method="post" enctype="multipart/form-data" class="product-form" id="productEditor">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <div class="form-grid">
       <div class="form-col-main">
 
         <div class="admin-card">
-          <h3>Product Details</h3>
+          <h3>Basics</h3>
           <div class="form-group">
             <label>Title *</label>
             <input type="text" name="title" value="{{ product.title if product else '' }}" required>
@@ -51,12 +52,12 @@
         </div>
 
         <div class="admin-card">
-          <h3>Collections & occasions</h3>{% for kind,entries,selected in [('collection',collections or [],selected_collections or []),('occasion',occasions or [],selected_occasions or [])] %}<fieldset><legend>{{ kind|title }}</legend>{% for e in entries %}<label><input type="checkbox" name="{{ kind }}_ids" value="{{ e.id }}" {% if e.id|string in selected %}checked{% endif %}> {{ e.name }}</label>{% else %}<p class="form-hint">Create {{ kind }}s in the catalog menu.</p>{% endfor %}</fieldset>{% endfor %}<h3>Personalisation</h3><div class="form-group"><label>Customer fields (JSON)</label><textarea name="personalization_fields" rows="4">{{ (product.personalization_fields or [])|tojson if product else '[]' }}</textarea><p class="form-hint">Example: [{"name":"recipient_name","label":"Recipient name","required":true}]</p></div><div class="form-group"><label>Sale price (optional)</label><input type="number" name="sale_price" min="0" step="0.01" value="{{ product.sale_price if product and product.sale_price is not none else '' }}"></div><div class="form-group"><label>Slug</label><input name="slug" value="{{ product.slug or '' if product else '' }}"></div></div><div class="admin-card"><h3>Images</h3>
+          <h3>Collections & occasions</h3>{% for kind,entries,selected in [('collection',collections or [],selected_collections or []),('occasion',occasions or [],selected_occasions or [])] %}<fieldset><legend>{{ kind|title }}</legend>{% for e in entries %}<label><input type="checkbox" name="{{ kind }}_ids" value="{{ e.id }}" {% if e.id|string in selected %}checked{% endif %}> {{ e.name }}</label>{% else %}<p class="form-hint">Create {{ kind }}s in the catalog menu.</p>{% endfor %}</fieldset>{% endfor %}<h3>Personalisation</h3><div class="form-group"><label>Customer fields (JSON)</label><textarea data-personalisation-editor name="personalization_fields" rows="4">{{ (product.personalization_fields or [])|tojson if product else '[]' }}</textarea><p class="form-hint">Example: [{"name":"recipient_name","label":"Recipient name","required":true}]</p></div><div class="form-group"><label>Sale price (optional)</label><input type="number" name="sale_price" min="0" step="0.01" value="{{ product.sale_price if product and product.sale_price is not none else '' }}"></div><div class="form-group"><label>Slug</label><input name="slug" value="{{ product.slug or '' if product else '' }}"></div></div><div class="admin-card"><h3>Media</h3><p class="form-hint">Your first image is the storefront cover. Move images to set their order; changes apply when you save.</p>
           {% if product and product.images %}
           <div class="existing-images">
             {% for img in product.images %}
-            <div class="existing-img-wrap">
-              <img src="{{ img }}" alt="" class="existing-img">
+            <div class="existing-img-wrap"><input type="hidden" name="image_order" value="{{ loop.index0 }}">
+              <img src="{{ img }}" alt="{{ product.title }} — image {{ loop.index }}" class="existing-img"><span class="media-position">{{ 'Cover image' if loop.first else 'Image ' ~ loop.index }}</span><label class="media-alt-label" for="image-alt-{{ loop.index0 }}">Image description</label><input id="image-alt-{{ loop.index0 }}" name="image_alt_{{ loop.index0 }}" maxlength="300" value="{{ product.image_alt_texts[loop.index0] if product.image_alt_texts and loop.index0 < product.image_alt_texts|length else product.title }}"><div class="media-controls"><button type="button" class="btn-outline-sm" data-image-move="-1" aria-label="Move image {{ loop.index }} earlier">Earlier</button><button type="button" class="btn-outline-sm" data-image-move="1" aria-label="Move image {{ loop.index }} later">Later</button></div>
               <label class="remove-img-label">
                 <input type="checkbox" name="remove_image" value="{{ loop.index0 }}"> Remove
               </label>
@@ -114,7 +115,7 @@
           </div>
         </div>
 
-        <div class="admin-card">
+        <div class="admin-card editor-save-bar">
           <div class="form-actions">
             <button type="submit" class="btn-primary btn-full">{{ 'Save Changes' if action == 'edit' else 'Create Product' }}</button>
             <a href="{{ url_for('admin.products') }}" class="btn-outline btn-full">Cancel</a>

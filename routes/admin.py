@@ -4,7 +4,7 @@ import supa
 import uuid
 import os
 from routes.auth import admin_only
-from services.commerce import MODES, PAYMENT_STATUSES, FULFILMENT_STATUSES, money
+from services.commerce import availability as models_availability, MODES, PAYMENT_STATUSES, FULFILMENT_STATUSES, money
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -192,6 +192,11 @@ def products():
     search = request.args.get("q", "")
     category_id = request.args.get("category")
     prods = models.get_products(category_id=category_id, search=search or None, listed_only=False)
+    mode=request.args.get('availability','')
+    if mode: prods=[p for p in prods if models_availability(p)['mode']==mode]
+    visibility=request.args.get('visibility','')
+    if visibility in ('published','hidden'): prods=[p for p in prods if models_availability(p)['published']==(visibility=='published')]
+    if request.args.get('stock')=='empty': prods=[p for p in prods if int(p.get('stock') or 0)==0]
     categories = models.get_categories()
     return render_template("admin/products.html", products=prods,
                            categories=categories, search=search,
@@ -287,8 +292,14 @@ def _parse_product_form(req, existing=None):
 
     # Handle image uploads
     images = list((existing or {}).get("images") or [])
+    try:
+        remove_indices = sorted({int(index) for index in req.form.getlist("remove_image")}, reverse=True)
+    except ValueError:
+        raise ValueError("Invalid image selection.")
+    if any(index < 0 or index >= len(images) for index in remove_indices):
+        raise ValueError("Invalid image selection.")
     files = req.files.getlist("images")
-    if len(images)+len([f for f in files if f.filename])>12: raise ValueError("Use at most 12 product images.")
+    if len(images)-len(remove_indices)+len([f for f in files if f.filename])>12: raise ValueError("Use at most 12 product images.")
     for f in files:
         if not f or not f.filename:
             continue
@@ -310,13 +321,26 @@ def _parse_product_form(req, existing=None):
             flash("Image rejected. Use a valid JPEG, PNG or WebP under 8 MB.", "error")
 
     # Remove images from highest index first to preserve indices.
-    remove_indices = req.form.getlist("remove_image")
-    for idx in sorted(remove_indices, key=int, reverse=True):
-        try:
-            images.pop(int(idx))
-        except Exception:
-            pass
+    for index in remove_indices:
+        images.pop(index)
 
+    original = list((existing or {}).get("images") or [])
+    ordering = req.form.getlist("image_order")
+    try:
+        indices = [int(index) for index in ordering] if ordering else list(range(len(original)))
+    except ValueError:
+        raise ValueError("Invalid image order.")
+    if sorted(indices) != list(range(len(original))):
+        raise ValueError("Invalid image order.")
+    removed = set(remove_indices)
+    kept_indices = [index for index in indices if index not in removed]
+    uploaded = images[len(original)-len(removed):]
+    images = [original[index] for index in kept_indices] + uploaded
+    previous_alt = (existing or {}).get('image_alt_texts') or []
+    data['image_alt_texts'] = [
+        req.form.get('image_alt_'+str(index), previous_alt[index] if index < len(previous_alt) else data['title']).strip()[:300] or data['title']
+        for index in kept_indices
+    ] + [data['title']] * len(uploaded)
     data["images"] = images
     return data
 
@@ -328,6 +352,8 @@ def _parse_product_form(req, existing=None):
 def customers():
     all_users = models.get_all_users()
     customers_only = [u for u in all_users if not u.get("is_admin")]
+    query=request.args.get("q", "").strip().casefold()
+    if query: customers_only=[u for u in customers_only if query in " ".join(str(u.get(k) or "") for k in ("name", "email", "phone")).casefold()]
     return render_template("admin/customers.html", customers=customers_only)
 
 
@@ -1315,6 +1341,27 @@ def merchandising(kind):
     import re
     if kind not in MERCHANDISING: abort(404)
     if request.method=='POST':
+        action=request.form.get('action','create')
+        entry_id=request.form.get('entry_id')
+        if action in ('edit','archive','restore'):
+            entries=supa.select(kind, {'id':'eq.'+str(entry_id)})
+            if not entries:
+                flash('Entry not found.','error')
+                return redirect(url_for('admin.merchandising',kind=kind))
+            if action in ('archive','restore'):
+                saved=supa.update(kind, {'id':'eq.'+str(entry_id)}, {'active':action=='restore'})
+            else:
+                name=request.form.get('name','').strip()[:150]
+                if not name:
+                    flash('Enter a name.','error')
+                    return redirect(url_for('admin.merchandising',kind=kind))
+                data={'name':name}
+                if kind=='testimonials': data['quote']=request.form.get('quote','').strip()[:2000]
+                else: data['slug']=re.sub(r'[^a-z0-9]+','-',(request.form.get('slug') or name).lower()).strip('-')
+                if kind=='collections': data['featured']=request.form.get('featured')=='on'
+                saved=supa.update(kind, {'id':'eq.'+str(entry_id)},data)
+            flash('Changes saved.' if saved else 'Could not save. Check the slug and that the category visibility migration is applied.','success' if saved else 'error')
+            return redirect(url_for('admin.merchandising',kind=kind))
         name=request.form.get('name','').strip()[:150]
         if not name: flash('Enter a name.','error')
         else:
@@ -1325,7 +1372,10 @@ def merchandising(kind):
             saved=supa.insert(kind,data)
             flash('Saved.' if saved else 'Could not save. Check that the slug is unique.','success' if saved else 'error')
         return redirect(url_for('admin.merchandising',kind=kind))
-    return render_template('admin/merchandising.html',kind=kind,title=MERCHANDISING[kind],entries=supa.select(kind,order='name.asc'))
+    entries=supa.select(kind,order='name.asc')
+    if kind in ('categories','collections','occasions'):
+        entries=models.merchandising_counts(kind, entries=entries)
+    return render_template('admin/merchandising.html',kind=kind,title=MERCHANDISING[kind],entries=entries)
 
 @admin_bp.route('/reviews', methods=['GET','POST'])
 @admin_only

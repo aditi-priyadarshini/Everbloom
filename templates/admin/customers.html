@@ -1,7 +1,7 @@
 {% extends "admin/base_admin.html" %}
 {% block title %}Customers{% endblock %}
 {% block page_title %}Customers{% endblock %}
-{% block content %}
+{% block content %}<form class="search-form" method="get"><label class="sr-only" for="customer-search">Search customers</label><input id="customer-search" name="q" value="{{ request.args.get('q','') }}" placeholder="Name, email or phone"><button class="btn-primary">Search</button></form>
 <div class="admin-table-wrap">
   <table class="admin-table">
     <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Joined</th></tr></thead>

@@ -1,0 +1,2 @@
+{% set chart_max=chart_values.values()|max if chart_values else 1 %}
+<div class="metric-bars">{% for label,value in chart_values.items() %}<div class="metric-bar"><span>{{ label|replace('_',' ')|title }}</span><meter min="0" max="{{ chart_max if chart_max>0 else 1 }}" value="{{ value }}" aria-label="{{ label }}">{{ value }}</meter><strong>{{ '₹' if chart_money else '' }}{{ '%.2f'|format(value) if chart_money else value }}</strong></div>{% else %}<p class="form-hint">No activity recorded for this period.</p>{% endfor %}</div>

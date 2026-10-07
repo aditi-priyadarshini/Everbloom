@@ -1,7 +1,8 @@
 {% extends 'admin/base_admin.html' %}
 {% block title %}Store settings{% endblock %}
 {% block page_title %}Store settings & content{% endblock %}
-{% block content %}<form method="post" enctype="multipart/form-data">
+{% block topbar_actions %}<button class="btn-primary" type="submit" form="storeSettings">Save settings</button>{% endblock %}
+{% block content %}<form method="post" enctype="multipart/form-data" id="storeSettings">
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <div class="settings-grid">{% for title,fields in [('Business',['store_name','store_tagline','business_email','business_phone','business_address','whatsapp_number','instagram_handle']),('Homepage',['announcement','hero_eyebrow','hero_headline','hero_body','hero_image','hero_mobile_image','hero_primary_label','hero_secondary_label','story_headline','brand_story','custom_headline','custom_body','footer_text']),('Payment & preparation',['upi_id','processing_buffer']),('Policies',['policy_shipping','policy_returns','policy_privacy','policy_terms'])] %}<section class="admin-card">
 <h3>{{ title }}</h3>{% for key in fields %}<div class="form-group">

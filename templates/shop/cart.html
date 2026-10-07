@@ -2,7 +2,7 @@
 {% block title %}Cart{% endblock %}
 {% block content %}
 <div class="page-wrap">
-  <h1 class="page-title">Your Cart</h1>
+  <h1 class="page-title">Your bag.</h1>
   {% if items %}
   <div class="cart-layout">
     <div class="cart-items">
@@ -15,11 +15,11 @@
         </div>
         <div class="cart-info">
           <a href="{{ url_for('shop.product', pid=item.product.id) }}" class="cart-name">{{ item.product.title }}</a>
-          {% include 'shop/_line_options.html' %}<p class="availability-note">{{ availability(item.product).label }}</p><div class="cart-price">₹{{ "%.0f"|format(item.unit_price) }} each</div>
+          {% include 'shop/_line_options.html' %}<p class="availability-note">{{ availability(item.product).label }}{% if item.product.lead_time_max or item.product.crafting_days %} · Preparation: up to {{ item.product.lead_time_max or item.product.crafting_days }} days{% endif %}</p><div class="cart-price">₹{{ "%.0f"|format(item.unit_price) }} each</div>
         </div>
         <form method="post" action="{{ url_for('shop.cart_update', pid=item.key) }}" class="cart-qty-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="number" name="qty" value="{{ item.qty }}" min="1" max="99" class="qty-input" onchange="this.form.submit()">
+          <label class="sr-only" for="qty-{{ loop.index }}">Quantity for {{ item.product.title }}</label><input id="qty-{{ loop.index }}" type="number" name="qty" value="{{ item.qty }}" min="1" max="99" class="qty-input" onchange="this.form.submit()">
         </form>
         <div class="cart-subtotal">₹{{ "%.0f"|format(item.subtotal) }}</div>
         <form method="post" action="{{ url_for('shop.cart_remove', pid=item.key) }}">
@@ -40,8 +40,8 @@
   </div>
   {% else %}
   <div class="empty-state">
-    <p>Your cart is empty.</p>
-    <a href="{{ url_for('shop.shop') }}" class="btn-primary">Browse Products</a>
+    <h2>A little room for something thoughtful.</h2><p>Your saved choices will appear here when you add them to your bag.</p>
+    <a href="{{ url_for('shop.shop') }}" class="btn-primary">Explore creations</a>
   </div>
   {% endif %}
 </div>

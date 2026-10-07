@@ -2,16 +2,16 @@
 {% block title %}Products{% endblock %}
 {% block page_title %}Products{% endblock %}
 {% block content %}
-<div class="admin-section-header">
+<p class="form-hint">Manage what customers can discover and order.</p><div class="admin-section-header">
   <form method="get" class="search-form">
-    <input type="text" name="q" placeholder="Search products…" value="{{ search }}">
-    <select name="category" onchange="this.form.submit()">
+    <label class="sr-only" for="product-search">Search products</label><input id="product-search" type="text" name="q" placeholder="Search products…" value="{{ search }}">
+    <label class="sr-only" for="product-category">Category</label><select id="product-category" name="category" onchange="this.form.submit()">
       <option value="">All Categories</option>
       {% for cat in categories %}
       <option value="{{ cat.id }}" {% if selected_category == cat.id|string %}selected{% endif %}>{{ cat.name }}</option>
       {% endfor %}
     </select>
-    <button type="submit">Search</button>
+    <label class="sr-only" for="product-availability">Availability</label><select id="product-availability" name="availability"><option value="">All availability</option>{% for mode in ['READY_TO_SHIP','MADE_TO_ORDER','PREORDER','ONE_OF_ONE','CUSTOM_ONLY','UNAVAILABLE','DRAFT','ARCHIVED'] %}<option value="{{ mode }}" {% if request.args.get('availability')==mode %}selected{% endif %}>{{ mode|replace('_',' ')|title }}</option>{% endfor %}</select><label class="sr-only" for="product-visibility">Storefront status</label><select id="product-visibility" name="visibility"><option value="">All visibility</option><option value="published" {% if request.args.get('visibility')=='published' %}selected{% endif %}>Published</option><option value="hidden" {% if request.args.get('visibility')=='hidden' %}selected{% endif %}>Hidden</option></select><label class="sr-only" for="product-stock">Finished stock</label><select id="product-stock" name="stock"><option value="">All finished stock</option><option value="empty" {% if request.args.get('stock')=='empty' %}selected{% endif %}>No finished stock</option></select><button type="submit" class="btn-outline">Filter products</button>
   </form>
   <a href="{{ url_for('admin.product_new') }}" class="btn-primary">+ Add Product</a>
 </div>
@@ -19,7 +19,7 @@
 <div class="admin-table-wrap">
   <table class="admin-table">
     <thead><tr>
-      <th>Image</th><th>Title</th><th>Price</th><th>Discount</th><th>Stock</th><th>Featured</th><th>Flash</th><th>Listed</th><th></th>
+      <th>Image</th><th>Product</th><th>Price</th><th>Availability</th><th>Storefront</th><th>Actions</th>
     </tr></thead>
     <tbody>
       {% for p in products %}
@@ -29,12 +29,9 @@
           {% if imgs %}<img src="{{ imgs[0] }}" class="item-thumb" alt="">
           {% else %}<div class="item-thumb-ph"></div>{% endif %}
         </td>
-        <td>{{ p.title }}</td>
-        <td>₹{{ "%.0f"|format(p.price) }}</td>
-        <td>{% if p.discount_percent %}{{ p.discount_percent }}%{% else %}—{% endif %}</td>
-        <td class="{% if p.stock == 0 %}stock-zero{% endif %}">{{ p.stock }}</td>
-        <td>{% if p.featured %}<span class="badge-yes">Yes</span>{% else %}—{% endif %}</td>
-        <td>{% if p.is_flash_sale and is_flash_active(p) %}<span class="badge-flash-sm"></span>{% else %}—{% endif %}</td>
+        <td><a href="{{ url_for('admin.product_edit',pid=p.id) }}"><strong>{{ p.title }}</strong></a><span class="table-secondary">{% for c in categories %}{% if c.id==p.category_id %}{{ c.name }}{% endif %}{% endfor %}</span></td>
+        <td>₹{{ "%.0f"|format(discounted_price(p)) }}</td>
+        <td>{{ availability(p).label }}<span class="table-secondary">{{ p.stock or 0 }} finished · {{ 'Published' if availability(p).published else 'Unpublished' }}</span></td>
         <td>
           <form method="post" action="{{ url_for('admin.product_toggle_listing', pid=p.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -47,12 +44,12 @@
           <a href="{{ url_for('admin.product_edit', pid=p.id) }}" class="table-action">Edit</a>
           <form method="post" action="{{ url_for('admin.product_delete', pid=p.id) }}" style="display:inline;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="table-action danger" onclick="return confirm('Delete this product?')">Delete</button>
+            <button type="submit" class="table-action danger" onclick="return confirm('Archive this product? It will be hidden from the storefront.')">Archive</button>
           </form>
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="8" class="empty-row">No products yet. <a href="{{ url_for('admin.product_new') }}">Add one →</a></td></tr>
+      <tr><td colspan="6" class="empty-row">No products yet. <a href="{{ url_for('admin.product_new') }}">Add one →</a></td></tr>
       {% endfor %}
     </tbody>
   </table>

@@ -3,7 +3,7 @@
 {% block content %}
 <div class="shop-layout">
   <!-- Filters sidebar -->
-  <aside class="shop-filters">
+  <aside class="shop-filters" id="shopFilters">
     <h3>Find your creation</h3>
     <form method="get" action="{{ url_for('shop.shop') }}">
       <div class="filter-group"><label for="filter-search">Search</label><input id="filter-search" name="q" value="{{ search }}" placeholder="A bouquet, a little gift…"></div>
@@ -29,7 +29,7 @@
         <input type="number" name="price_max" placeholder="e.g. 2000" value="{{ request.args.get('price_max','') }}">
       </div>
       <div class="filter-group"><label>Preparation</label><select name="availability"><option value="">All creations</option>{% for mode in ['READY_TO_SHIP','MADE_TO_ORDER','PREORDER','ONE_OF_ONE'] %}<option value="{{ mode }}" {% if request.args.get('availability')==mode %}selected{% endif %}>{{ mode|replace('_',' ')|title }}</option>{% endfor %}</select></div>
-      {% for key,choices in [('collection',collections),('occasion',occasions)] %}<div class="filter-group"><label>{{ key|title }}</label><select name="{{ key }}"><option value="">All {{ key }}s</option>{% for c in choices %}<option value="{{ c.id }}" {% if request.args.get(key)==c.id|string %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></div>{% endfor %}
+      {% for key,choices in [('collection',collections),('occasion',occasions)] %}{% if choices %}<div class="filter-group"><label>{{ key|title }}</label><select name="{{ key }}"><option value="">All {{ key }}s</option>{% for c in choices %}<option value="{{ c.id }}" {% if request.args.get(key)==c.id|string %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></div>{% endif %}{% endfor %}
       <div class="filter-checks">
         <label><input type="checkbox" name="in_stock" value="1" {% if in_stock %}checked{% endif %} onchange="this.form.submit()"> Ready to dispatch</label>
         <label><input type="checkbox" name="on_sale" value="1" {% if on_sale %}checked{% endif %} onchange="this.form.submit()"> On sale</label>
@@ -45,6 +45,20 @@
       <h1>Find their something special.</h1>
       <p class="results-count">{{ products|length }} product{{ 's' if products|length != 1 }}</p>
     </div>
+    <div class="mobile-filter-toolbar"><button class="btn-outline" type="button" data-filter-open>Filters</button><button class="btn-outline" type="button" data-filter-open data-filter-sort>Sort</button></div>
+    <div class="active-filters" aria-label="Active filters">
+      {% for key,value in request.args.items() %}
+      {% if value and key in ['q','category','availability','price_min','price_max','in_stock','on_sale','collection','occasion'] %}
+      {% set remaining={} %}{% for k,v in request.args.items() %}{% if k!=key %}{% set _=remaining.update({k:v}) %}{% endif %}{% endfor %}
+      {% set label=namespace(value=value) %}
+      {% for choice in categories+collections+occasions %}{% if choice.id|string==value and key in ['category','collection','occasion'] %}{% set label.value=choice.name %}{% endif %}{% endfor %}
+      <a class="filter-chip" href="{{ url_for('shop.shop',**remaining) }}" aria-label="Remove {{ key|replace('_',' ') }} filter">
+        {% if key=='in_stock' %}Ready to dispatch{% elif key=='on_sale' %}On sale{% elif key=='price_max' %}Up to ₹{{ value }}{% elif key=='price_min' %}From ₹{{ value }}{% elif key=='availability' %}{{ value|replace('_',' ')|title }}{% elif key=='q' %}Search: {{ value }}{% else %}{{ label.value }}{% endif %}
+        <span aria-hidden="true">×</span>
+      </a>
+      {% endif %}{% endfor %}
+      {% if request.args %}<a class="text-link" href="{{ url_for('shop.shop') }}">Clear all</a>{% endif %}
+    </div>
     {% if products %}
     <div class="products-grid">
       {% for p in products %}
@@ -53,10 +67,11 @@
     </div>
     {% else %}
     <div class="empty-state">
-      <p>No products found. Try adjusting your filters.</p>
+      <h2>Nothing matched those choices.</h2><p>Try removing a filter or explore all Everbloom creations.</p>
       <a href="{{ url_for('shop.shop') }}" class="btn-outline">Clear Filters</a>
     </div>
     {% endif %}
   </div>
 </div>
+<dialog id="filterDialog" class="filter-dialog" aria-labelledby="filterTitle"><div class="drawer-heading"><h2 id="filterTitle">Your choices</h2><button type="button" class="icon-button" data-dialog-close aria-label="Close filters">×</button></div><div id="filterSlot"></div></dialog>
 {% endblock %}

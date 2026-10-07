@@ -26,33 +26,29 @@ def inject_cart():
     from datetime import date
     try:
         if not hasattr(g, 'store_settings'): g.store_settings = models.get_all_settings()
-        if not hasattr(g, 'nav_categories'): g.nav_categories = models.get_categories()
+        if not hasattr(g, 'nav_categories'): g.nav_categories = models.get_public_merchandising()['categories']
     except Exception:
         g.store_settings = {}; g.nav_categories = []
-    return {"cart_count": _cart_count(), 'store':g.store_settings, 'nav_categories':g.nav_categories, 'current_year':date.today().year}
+    return {"cart_count": _cart_count(), 'store':g.store_settings, 'nav_categories':g.nav_categories, 'nav_occasions':getattr(g, 'public_merchandising', {}).get('occasions', []), 'current_year':date.today().year}
 
 
 @shop_bp.route("/")
 def index():
-    featured = models.get_products(featured=True, limit=6)
-    categories = models.get_categories()
-    flash_products = [p for p in models.get_products(flash=True) if models.is_flash_active(p)][:3]
+    from flask import g
+    merchandising = models.get_public_merchandising()
+    products = g.public_products
+    featured = [p for p in products if p.get('featured')][:6]
     cat_images = {}
-    for cat in categories:
-        prods = models.get_products(category_id=cat["id"], limit=4)
-        for p in prods:
-            imgs = p.get("images") or []
-            if imgs:
-                cat_images[cat["id"]] = imgs[0]
-                break
-    return render_template("shop/index.html",
-                           featured=featured,
-                           categories=categories,
-                           flash_products=flash_products,
-                           cat_images=cat_images,
-                           occasions=supa.select('occasions',{'active':'eq.true'}),
-                           collections=supa.select('collections',{'active':'eq.true','featured':'eq.true'}),
-                           testimonials=supa.select('testimonials',{'active':'eq.true'}))
+    for product in products:
+        if product.get('images'):
+            cat_images.setdefault(product.get('category_id'), product['images'][0])
+    return render_template("shop/index.html", featured=featured,
+                           hero_products=[p for p in products if p.get('images')][:2],
+                           categories=merchandising['categories'], cat_images=cat_images,
+                           flash_products=[p for p in products if models.is_flash_active(p) and p.get('is_flash_sale')][:3],
+                           occasions=merchandising['occasions'],
+                           collections=[c for c in merchandising['collections'] if c.get('featured')],
+                           testimonials=supa.select('testimonials', {'active': 'eq.true'}))
 
 
 @shop_bp.route("/shop")
@@ -60,8 +56,11 @@ def shop():
     category_id=request.args.get('category')
     search=request.args.get('q','').strip()[:150]
     sort=request.args.get('sort','featured')
-    products=models.get_products(category_id=category_id)
-    categories=models.get_categories()
+    from flask import g
+    merchandising=models.get_public_merchandising()
+    products=list(g.public_products)
+    if category_id: products=[p for p in products if str(p.get('category_id'))==category_id]
+    categories=merchandising['categories']
     category_names={str(c['id']):c['name'] for c in categories}
     if search:
         query=search.casefold()
@@ -81,8 +80,9 @@ def shop():
             ids={str(r['product_id']) for r in supa.select(table,{column:'eq.'+request.args[kind]})}
             products=[p for p in products if str(p['id']) in ids]
     if sort in ('price_asc','price_desc'): products.sort(key=models.discounted_price,reverse=sort=='price_desc')
+    elif sort=='newest': products.sort(key=lambda p:p.get('created_at') or '',reverse=True)
     elif sort=='featured': products.sort(key=lambda p:bool(p.get('featured')),reverse=True)
-    return render_template('shop/shop.html',products=products,categories=categories,selected_category=category_id,sort=sort,in_stock=request.args.get('in_stock')=='1',on_sale=on_sale,search=search,collections=supa.select('collections',{'active':'eq.true'}),occasions=supa.select('occasions',{'active':'eq.true'}))
+    return render_template('shop/shop.html',products=products,categories=categories,selected_category=category_id,sort=sort,in_stock=request.args.get('in_stock')=='1',on_sale=on_sale,search=search,collections=merchandising['collections'],occasions=merchandising['occasions'])
 
 
 @shop_bp.route("/product/<pid>")

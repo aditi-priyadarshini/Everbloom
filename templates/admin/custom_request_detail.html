@@ -85,7 +85,7 @@
       <h3 style="color:#2e7d32;"> Order Created from this Request</h3>
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
         <div>
-          <div style="font-family:'Cormorant Garamond',serif;font-size:1.6rem;color:#1b5e20;">₹{{ "%.0f"|format(converted_order.total) }}</div>
+          <div style="font-family:var(--font-display);font-size:1.6rem;color:#1b5e20;">₹{{ "%.0f"|format(converted_order.total) }}</div>
           <div style="font-size:.82rem;color:#2e7d32;margin-top:.2rem;">
             Order #{{ converted_order.id[:7]|upper }} ·
             <span class="status-pill status-{{ converted_order.status }}">{{ converted_order.status }}</span>
@@ -133,7 +133,7 @@
       <form method="post" action="{{ url_for('admin.custom_request_add_note', rid=req.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div style="display:flex;gap:.6rem;">
-          <input type="text" name="note" placeholder="Add a note… (e.g. Called customer, agreed on blue tones)" style="flex:1;padding:.6rem .8rem;border:1px solid var(--admin-border);border-radius:6px;font-family:'Jost',sans-serif;font-size:.86rem;">
+          <input type="text" name="note" placeholder="Add a note… (e.g. Called customer, agreed on blue tones)" style="flex:1;padding:.6rem .8rem;border:1px solid var(--admin-border);border-radius:6px;font-family:var(--font-body);font-size:.86rem;">
           <button type="submit" class="btn-primary" style="flex-shrink:0;">Add</button>
         </div>
       </form>

@@ -6,75 +6,28 @@
 <title>{% block title %}Admin{% endblock %} — Everbloom</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/css/main.css">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/shared.css">
 <link rel="stylesheet" href="/static/css/admin.css">
 {% block head %}{% endblock %}
 </head>
-<body class="admin-body">
+<body class="admin-body"><a class="skip-link" href="#main">Skip to content</a>
 <div class="admin-layout">
 
   <!-- ── Sidebar ── -->
-  <aside class="admin-sidebar">
-    <a class="admin-logo" href="{{ url_for('admin.dashboard') }}">Ever<span>bloom</span></a>
+  <aside class="admin-sidebar" id="adminSidebar" aria-label="Studio navigation"><button class="icon-button admin-drawer-close" data-admin-close aria-label="Close navigation">×</button>
+    <a class="admin-logo" href="{{ url_for('admin.dashboard') }}">Everbloom<small>Studio admin</small></a>
     <nav class="admin-nav">
-
-      <div class="nav-section-label">Overview</div>
-      <a href="{{ url_for('admin.dashboard') }}" class="{% if request.endpoint == 'admin.dashboard' %}active{% endif %}">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
-        Dashboard
-      </a>
-
-      <div class="nav-section-label">Sales</div>
-      <a href="{{ url_for('admin.orders') }}" class="{% if 'order' in request.endpoint and 'custom' not in request.endpoint and 'requirement' not in request.endpoint %}active{% endif %}">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
-        Orders
-      </a>
-      <a href="{{ url_for('admin.custom_requests') }}" class="{% if 'custom' in request.endpoint %}active{% endif %}">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-        Custom Requests
-      </a>
-      <a href="{{ url_for('admin.customers') }}" class="{% if 'customer' in request.endpoint %}active{% endif %}">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        Customers
-      </a>
-      <a href="{{ url_for('admin.coupons') }}" class="{% if 'coupon' in request.endpoint %}active{% endif %}">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
-        Coupons
-      </a>
-
-      <div class="nav-section-label">Catalogue</div>
-      <a href="{{ url_for('admin.products') }}" class="{% if 'product' in request.endpoint and 'cost' not in request.endpoint %}active{% endif %}">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-        Products
-      </a>
-
-      {% for kind,label in [('categories','Categories'),('collections','Collections'),('occasions','Occasions'),('testimonials','Testimonials')] %}<a href="{{ url_for('admin.merchandising',kind=kind) }}">{{ label }}</a>{% endfor %}<a href="{{ url_for('admin.reviews') }}">Reviews</a><div class="nav-section-label">Production & inventory</div>
-      <a href="{{ url_for('admin.inventory') }}" class="{% if request.endpoint in ['admin.inventory','admin.inventory_detail'] %}active{% endif %}">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
-        Raw Materials
-      </a>
-      <a href="{{ url_for('admin.components') }}" class="{% if 'component' in request.endpoint %}active{% endif %}">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-        Components
-      </a>
-      <a href="{{ url_for('admin.product_costs') }}" class="{% if 'product_cost' in request.endpoint %}active{% endif %}">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-        Cost Builder
-      </a>
-
-
-      <div class="nav-section-label">Marketing & reports</div>
-      {% for endpoint,label in [('admin.returns','Returns'),('admin.artisans','Artisans'),('admin.faqs','FAQs'),('admin.gift_cards','Gift cards'),('admin.broadcast','Email broadcasts'),('admin.analytics','Analytics'),('admin.stock_movements','Stock movements'),('admin.audit_log','Audit log')] %}<a href="{{ url_for(endpoint) }}">{{ label }}</a>{% endfor %}
-      <div class="nav-section-label">Settings</div>
-      <a href="{{ url_for('admin.email_templates') }}" class="{% if 'email_template' in request.endpoint %}active{% endif %}">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-        Email Templates
-      </a>
-      <a href="{{ url_for('admin.settings') }}" class="{% if 'settings' in request.endpoint %}active{% endif %}">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        Settings
-      </a>
+{% for section,links in [
+('Overview',[('admin.dashboard','Dashboard','grid')]),
+('Sales',[('admin.orders','Orders','bag'),('admin.custom_requests','Custom requests','edit'),('admin.returns','Returns','return')]),
+('Catalog',[('admin.products','Products','box'),('admin.merchandising','Categories','grid','categories'),('admin.merchandising','Collections','grid','collections'),('admin.merchandising','Occasions','grid','occasions'),('admin.artisans','Artisans','users')]),
+('Production',[('admin.inventory','Raw materials','box'),('admin.components','Components','grid'),('admin.stock_movements','Inventory movements','return'),('admin.product_costs','Cost builder','box')]),
+('Customers',[('admin.customers','Customers','users'),('admin.reviews','Reviews','edit')]),
+('Marketing',[('admin.coupons','Coupons','bag'),('admin.gift_cards','Gift cards','bag'),('admin.merchandising','Testimonials','edit','testimonials'),('admin.broadcast','Email','mail')]),
+('Insights',[('admin.analytics','Analytics','grid'),('admin.audit_log','Audit log','edit')]),
+('System',[('admin.settings','Settings','grid'),('admin.email_templates','Email templates','mail'),('admin.faqs','FAQs','edit')])
+] %}<div class="nav-section-label">{{ section }}</div>{% for link in links %}{% set icon=link[2] %}<a href="{{ url_for(link[0],kind=link[3]) if link|length>3 else url_for(link[0]) }}" class="{% if (request.endpoint==link[0] and (link|length==3 or request.view_args.get('kind')==link[3])) or (link[0]=='admin.products' and request.endpoint in ['admin.product_new','admin.product_edit']) %}active{% endif %}">{% include 'shared/icon.html' %}{{ link[1] }}</a>{% endfor %}{% endfor %}
     </nav>
 
     <div class="admin-sidebar-footer">
@@ -91,9 +44,9 @@
 
   <!-- ── Main ── -->
   <div class="admin-main">
-    <div class="admin-topbar">
+    <div class="admin-topbar"><button class="icon-button admin-menu-toggle" data-admin-open aria-controls="adminSidebar" aria-expanded="false" aria-label="Open admin navigation"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
       <h1 class="admin-page-title">{% block page_title %}{% endblock %}</h1>
-      <div class="admin-topbar-right">
+      <div class="admin-topbar-right"><button type="button" class="icon-button" data-dialog-open="adminSearch" aria-label="Search admin">{% include "shared/search_icon.html" %}</button>
         {% block topbar_actions %}{% endblock %}
         <span class="admin-topbar-user">{{ session.user_name }}</span>
       </div>
@@ -109,12 +62,13 @@
     {% endif %}
     {% endwith %}
 
-    <div class="admin-content">
+    <main class="admin-content" id="main">
       {% block content %}{% endblock %}
-    </div>
+    </main>
   </div>
 </div>
-<script src="/static/js/main.js"></script>
+<button class="admin-backdrop" data-admin-close aria-label="Close navigation" tabindex="-1"></button>
+<dialog id="adminSearch" aria-labelledby="adminSearchTitle"><div class="drawer-heading"><h2 id="adminSearchTitle">Find in your studio</h2><button class="icon-button" data-dialog-close aria-label="Close search">×</button></div><form method="get" action="{{ url_for('admin.products') }}" id="adminSearchForm"><div class="form-group"><label for="admin-search-area">Search in</label><select id="admin-search-area" data-search-area><option value="{{ url_for('admin.products') }}">Products</option><option value="{{ url_for('admin.orders') }}">Orders</option><option value="{{ url_for('admin.customers') }}">Customers</option></select></div><div class="form-group"><label for="admin-search-query">Name, email or order number</label><input id="admin-search-query" name="q" type="search" maxlength="150" required></div><button class="btn-primary">Search</button></form></dialog><script src="/static/js/main.js"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

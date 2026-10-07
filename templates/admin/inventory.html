@@ -3,6 +3,9 @@
 {% block page_title %}Raw Material Inventory{% endblock %}
 {% block content %}
 
+{% set inventory=namespace(value=0,out=0) %}{% for m in materials %}{% set inventory.value=inventory.value+(m.current_stock or 0)*(m.cost_per_unit or 0) %}{% if (m.current_stock or 0)<=0 %}{% set inventory.out=inventory.out+1 %}{% endif %}{% endfor %}
+<div class="metrics-grid inventory-metrics"><article class="metric-card"><p>Below reorder level</p><strong>{{ low_stock|length }}</strong></article><article class="metric-card"><p>Out of stock</p><strong>{{ inventory.out }}</strong></article><article class="metric-card"><p>Material value at unit cost</p><strong>₹{{ '%.2f'|format(inventory.value) }}</strong></article></div>
+<div class="inventory-toolbar"><div><label for="material-search">Find a material</label><input id="material-search" type="search" placeholder="Search materials or suppliers" data-material-search></div><label class="inventory-low-toggle"><input type="checkbox" data-material-low> Low stock only</label><a class="btn-outline" href="{{ url_for('admin.stock_movements') }}">Movement history</a></div>
 {% if low_stock %}
 <div style="background:#fce4e4;border:1px solid #e8a0a0;border-radius:6px;padding:1rem 1.2rem;margin-bottom:1.5rem;display:flex;align-items:flex-start;gap:.8rem;">
   <span style="font-size:1.3rem;"></span>
@@ -67,14 +70,14 @@
 
 <!-- Materials Table -->
 <div class="admin-table-wrap">
-  <table class="admin-table">
+  <table class="admin-table" data-material-table>
     <thead><tr>
       <th>Material</th><th>Unit</th><th>In Stock</th><th>Reorder At</th><th>Cost/Unit</th><th>Supplier</th><th>Status</th><th></th>
     </tr></thead>
     <tbody>
       {% for m in materials %}
       {% set is_low = m.current_stock <= m.reorder_level and m.reorder_level > 0 %}
-      <tr class="{% if is_low %}low-stock-row{% endif %}">
+      <tr class="{% if is_low %}low-stock-row{% endif %}" data-material-row data-low="{{ 'true' if is_low else 'false' }}" data-search="{{ m.name }} {{ m.supplier or '' }}">
         <td><strong>{{ m.name }}</strong>{% if m.notes %}<br><span style="font-size:.75rem;color:var(--text-soft);">{{ m.notes }}</span>{% endif %}</td>
         <td>{{ m.unit }}</td>
         <td style="font-weight:500;{% if is_low %}color:#c0392b;{% endif %}">{{ m.current_stock }}</td>
@@ -89,8 +92,8 @@
           {% endif %}
         </td>
         <td>
-          <a href="{{ url_for('admin.inventory_detail', mid=m.id) }}" class="table-action">History</a>
-          <button class="table-action" onclick="showEdit({{ m.id }}, '{{ m.name }}', '{{ m.unit }}', {{ m.reorder_level }}, {{ m.cost_per_unit }}, '{{ m.supplier or '' }}')">Edit</button>
+          <button type="button" class="table-action" onclick="showPurchase({{ m.id }})">Receive stock</button><a href="{{ url_for('admin.inventory_detail', mid=m.id) }}" class="table-action">History</a>
+          <button class="table-action" onclick='showEdit({{ m.id|tojson }}, {{ m.name|tojson }}, {{ m.unit|tojson }}, {{ m.reorder_level|tojson }}, {{ m.cost_per_unit|tojson }}, {{ (m.supplier or "")|tojson }})'>Edit</button>
           <form method="post" action="{{ url_for('admin.inventory_delete', mid=m.id) }}" style="display:inline;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="table-action danger" onclick="return confirm('Delete this material?')">Delete</button>
@@ -104,10 +107,11 @@
   </table>
 </div>
 
+<p class="form-hint" data-material-empty hidden>No materials match these choices. Clear the search or low-stock filter.</p>
 <!-- Add Stock / Purchase Modal -->
-<div id="purchaseModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;align-items:center;justify-content:center;">
-  <div style="background:#fff;border-radius:8px;padding:2rem;width:440px;max-width:95vw;">
-    <h3 style="font-family:'Cormorant Garamond',serif;font-size:1.2rem;color:#3a2a2a;margin-bottom:1.2rem;">Add Stock Purchase</h3>
+<dialog id="purchaseModal" aria-label="Receive material stock">
+  <div style="background:#fff;border-radius:8px;padding:2rem;width:440px;max-width:100%;">
+    <h3 style="font-size:1.2rem;color:#3a2a2a;margin-bottom:1.2rem;">Receive stock</h3>
     <form method="post" id="purchaseForm">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-group"><label>Quantity Purchased</label>
@@ -116,20 +120,20 @@
         <input type="number" name="cost_per_unit" min="0" step="0.01" required></div>
       <div class="form-group"><label>Supplier</label>
         <input type="text" name="supplier"></div>
-      <div class="form-group"><label>Note</label>
+      <div class="form-group"><label>Invoice / reference & note</label>
         <input type="text" name="note" placeholder="Invoice no., date, etc."></div>
       <div style="display:flex;gap:.8rem;margin-top:1rem;">
-        <button type="submit" class="btn-primary">Add Stock</button>
+        <button type="submit" class="btn-primary">Receive stock</button>
         <button type="button" class="btn-outline" onclick="hidePurchase()">Cancel</button>
       </div>
     </form>
   </div>
-</div>
+</dialog>
 
 <!-- Edit Modal -->
-<div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;align-items:center;justify-content:center;">
-  <div style="background:#fff;border-radius:8px;padding:2rem;width:440px;max-width:95vw;">
-    <h3 style="font-family:'Cormorant Garamond',serif;font-size:1.2rem;color:#3a2a2a;margin-bottom:1.2rem;">Edit Material</h3>
+<dialog id="editModal" aria-label="Edit material">
+  <div style="background:#fff;border-radius:8px;padding:2rem;width:440px;max-width:100%;">
+    <h3 style="font-size:1.2rem;color:#3a2a2a;margin-bottom:1.2rem;">Edit Material</h3>
     <form method="post" id="editForm">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-group"><label>Name</label><input type="text" name="name" id="editName" required></div>
@@ -149,14 +153,14 @@
       </div>
     </form>
   </div>
-</div>
+</dialog>
 
 <script>
 function showPurchase(mid) {
   document.getElementById('purchaseForm').action = `/admin/inventory/${mid}/purchase`;
-  document.getElementById('purchaseModal').style.display = 'flex';
+  document.getElementById('purchaseModal').showModal();
 }
-function hidePurchase() { document.getElementById('purchaseModal').style.display = 'none'; }
+function hidePurchase() { document.getElementById('purchaseModal').close(); }
 
 function showEdit(mid, name, unit, reorder, cpu, supplier) {
   document.getElementById('editForm').action = `/admin/inventory/${mid}/edit`;
@@ -165,22 +169,9 @@ function showEdit(mid, name, unit, reorder, cpu, supplier) {
   document.getElementById('editReorder').value = reorder;
   document.getElementById('editCpu').value = cpu;
   document.getElementById('editSupplier').value = supplier;
-  document.getElementById('editModal').style.display = 'flex';
+  document.getElementById('editModal').showModal();
 }
-function hideEdit() { document.getElementById('editModal').style.display = 'none'; }
+function hideEdit() { document.getElementById('editModal').close(); }
 
-// Add "Add Stock" button to each row
-document.querySelectorAll('tbody tr:not(.empty-row)').forEach((row, i) => {
-  const materials = {{ materials | tojson }};
-  if (materials[i]) {
-    const td = row.querySelector('td:last-child');
-    const btn = document.createElement('button');
-    btn.className = 'btn-primary-sm';
-    btn.style.marginRight = '.3rem';
-    btn.textContent = '+ Stock';
-    btn.onclick = () => showPurchase(materials[i].id);
-    td.insertBefore(btn, td.firstChild);
-  }
-});
 </script>
 {% endblock %}

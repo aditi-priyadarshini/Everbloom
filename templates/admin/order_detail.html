@@ -2,11 +2,12 @@
 {% block title %}Order #{{ order.id[:8]|upper }}{% endblock %}
 {% block page_title %}Order #{{ order.id[:8]|upper }}{% endblock %}
 {% block content %}
-<section class="admin-card"><h3>Payment & fulfilment</h3><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="commerce_status"><div class="form-row"><div class="form-group"><label>Payment</label><select name="payment_status">{% for state in payment_statuses %}<option {% if order.payment_status==state %}selected{% endif %}>{{ state }}</option>{% endfor %}</select></div><div class="form-group"><label>Fulfilment</label><select name="fulfilment_status">{% for state in fulfilment_statuses %}<option {% if order.fulfilment_status==state %}selected{% endif %}>{{ state }}</option>{% endfor %}</select></div></div><div class="form-group"><label>Customer-safe update</label><textarea name="note" rows="2"></textarea></div><button class="btn-primary" type="submit">Update order</button> <a class="btn-outline" href="{{ url_for('admin.order_requirements',oid=order.id) }}">Material readiness</a></form></section>
+{% set transitions={'order_received':[('awaiting_confirmation','Review order'),('confirmed','Confirm order')],'awaiting_confirmation':[('confirmed','Confirm order')],'confirmed':[('crafting','Start crafting')],'crafting':[('quality_check','Send to quality check')],'quality_check':[('ready_for_pickup','Mark ready for pickup')] if order.delivery_type=='pickup' else [('ready_to_dispatch','Mark packed')],'ready_to_dispatch':[('shipped','Dispatch order')],'shipped':[('out_for_delivery','Mark out for delivery'),('delivered','Mark delivered')],'out_for_delivery':[('delivered','Mark delivered')],'ready_for_pickup':[('delivered','Confirm collection')]} %}
+<section class="admin-card"><h3>Next steps</h3><div class="context-actions">{% for state,label in transitions.get(order.fulfilment_status or 'order_received',[]) %}<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="commerce_status"><input type="hidden" name="payment_status" value="{{ order.payment_status or 'unpaid' }}"><input type="hidden" name="fulfilment_status" value="{{ state }}"><button class="btn-primary">{{ label }}</button></form>{% else %}<p class="form-hint">No further fulfilment steps for this order.</p>{% endfor %}<a class="btn-outline" href="{{ url_for('admin.order_requirements',oid=order.id) }}">Check material readiness</a></div><details class="advanced-order-controls"><summary>Payment & additional status controls</summary><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="commerce_status"><div class="form-row"><div class="form-group"><label>Payment</label><select name="payment_status">{% for state in payment_statuses %}<option {% if order.payment_status==state %}selected{% endif %}>{{ state }}</option>{% endfor %}</select></div><div class="form-group"><label>Fulfilment</label><select name="fulfilment_status">{% for state in fulfilment_statuses %}<option {% if order.fulfilment_status==state %}selected{% endif %}>{{ state }}</option>{% endfor %}</select></div></div><div class="form-group"><label>Customer-safe update</label><textarea name="note" rows="2"></textarea></div><button class="btn-primary" type="submit">Update order</button> <a class="btn-outline" href="{{ url_for('admin.order_requirements',oid=order.id) }}">Material readiness</a></form></details></section>
 
 <div class="order-detail-layout">
 
-  <section class="admin-card"><h3>Internal notes</h3><p class="policy-copy">{{ order.internal_notes or 'No private notes yet.' }}</p><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="internal_note"><div class="form-group"><label>Private note — never shown to customers</label><textarea name="internal_note" rows="3" required></textarea></div><button class="btn-outline">Add note</button></form></section><!-- Left: items + tracking -->
+<!-- Left: items + tracking -->
   <div class="order-detail-main">
     <div class="admin-card">
       <h3>Order Items
@@ -75,9 +76,11 @@
             <span class="timeline-date">{{ t.created_at[:16].replace('T',' ') }}</span>
           </div>
         </div>
+        {% else %}<p class="form-hint">No updates yet. Order milestones and customer-visible notes will appear here.</p>
         {% endfor %}
       </div>
     </div>
+  <section class="admin-card"><h3>Internal notes</h3><p class="policy-copy">{{ order.internal_notes or 'No private notes yet.' }}</p><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="internal_note"><div class="form-group"><label>Private note — never shown to customers</label><textarea name="internal_note" rows="3" required></textarea></div><button class="btn-outline">Add note</button></form></section>
   </div>
 
   <!-- Right: customer info + actions -->
@@ -140,12 +143,6 @@
       {% endif %}
     </div>
 
-    <div class="admin-card" style="background:#e8f0fe;border-color:#b0c4f8;">
-      <h3 style="color:#1a3a8a;"> Materials Check</h3>
-      <p style="font-size:.84rem;color:#1a3a8a;margin-bottom:.8rem;">See what raw materials & components are needed for this order.</p>
-      <a href="{{ url_for('admin.order_requirements', oid=order.id) }}" class="btn-primary btn-full" style="background:#1a3a8a;">Check Inventory →</a>
-    </div>
-
     {% if order.preferred_delivery_date %}
     <div class="admin-card" style="border-color:#c9a96e;background:#fffbf0;">
       <h3 style="color:#5c3d3d;"> Preferred Delivery Date</h3>
@@ -161,8 +158,8 @@
     </div>
 
     <!-- Context-aware action panel -->
-    <div class="admin-card action-panel">
-      <h3>Actions</h3>
+    <details class="admin-card action-panel" {% if order.status in ['placed','advance_paid'] %}open{% endif %}>
+      <summary>{{ 'Payment setup & verification' if order.status in ['placed','advance_paid'] else 'Customer updates & cancellation' }}</summary>
 
       {% if order.status == 'placed' %}
       <p class="action-hint">
@@ -214,7 +211,7 @@
         <div class="form-group">
           <label>Update Status</label>
           <select name="new_status">
-            {% for s in statuses %}
+            {% for s in [next_status] if next_status %}
             <option value="{{ s }}" {% if s == next_status %}selected{% endif %}>{{ status_labels.get(s, s) }}</option>
             {% endfor %}
           </select>
@@ -236,11 +233,11 @@
       {% else %}
       <p class="action-hint muted">This order is {{ status_labels.get(order.status,'complete') }}. No further actions needed.</p>
       {% endif %}
-    </div>
+    </details>
 
 
-    <div class="admin-card" style="margin-top:.5rem;">
-      <h3>Send Manual Email</h3>
+    <details class="admin-card order-email">
+      <summary>Email customer</summary>
       <form method="post" action="{{ url_for('admin.order_send_email', oid=order.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
@@ -253,7 +250,7 @@
         </div>
         <button type="submit" class="btn-primary btn-full">Send Email</button>
       </form>
-    </div>
+    </details>
 
   </div>
 </div>

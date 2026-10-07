@@ -34,8 +34,8 @@
 <td>{{ o.name }}<small class="table-secondary">{{ o.email or '' }}</small>
 </td>
 <td>₹{{ '%.2f'|format(o.total) }}</td>
-<td>{{ o.payment_status|default('unpaid')|replace('_',' ')|title }}</td>
-<td>{{ o.fulfilment_status|default(o.status)|replace('_',' ')|title }}</td>
+<td><span class="status-pill {{ 'status-visible' if o.payment_status in ['paid','advance_verified'] else 'status-pending' }}">{{ o.payment_status|default('unpaid')|replace('_',' ')|title }}</span></td>
+<td><span class="status-pill status-hidden">{{ o.fulfilment_status|default(o.status)|replace('_',' ')|title }}</span></td>
 <td>{{ o.preferred_delivery_date or '—' }}</td>
 <td>{{ o.created_at[:10] }}</td>
 </tr>{% else %}<tr>
