@@ -174,28 +174,39 @@ def create_app():
     return app
 
 
-# Vercel imports this module to obtain the WSGI application. If initialization
-# fails before `app` exists, Vercel can only show FUNCTION_INVOCATION_FAILED.
-# Keep a tiny diagnostic fallback WSGI app so configuration/startup failures are
-# visible as a controlled 503 instead of crashing the Python worker.
-try:
-    app = create_app()
-except Exception as startup_error:
-    import logging
-    logging.exception("Everbloom failed during application startup")
-    app = Flask(__name__)
-    app.config["STARTUP_ERROR"] = f"{type(startup_error).__name__}: {startup_error}"
+# Vercel requires a TOP-LEVEL WSGI variable named `app` (or `application`).
+# Do not hide that assignment inside try/except: Vercel's build-time entrypoint
+# detector will otherwise reject the deployment before Python is invoked.
+def _build_wsgi_app():
+    try:
+        return create_app()
+    except Exception as startup_error:
+        import logging
+        logging.exception("Everbloom failed during application startup")
 
-    @app.route("/", defaults={"path": ""})
-    @app.route("/<path:path>")
-    def startup_failure(path):
-        from flask import Response
-        message = (
-            "Everbloom could not start.\n\n"
-            + app.config["STARTUP_ERROR"]
-            + "\n\nCheck the Vercel environment variables and function logs, then redeploy."
+        fallback_app = Flask(__name__)
+        fallback_app.config["STARTUP_ERROR"] = (
+            f"{type(startup_error).__name__}: {startup_error}"
         )
-        return Response(message, status=503, mimetype="text/plain")
+
+        @fallback_app.route("/", defaults={"path": ""})
+        @fallback_app.route("/<path:path>")
+        def startup_failure(path):
+            from flask import Response
+            message = (
+                "Everbloom could not start.\n\n"
+                + fallback_app.config["STARTUP_ERROR"]
+                + "\n\nCheck the Vercel environment variables and function logs, then redeploy."
+            )
+            return Response(message, status=503, mimetype="text/plain")
+
+        return fallback_app
+
+
+# These assignments MUST remain at module scope for Vercel Python detection.
+app = _build_wsgi_app()
+application = app
+
 
 if __name__ == "__main__":
     app.run(debug=True)
