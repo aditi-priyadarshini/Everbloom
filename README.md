@@ -1,3 +1,4 @@
+
 # Everbloom
 
 Everbloom is a Flask/Jinja handmade-commerce application with a Supabase PostgreSQL and Storage backend. The existing authentication, UPI advance workflow, products, custom requests, customer orders, costing, material recipes and component manufacturing remain in the same application.
