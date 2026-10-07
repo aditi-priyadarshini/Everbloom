@@ -1,17 +1,27 @@
 import os
-from dotenv import load_dotenv
-load_dotenv()
 from flask import Flask
-from flask_mail import Mail
-from flask_wtf.csrf import CSRFProtect
-from authlib.integrations.flask_client import OAuth
 
-mail = Mail()
-csrf = CSRFProtect()
-oauth = OAuth()
+# Keep only Flask itself as a mandatory module-level dependency. Optional Flask
+# extensions are imported inside create_app() so a packaging/configuration issue
+# produces our diagnostic fallback app instead of an opaque Vercel invocation crash.
+mail = None
+csrf = None
+oauth = None
 
 
 def create_app():
+    global mail, csrf, oauth
+
+    from dotenv import load_dotenv
+    load_dotenv()
+    from flask_mail import Mail
+    from flask_wtf.csrf import CSRFProtect
+    from authlib.integrations.flask_client import OAuth
+
+    mail = Mail()
+    csrf = CSRFProtect()
+    oauth = OAuth()
+
     app = Flask(
         __name__,
         static_folder=os.path.join(os.path.dirname(__file__), "static"),
@@ -59,6 +69,12 @@ def create_app():
     app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024
     app.config["APPLICATION_ROOT"] = "/"
     app.config["PREFERRED_URL_SCHEME"] = "https"
+
+    # Dependency-free health probe. If this returns 200 on Vercel, the Flask
+    # runtime and application factory completed successfully.
+    @app.get("/healthz")
+    def healthz():
+        return {"status": "ok", "service": "everbloom"}, 200
 
     # Zoho Mail SMTP
     mail_user = os.environ.get("MAIL_USERNAME", "")

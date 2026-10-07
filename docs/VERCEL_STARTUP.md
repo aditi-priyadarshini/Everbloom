@@ -1,19 +1,16 @@
-# Vercel startup troubleshooting
+# Vercel startup notes
 
-The application pins Python 3.12 for predictable dependency compatibility.
+Everbloom now uses Vercel's native Flask detection. Do not restore the legacy `builds` / catch-all `routes` configuration unless Vercel's current Flask documentation explicitly requires it.
 
-Required production variables:
+The root `app.py` exposes `app` and `application` at module scope. `/healthz` returns a small JSON response when the Flask application factory has completed successfully.
 
-- `SECRET_KEY` — at least 32 characters
+Required production environment variables:
+
+- `SECRET_KEY` (32+ characters)
 - `SUPABASE_URL`
-- one backend credential: preferably `SUPABASE_SERVICE_ROLE_KEY`; legacy `SUPABASE_ANON_KEY` can boot older/non-RLS-hardened deployments
+- `SUPABASE_SERVICE_ROLE_KEY` (preferred; legacy anon key is only a temporary compatibility fallback)
 
-Recommended:
+Optional:
 
-- `SITE_URL`
-- `RATELIMIT_STORAGE_URI` (`rediss://...`) for distributed rate limiting
-- mail/OAuth variables for those features
-
-Rate limiting is fail-open for application availability: if Flask-Limiter or Redis cannot initialize, the storefront still boots and logs the problem.
-
-If Flask application creation itself fails, the Vercel WSGI module now exposes a minimal HTTP 503 response containing only the exception type/message. It does not expose a Python traceback or secret values. This converts opaque `FUNCTION_INVOCATION_FAILED` startup crashes into an actionable configuration error.
+- `RATELIMIT_STORAGE_URI` (shared Redis recommended; memory fallback is allowed)
+- mail and OAuth settings documented in `.env.example`
