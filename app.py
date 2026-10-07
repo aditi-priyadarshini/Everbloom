@@ -72,9 +72,24 @@ def create_app():
     app.config["MAIL_DEFAULT_SENDER"] = ("Everbloom", mail_user)
     app.config["MAIL_SUPPRESS_SEND"]  = False
 
-    from flask_limiter import Limiter
-    from flask_limiter.util import get_remote_address
-    limiter = Limiter(get_remote_address, app=app, storage_uri=rate_limit_storage, default_limits=[])
+    # Rate limiting is a defense-in-depth feature. It must never prevent the
+    # storefront from booting on a serverless deployment if the optional
+    # extension/storage backend is unavailable.
+    limiter = None
+    try:
+        from flask_limiter import Limiter
+        from flask_limiter.util import get_remote_address
+        limiter = Limiter(
+            get_remote_address,
+            app=app,
+            storage_uri=rate_limit_storage,
+            default_limits=[],
+            swallow_errors=True,
+            in_memory_fallback_enabled=True,
+        )
+    except Exception as exc:
+        app.logger.exception("Rate limiter initialization failed; continuing without rate limiting: %s", exc)
+
     mail.init_app(app)
     csrf.init_app(app)
     oauth.init_app(app)
@@ -100,8 +115,13 @@ def create_app():
     from routes.shop import inject_cart
     app.context_processor(inject_cart)
 
-    for endpoint in ['auth.login','auth.signup','auth.forgot_password','auth.resend_verification','shop.checkout','shop.custom_order','shop.submit_review','shop.newsletter']:
-        app.view_functions[endpoint] = limiter.limit('10 per minute; 100 per hour', methods=['POST'])(app.view_functions[endpoint])
+    if limiter is not None:
+        for endpoint in ['auth.login','auth.signup','auth.forgot_password','auth.resend_verification','shop.checkout','shop.custom_order','shop.submit_review','shop.newsletter']:
+            view = app.view_functions.get(endpoint)
+            if view is not None:
+                app.view_functions[endpoint] = limiter.limit(
+                    '10 per minute; 100 per hour', methods=['POST']
+                )(view)
 
     import models
     app.jinja_env.globals.update(
@@ -154,7 +174,28 @@ def create_app():
     return app
 
 
-app = create_app()
+# Vercel imports this module to obtain the WSGI application. If initialization
+# fails before `app` exists, Vercel can only show FUNCTION_INVOCATION_FAILED.
+# Keep a tiny diagnostic fallback WSGI app so configuration/startup failures are
+# visible as a controlled 503 instead of crashing the Python worker.
+try:
+    app = create_app()
+except Exception as startup_error:
+    import logging
+    logging.exception("Everbloom failed during application startup")
+    app = Flask(__name__)
+    app.config["STARTUP_ERROR"] = f"{type(startup_error).__name__}: {startup_error}"
+
+    @app.route("/", defaults={"path": ""})
+    @app.route("/<path:path>")
+    def startup_failure(path):
+        from flask import Response
+        message = (
+            "Everbloom could not start.\n\n"
+            + app.config["STARTUP_ERROR"]
+            + "\n\nCheck the Vercel environment variables and function logs, then redeploy."
+        )
+        return Response(message, status=503, mimetype="text/plain")
 
 if __name__ == "__main__":
     app.run(debug=True)
