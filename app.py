@@ -12,8 +12,14 @@ oauth = None
 def create_app():
     global mail, csrf, oauth
 
-    from dotenv import load_dotenv
-    load_dotenv()
+    # Vercel injects environment variables directly. Load .env only for local development,
+    # and never make python-dotenv a production startup dependency.
+    if not os.environ.get("VERCEL"):
+        try:
+            from dotenv import load_dotenv
+            load_dotenv()
+        except ModuleNotFoundError:
+            pass
     from flask_mail import Mail
     from flask_wtf.csrf import CSRFProtect
     from authlib.integrations.flask_client import OAuth
