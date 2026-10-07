@@ -1,3 +1,4 @@
+
 # Everbloom
 
 Everbloom is a Flask/Jinja handmade-commerce application with a Supabase PostgreSQL and Storage backend. The existing authentication, UPI advance workflow, products, custom requests, customer orders, costing, material recipes and component manufacturing remain in the same application.
@@ -138,8 +139,8 @@ Live SMTP, Google consent, Supabase REST/Storage and deployment require configur
 
 1. Back up the current database and Storage. Rehearse all migrations on staging and verify identifier/column compatibility.
 2. Apply migrations in order; create the public image and private receipt buckets.
-3. Configure `SECRET_KEY` (at least 32 random characters), `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SITE_URL`, SMTP/OAuth variables and a shared `RATELIMIT_STORAGE_URI` (`rediss://...` for your Redis provider). Do **not** use `memory://` across serverless workers.
-4. Deploy this existing repository using its `vercel.json` Python/static configuration. Production startup fails when required secrets/backend key/shared limiter configuration are absent.
+3. Configure `SECRET_KEY` (at least 32 random characters), `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SITE_URL` and SMTP/OAuth variables. Configure a shared `RATELIMIT_STORAGE_URI` (`rediss://...`) for distributed production rate limiting; the application temporarily falls back to per-instance memory limiting if Redis is not yet configured.
+4. Deploy this existing repository using its `vercel.json` Python/static configuration. Production startup fails when the strong session secret or all Supabase backend credentials are absent. Missing shared Redis logs a warning instead of taking the storefront offline.
 5. Add the deployed Google callback, verify sender authentication, create the first admin, fill business/policy content and upload real products.
 6. Execute guest, registered, custom-order and admin production journeys on staging, including receipt upload and actual email delivery; inspect logs and database movements before promoting the release.
 

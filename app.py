@@ -19,13 +19,34 @@ def create_app():
         template_folder=os.path.join(os.path.dirname(__file__), "templates"),
     )
     secret = os.environ.get("SECRET_KEY")
-    production = os.environ.get("VERCEL") or os.environ.get("APP_ENV") == "production"
+    production = bool(os.environ.get("VERCEL")) or os.environ.get("APP_ENV") == "production"
     if production and (not secret or len(secret) < 32 or secret == "dev-secret-change-me"):
         raise RuntimeError("A strong SECRET_KEY is required in production")
-    if production and not (os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or os.environ.get('SUPABASE_SERVICE_KEY')):
-        raise RuntimeError('A server-only Supabase service role credential is required in production')
-    if production and (not os.environ.get('RATELIMIT_STORAGE_URI') or os.environ.get('RATELIMIT_STORAGE_URI') == 'memory://'):
-        raise RuntimeError('Shared rate limit storage is required in production')
+
+    # Prefer the service-role credential for the migrated/RLS-hardened schema, but
+    # preserve compatibility with legacy deployments long enough to boot and show
+    # a useful application response. Once migrations 002/010 are applied, the
+    # service-role key is required for database access.
+    service_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_SERVICE_KEY")
+    legacy_key = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_ANON_KEY")
+    if production and not (service_key or legacy_key):
+        raise RuntimeError("A Supabase backend credential is required in production")
+    if production and not service_key:
+        app.logger.warning(
+            "SUPABASE_SERVICE_ROLE_KEY is not configured; using the legacy Supabase key. "
+            "Configure the service-role key before applying the RLS-hardened migrations."
+        )
+
+    # Shared Redis is recommended on serverless deployments, but absence of Redis
+    # must not take the entire storefront offline. memory:// provides per-instance
+    # protection as a safe availability fallback until shared storage is configured.
+    rate_limit_storage = os.environ.get("RATELIMIT_STORAGE_URI") or "memory://"
+    if production and rate_limit_storage == "memory://":
+        app.logger.warning(
+            "RATELIMIT_STORAGE_URI is not configured; using per-instance memory rate limiting. "
+            "Configure shared Redis for distributed production enforcement."
+        )
+
     app.secret_key = secret or __import__('secrets').token_hex(32)
 
     # Keep users logged in for 15 days
@@ -53,7 +74,7 @@ def create_app():
 
     from flask_limiter import Limiter
     from flask_limiter.util import get_remote_address
-    limiter = Limiter(get_remote_address, app=app, storage_uri=os.environ.get('RATELIMIT_STORAGE_URI','memory://'), default_limits=[])
+    limiter = Limiter(get_remote_address, app=app, storage_uri=rate_limit_storage, default_limits=[])
     mail.init_app(app)
     csrf.init_app(app)
     oauth.init_app(app)
