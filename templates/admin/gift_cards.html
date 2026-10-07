@@ -1,9 +1,1 @@
-{% extends "base.html" %}
-{% block title %}Coming Soon{% endblock %}
-{% block content %}
-<div class="page-wrap" style="text-align:center;padding:6rem 2rem;">
-  <h1 class="page-title">Coming Soon</h1>
-  <p style="color:var(--text-soft);margin-bottom:2rem;">This page is under construction.</p>
-  <a href="{{ url_for('shop.index') }}" class="btn-primary">Back to Home</a>
-</div>
-{% endblock %}
+{% extends 'admin/base_admin.html' %}{% block title %}Gift cards{% endblock %}{% block page_title %}Gift cards{% endblock %}{% block content %}<section class="admin-card"><form method="post" action="{{ url_for('admin.gift_card_new') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><div class="form-row"><div class="form-group"><label>Code (generated if empty)</label><input name="code"></div><div class="form-group"><label>Amount</label><input type="number" name="amount" step="0.01" min="1" required></div></div><div class="form-group"><label>Issued to</label><input name="issued_to"></div><div class="form-group"><label>Expiry (optional)</label><input type="date" name="expires_at"></div><button class="btn-primary">Create gift card</button></form></section><div class="admin-card table-responsive"><table class="admin-table"><thead><tr><th>Code</th><th>Issued to</th><th>Value</th><th>Balance</th><th>Active</th></tr></thead><tbody>{% for c in cards %}<tr><td>{{ c.code }}</td><td>{{ c.issued_to }}</td><td>₹{{ c.amount }}</td><td>₹{{ c.balance }}</td><td>{{ c.active }}</td></tr>{% else %}<tr><td colspan="5">No gift cards yet.</td></tr>{% endfor %}</tbody></table></div>{% endblock %}

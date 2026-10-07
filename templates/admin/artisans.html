@@ -1,9 +1,1 @@
-{% extends "base.html" %}
-{% block title %}Coming Soon{% endblock %}
-{% block content %}
-<div class="page-wrap" style="text-align:center;padding:6rem 2rem;">
-  <h1 class="page-title">Coming Soon</h1>
-  <p style="color:var(--text-soft);margin-bottom:2rem;">This page is under construction.</p>
-  <a href="{{ url_for('shop.index') }}" class="btn-primary">Back to Home</a>
-</div>
-{% endblock %}
+{% extends 'admin/base_admin.html' %}{% block title %}Artisans{% endblock %}{% block page_title %}Artisans{% endblock %}{% block content %}<a class="btn-primary" href="{{ url_for('admin.artisan_new') }}">Add artisan</a><div class="admin-card table-responsive"><table class="admin-table"><thead><tr><th>Name</th><th>Location</th><th>State</th><th>Action</th></tr></thead><tbody>{% for a in artisans %}<tr><td>{{ a.name }}</td><td>{{ a.location }}</td><td>{{ 'Active' if a.active else 'Archived' }}</td><td><a href="{{ url_for('admin.artisan_edit',aid=a.id) }}">Edit artisan</a></td></tr>{% else %}<tr><td colspan="4">No artisans added.</td></tr>{% endfor %}</tbody></table></div>{% endblock %}

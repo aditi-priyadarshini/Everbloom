@@ -1,0 +1,1 @@
+{% for v in item.variants or item.selected_options or [] %}<p class="line-option">{{ v.name }}: {{ v.value }}</p>{% endfor %}{% for name,value in (item.personalization or {}).items() %}<p class="line-option">{{ name|replace('_',' ')|title }}: {{ value }}</p>{% endfor %}

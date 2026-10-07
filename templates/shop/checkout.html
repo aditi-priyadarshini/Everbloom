@@ -35,6 +35,7 @@
         </div>
       </div>
 
+      <div class="form-group"><label for="checkout-email">Email for your order updates</label><input id="checkout-email" type="email" name="email" value="{{ user.email or '' }}" required autocomplete="email"></div>
       <!-- Common fields always submitted -->
       <div class="form-section">
         <h3 id="detailsHeading">Delivery Details</h3>
@@ -67,6 +68,7 @@
         {% if coupon_error %}<p class="form-error" style="margin-top:.5rem;">{{ coupon_error }}</p>{% endif %}
       </div>
 
+      <div class="form-group"><label for="gift-card">Gift card (optional)</label><input id="gift-card" name="gift_card_code" autocomplete="off"><p class="form-hint">Your gift-card balance is applied when the order is placed.</p></div>
       <!-- Preferred delivery date -->
       <div class="form-section">
         <h3>Preferred Delivery Date <span style="font-size:.82rem;color:var(--text-soft);font-weight:300;">(optional)</span></h3>
@@ -81,8 +83,9 @@
         </div>
       </div>
 
+      <div class="form-group"><label for="gift-message">Gift message (optional)</label><textarea id="gift-message" name="gift_message" maxlength="1000" rows="3"></textarea></div><div class="form-group"><label for="order-notes">Anything else we should know?</label><textarea id="order-notes" name="order_notes" maxlength="2000" rows="2"></textarea></div>
       <button type="submit" class="btn-primary btn-full" id="placeOrderBtn"
-              onclick="this.disabled=true;this.textContent='Placing Order…';this.form.submit();">
+>
         Place Order
       </button>
       <p class="checkout-note">No payment at checkout — we'll review and share payment details.</p>
@@ -92,7 +95,7 @@
       <h3>Order Summary</h3>
       {% for item in items %}
       <div class="checkout-item">
-        <span>{{ item.product.title }} × {{ item.qty }}</span>
+        <span>{{ item.product.title }} × {{ item.qty }}{% include "shop/_line_options.html" %}</span>
         <span>₹{{ "%.0f"|format(item.subtotal) }}</span>
       </div>
       {% endfor %}

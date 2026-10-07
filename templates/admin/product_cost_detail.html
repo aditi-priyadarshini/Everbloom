@@ -1,7 +1,7 @@
 {% extends "admin/base_admin.html" %}
 {% block title %}Cost: {{ product.title }}{% endblock %}
 {% block page_title %}Cost Builder — {{ product.title }}{% endblock %}
-{% block content %}
+{% block content %}{% if capacity is not none %}<section class="admin-card"><h3>Material capacity estimate</h3><p>Current materials and components support approximately <strong>{{ capacity }}</strong> units. This estimate does not reserve inventory.</p></section>{% endif %}
 <a href="{{ url_for('admin.product_costs') }}" class="back-link" style="display:inline-flex;align-items:center;gap:.4rem;margin-bottom:1.5rem;font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-soft);text-decoration:none;">← All Products</a>
 
 <div class="order-detail-layout">
@@ -18,8 +18,8 @@
             <div class="form-group" style="margin:0;">
               <label>Type</label>
               <select name="item_type[]" onchange="toggleBomItem(this)">
-                <option value="material" {% if b.item_type=='material' %}selected{% endif %}>🧪 Material</option>
-                <option value="component" {% if b.item_type=='component' %}selected{% endif %}>🔧 Component</option>
+                <option value="material" {% if b.item_type=='material' %}selected{% endif %}> Material</option>
+                <option value="component" {% if b.item_type=='component' %}selected{% endif %}> Component</option>
               </select>
             </div>
             <div class="form-group mat-select" style="margin:0;{% if b.item_type=='component' %}display:none;{% endif %}">
@@ -27,7 +27,7 @@
               <select name="material_id[]">
                 <option value="">Select…</option>
                 {% for m in materials %}
-                <option value="{{ m.id }}" {% if b.material_id == m.id %}selected{% endif %}>{{ m.icon or '🧪' }} {{ m.name }} ({{ m.unit }}) — ₹{{ "%.2f"|format(m.cost_per_unit) }}</option>
+                <option value="{{ m.id }}" {% if b.material_id == m.id %}selected{% endif %}>{{ m.icon or '' }} {{ m.name }} ({{ m.unit }}) — ₹{{ "%.2f"|format(m.cost_per_unit) }}</option>
                 {% endfor %}
               </select>
             </div>
@@ -36,7 +36,7 @@
               <select name="component_id[]">
                 <option value="">Select…</option>
                 {% for c in components %}
-                <option value="{{ c.id }}" {% if b.component_id == c.id %}selected{% endif %}>{{ c.icon or '🔧' }} {{ c.name }} ({{ c.unit }})</option>
+                <option value="{{ c.id }}" {% if b.component_id == c.id %}selected{% endif %}>{{ c.icon or '' }} {{ c.name }} ({{ c.unit }})</option>
                 {% endfor %}
               </select>
             </div>
@@ -51,16 +51,16 @@
           <div class="bom-row" style="display:grid;grid-template-columns:120px 1fr 1fr auto;gap:.8rem;align-items:end;margin-bottom:.8rem;">
             <div class="form-group" style="margin:0;"><label>Type</label>
               <select name="item_type[]" onchange="toggleBomItem(this)">
-                <option value="material">🧪 Material</option>
-                <option value="component">🔧 Component</option>
+                <option value="material"> Material</option>
+                <option value="component"> Component</option>
               </select></div>
             <div class="form-group mat-select" style="margin:0;"><label>Raw Material</label>
               <select name="material_id[]"><option value="">Select…</option>
-                {% for m in materials %}<option value="{{ m.id }}">{{ m.icon or '🧪' }} {{ m.name }} ({{ m.unit }}) — ₹{{ "%.2f"|format(m.cost_per_unit) }}</option>{% endfor %}
+                {% for m in materials %}<option value="{{ m.id }}">{{ m.icon or '' }} {{ m.name }} ({{ m.unit }}) — ₹{{ "%.2f"|format(m.cost_per_unit) }}</option>{% endfor %}
               </select></div>
             <div class="form-group comp-select" style="margin:0;display:none;"><label>Component</label>
               <select name="component_id[]"><option value="">Select…</option>
-                {% for c in components %}<option value="{{ c.id }}">{{ c.icon or '🔧' }} {{ c.name }} ({{ c.unit }})</option>{% endfor %}
+                {% for c in components %}<option value="{{ c.id }}">{{ c.icon or '' }} {{ c.name }} ({{ c.unit }})</option>{% endfor %}
               </select></div>
             <div class="form-group" style="margin:0;"><label>Qty Used</label>
               <input type="number" name="quantity_used[]" min="0" step="0.001" value="0"></div>
@@ -188,16 +188,16 @@ function toggleBomItem(sel) {
 }
 
 function addRow() {
-  const matOpts = materials.map(m => `<option value="${m.id}">${m.icon || '🧪'} ${m.name} (${m.unit}) — ₹${parseFloat(m.cost_per_unit).toFixed(2)}</option>`).join('');
-  const compOpts = components.map(c => `<option value="${c.id}">${c.icon || '🔧'} ${c.name} (${c.unit})</option>`).join('');
+  const matOpts = materials.map(m => `<option value="${m.id}">${m.icon || ''} ${m.name} (${m.unit}) — ₹${parseFloat(m.cost_per_unit).toFixed(2)}</option>`).join('');
+  const compOpts = components.map(c => `<option value="${c.id}">${c.icon || ''} ${c.name} (${c.unit})</option>`).join('');
   const row = document.createElement('div');
   row.className = 'bom-row';
   row.style.cssText = 'display:grid;grid-template-columns:120px 1fr 1fr auto;gap:.8rem;align-items:end;margin-bottom:.8rem;';
   row.innerHTML = `
     <div class="form-group" style="margin:0;"><label>Type</label>
       <select name="item_type[]" onchange="toggleBomItem(this)">
-        <option value="material">🧪 Material</option>
-        <option value="component">🔧 Component</option>
+        <option value="material"> Material</option>
+        <option value="component"> Component</option>
       </select></div>
     <div class="form-group mat-select" style="margin:0;"><label>Raw Material</label>
       <select name="material_id[]"><option value="">Select…</option>${matOpts}</select></div>

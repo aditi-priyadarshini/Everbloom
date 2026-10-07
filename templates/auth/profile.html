@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}My Profile{% endblock %}
-{% block content %}
+{% block content %}<div class="section-inner">{% include "account/_nav.html" %}</div>
 <div class="page-wrap narrow">
   <h1 class="page-title">My Profile</h1>
   {% if success %}<div class="alert-success">{{ success }}</div>{% endif %}

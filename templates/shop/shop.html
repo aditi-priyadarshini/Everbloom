@@ -4,8 +4,9 @@
 <div class="shop-layout">
   <!-- Filters sidebar -->
   <aside class="shop-filters">
-    <h3>Filters</h3>
+    <h3>Find your creation</h3>
     <form method="get" action="{{ url_for('shop.shop') }}">
+      <div class="filter-group"><label for="filter-search">Search</label><input id="filter-search" name="q" value="{{ search }}" placeholder="A bouquet, a little gift…"></div>
       <div class="filter-group">
         <label class="filter-label">Category</label>
         <select name="category" onchange="this.form.submit()">
@@ -18,7 +19,7 @@
       <div class="filter-group">
         <label class="filter-label">Sort By</label>
         <select name="sort" onchange="this.form.submit()">
-          <option value="newest" {% if sort=='newest' %}selected{% endif %}>Newest</option>
+          <option value="featured" {% if sort=='featured' %}selected{% endif %}>Studio picks</option><option value="newest" {% if sort=='newest' %}selected{% endif %}>Newest</option>
           <option value="price_asc" {% if sort=='price_asc' %}selected{% endif %}>Price: Low to High</option>
           <option value="price_desc" {% if sort=='price_desc' %}selected{% endif %}>Price: High to Low</option>
         </select>
@@ -27,8 +28,10 @@
         <label class="filter-label">Max Price (₹)</label>
         <input type="number" name="price_max" placeholder="e.g. 2000" value="{{ request.args.get('price_max','') }}">
       </div>
+      <div class="filter-group"><label>Preparation</label><select name="availability"><option value="">All creations</option>{% for mode in ['READY_TO_SHIP','MADE_TO_ORDER','PREORDER','ONE_OF_ONE'] %}<option value="{{ mode }}" {% if request.args.get('availability')==mode %}selected{% endif %}>{{ mode|replace('_',' ')|title }}</option>{% endfor %}</select></div>
+      {% for key,choices in [('collection',collections),('occasion',occasions)] %}<div class="filter-group"><label>{{ key|title }}</label><select name="{{ key }}"><option value="">All {{ key }}s</option>{% for c in choices %}<option value="{{ c.id }}" {% if request.args.get(key)==c.id|string %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></div>{% endfor %}
       <div class="filter-checks">
-        <label><input type="checkbox" name="in_stock" value="1" {% if in_stock %}checked{% endif %} onchange="this.form.submit()"> In stock only</label>
+        <label><input type="checkbox" name="in_stock" value="1" {% if in_stock %}checked{% endif %} onchange="this.form.submit()"> Ready to dispatch</label>
         <label><input type="checkbox" name="on_sale" value="1" {% if on_sale %}checked{% endif %} onchange="this.form.submit()"> On sale</label>
       </div>
       <button type="submit" class="btn-filter">Apply</button>
@@ -39,10 +42,7 @@
   <!-- Products -->
   <div class="shop-main">
     <div class="shop-header">
-      <form method="get" action="{{ url_for('shop.shop') }}" class="search-form">
-        <input type="text" name="q" placeholder="Search products…" value="{{ search }}">
-        <button type="submit">Search</button>
-      </form>
+      <h1>Find their something special.</h1>
       <p class="results-count">{{ products|length }} product{{ 's' if products|length != 1 }}</p>
     </div>
     {% if products %}

@@ -1,9 +1,1 @@
-{% extends "base.html" %}
-{% block title %}Coming Soon{% endblock %}
-{% block content %}
-<div class="page-wrap" style="text-align:center;padding:6rem 2rem;">
-  <h1 class="page-title">Coming Soon</h1>
-  <p style="color:var(--text-soft);margin-bottom:2rem;">This page is under construction.</p>
-  <a href="{{ url_for('shop.index') }}" class="btn-primary">Back to Home</a>
-</div>
-{% endblock %}
+{% extends 'base.html' %}{% block title %}Your saved creations{% endblock %}{% block content %}<div class="section-inner">{% include "account/_nav.html" %}</div><section class="page-wrap"><p class="eyebrow">For a future little moment</p><h1>Your saved creations.</h1><div class="products-grid">{% for p in items %}<div>{% include 'shop/_product_card.html' %}<form method="post" action="{{ url_for('shop.wishlist_toggle',pid=p.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn-outline-sm" type="submit">Remove from saved</button></form></div>{% else %}<div class="empty-state"><p>Save the creations that catch your eye and find them here.</p><a class="btn-primary" href="{{ url_for('shop.shop') }}">Explore the collection</a></div>{% endfor %}</div></section>{% endblock %}

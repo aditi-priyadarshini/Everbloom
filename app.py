@@ -1,4 +1,6 @@
 import os
+from dotenv import load_dotenv
+load_dotenv()
 from flask import Flask
 from flask_mail import Mail
 from flask_wtf.csrf import CSRFProtect
@@ -16,15 +18,24 @@ def create_app():
         static_url_path="/static",
         template_folder=os.path.join(os.path.dirname(__file__), "templates"),
     )
-    app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-me")
+    secret = os.environ.get("SECRET_KEY")
+    production = os.environ.get("VERCEL") or os.environ.get("APP_ENV") == "production"
+    if production and (not secret or len(secret) < 32 or secret == "dev-secret-change-me"):
+        raise RuntimeError("A strong SECRET_KEY is required in production")
+    if production and not (os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or os.environ.get('SUPABASE_SERVICE_KEY')):
+        raise RuntimeError('A server-only Supabase service role credential is required in production')
+    if production and (not os.environ.get('RATELIMIT_STORAGE_URI') or os.environ.get('RATELIMIT_STORAGE_URI') == 'memory://'):
+        raise RuntimeError('Shared rate limit storage is required in production')
+    app.secret_key = secret or __import__('secrets').token_hex(32)
 
     # Keep users logged in for 15 days
     from datetime import timedelta
     app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=15)
-    app.config["SESSION_COOKIE_SECURE"]   = True   # HTTPS only
+    app.config["SESSION_COOKIE_SECURE"]   = bool(production)
     app.config["SESSION_COOKIE_HTTPONLY"] = True    # No JS access
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"  # CSRF protection
-    app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
+    app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 86400
+    app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024
     app.config["APPLICATION_ROOT"] = "/"
     app.config["PREFERRED_URL_SCHEME"] = "https"
 
@@ -40,6 +51,9 @@ def create_app():
     app.config["MAIL_DEFAULT_SENDER"] = ("Everbloom", mail_user)
     app.config["MAIL_SUPPRESS_SEND"]  = False
 
+    from flask_limiter import Limiter
+    from flask_limiter.util import get_remote_address
+    limiter = Limiter(get_remote_address, app=app, storage_uri=os.environ.get('RATELIMIT_STORAGE_URI','memory://'), default_limits=[])
     mail.init_app(app)
     csrf.init_app(app)
     oauth.init_app(app)
@@ -62,6 +76,11 @@ def create_app():
     app.register_blueprint(shop_bp)
     app.register_blueprint(orders_bp)
     app.register_blueprint(admin_bp)
+    from routes.shop import inject_cart
+    app.context_processor(inject_cart)
+
+    for endpoint in ['auth.login','auth.signup','auth.forgot_password','auth.resend_verification','shop.checkout','shop.custom_order','shop.submit_review','shop.newsletter']:
+        app.view_functions[endpoint] = limiter.limit('10 per minute; 100 per hour', methods=['POST'])(app.view_functions[endpoint])
 
     import models
     app.jinja_env.globals.update(
@@ -74,6 +93,43 @@ def create_app():
         get_setting=models.get_setting,
     )
 
+    from flask import render_template, request, session, abort
+    from werkzeug.exceptions import HTTPException
+    from services.commerce import availability
+    @app.template_filter('phone_digits')
+    def phone_digits(value):
+        import re
+        digits=re.sub(r'\D','',value or '')
+        if len(digits)==10: digits='91'+digits
+        return digits if 8<=len(digits)<=15 else ''
+
+    app.jinja_env.globals.update(availability=availability, category_name=lambda cid: next((c['name'] for c in getattr(__import__('flask').g, 'nav_categories', []) if str(c['id']) == str(cid)), 'Handmade'))
+
+    @app.errorhandler(Exception)
+    def safe_error(error):
+        code = error.code if isinstance(error, HTTPException) else 500
+        if code == 500:
+            app.logger.exception("Request failed")
+        return render_template('errors/error.html', code=code), code
+
+    @app.before_request
+    def guard_admin():
+        if request.path.startswith('/admin'):
+            user = models.get_user_by_id(session['user_id']) if session.get('user_id') else None
+            if not user or not user.get('is_admin'):
+                abort(403)
+
+    @app.after_request
+    def security_headers(response):
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+        if production:
+            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+        if request.path.startswith(('/admin','/orders','/checkout','/auth')):
+            response.headers['Cache-Control'] = 'no-store'
+        return response
+
     return app
 
 
@@ -81,15 +137,3 @@ app = create_app()
 
 if __name__ == "__main__":
     app.run(debug=True)
-
-
-# Show real errors on Vercel instead of blank 500
-@app.errorhandler(500)
-def internal_error(e):
-    import traceback
-    return f"<pre>500 Error:\n{traceback.format_exc()}</pre>", 500
-
-@app.errorhandler(Exception)
-def unhandled(e):
-    import traceback
-    return f"<pre>Unhandled Exception:\n{traceback.format_exc()}</pre>", 500

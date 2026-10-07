@@ -43,7 +43,7 @@ def _get_template(key):
 
 def _render(body_html, variables):
     for k, v in variables.items():
-        body_html = body_html.replace("{{" + k + "}}", str(v) if v is not None else "")
+        body_html = body_html.replace("{{" + k + "}}", __import__("html").escape(str(v), quote=True) if v is not None else "")
     return body_html
 
 
@@ -55,7 +55,7 @@ def _send(to, subject, html):
         if not username or not password:
             print("[email SKIP] MAIL_USERNAME or MAIL_PASSWORD not set", file=sys.stderr)
             return False
-        msg = Message(subject, recipients=[to], html=html)
+        msg = Message(subject, recipients=[to], html=html, body=__import__("re").sub(r"<[^>]+>", " ", __import__("html").unescape(html)))
         mail.send(msg)
         print(f"[email OK] '{subject}' -> {to}", file=sys.stderr)
         return True
@@ -74,12 +74,22 @@ def send_order_placed(user_email, order):
         "order_id": str(order["id"])[:8].upper(),
         "total": f"{float(order.get('total', 0)):.0f}",
     })
+    import models, os
+    from html import escape
+    for item in models.get_order_items(order['id']):
+        html += '<p>'+escape(item['title'])+' × '+str(item['quantity'])+'</p>'
+        for option in item.get('selected_options') or []:
+            html += '<p>'+escape(option['name']+': '+option['value'])+'</p>'
+        for key,value in (item.get('personalization') or {}).items():
+            html += '<p>'+escape(key+': '+str(value))+'</p>'
+    if order.get('tracking_token'):
+        html += '<p><a href="'+escape(os.environ.get('SITE_URL','http://localhost:5000').rstrip('/')+'/order/'+order['tracking_token'])+'">Follow your order</a></p>'
     return _send(user_email, subject, BASE.format(body=html))
 
 
 def send_advance_requested(user_email, order, upi_id, upi_qr_url, site_url):
     subject, body = _get_template("advance_requested")
-    pay_link = f"{site_url}/orders/{order['id']}/pay-advance"
+    pay_link = f"{site_url}/order/{order['tracking_token']}/payment" if order.get("tracking_token") else f"{site_url}/orders/{order['id']}/pay-advance"
     qr_html = f'<img src="{upi_qr_url}" style="width:180px;border-radius:8px;margin:12px 0;display:block;" alt="UPI QR">' if upi_qr_url else ""
     html = _render(body, {
         "name": order.get("name", "there"),

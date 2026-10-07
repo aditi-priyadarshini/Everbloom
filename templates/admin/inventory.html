@@ -5,7 +5,7 @@
 
 {% if low_stock %}
 <div style="background:#fce4e4;border:1px solid #e8a0a0;border-radius:6px;padding:1rem 1.2rem;margin-bottom:1.5rem;display:flex;align-items:flex-start;gap:.8rem;">
-  <span style="font-size:1.3rem;">⚠️</span>
+  <span style="font-size:1.3rem;"></span>
   <div>
     <strong style="color:#c0392b;">Low Stock Alert!</strong>
     <p style="font-size:.86rem;color:#c0392b;margin:.2rem 0 0;">
@@ -83,7 +83,7 @@
         <td>{{ m.supplier or '—' }}</td>
         <td>
           {% if is_low %}
-          <span style="background:#fce4e4;color:#c0392b;font-size:.68rem;padding:.2rem .5rem;border-radius:20px;letter-spacing:.06em;text-transform:uppercase;">⚠ Low</span>
+          <span style="background:#fce4e4;color:#c0392b;font-size:.68rem;padding:.2rem .5rem;border-radius:20px;letter-spacing:.06em;text-transform:uppercase;"> Low</span>
           {% else %}
           <span style="background:#e8f5e9;color:#2e7d32;font-size:.68rem;padding:.2rem .5rem;border-radius:20px;letter-spacing:.06em;text-transform:uppercase;">OK</span>
           {% endif %}

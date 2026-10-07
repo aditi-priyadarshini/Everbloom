@@ -13,7 +13,7 @@ def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if not session.get("user_id"):
-            return redirect(url_for("auth.login", next=request.url))
+            return redirect(url_for("auth.login", next=request.full_path))
         return f(*args, **kwargs)
     return decorated
 
@@ -41,9 +41,10 @@ def signup():
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
         if models.get_user_by_email(email):
-            error = "An account with this email already exists."
-        elif len(password) < 6:
-            error = "Password must be at least 6 characters."
+            flash("If registration is available for this email, check your inbox for the next step.", "success")
+            return redirect(url_for("auth.login"))
+        elif len(password) < 10:
+            error = "Password must be at least 10 characters."
         else:
             pw_hash = generate_password_hash(password, method="pbkdf2:sha256")
             user = models.create_user(email, pw_hash, name)
@@ -100,7 +101,7 @@ def login():
         email    = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
         user = models.get_user_by_email(email)
-        if user and check_password_hash(user["password_hash"], password):
+        if user and user.get("password_hash") and check_password_hash(user["password_hash"], password):
             # Block unverified users (skip check for admins)
             if not user.get("email_verified") and not user.get("is_admin"):
                 flash("Please verify your email before logging in. "
@@ -114,7 +115,7 @@ def login():
             session["user_name"] = user.get("name", "")
             session["is_admin"]  = user.get("is_admin", False)
             next_url = request.args.get("next")
-            return redirect(next_url if next_url else url_for("shop.index"))
+            return redirect(safe_next(next_url))
         error = "Invalid email or password."
     return render_template("auth/login.html", error=error, show_resend=False)
 
@@ -148,7 +149,7 @@ def reset_password(token):
         password = request.form.get("password", "")
         confirm  = request.form.get("confirm_password", "")
         if len(password) < 6:
-            error = "Password must be at least 6 characters."
+            error = "Password must be at least 10 characters."
         elif password != confirm:
             error = "Passwords do not match."
         else:
@@ -182,8 +183,8 @@ def google_callback():
         email = user_info.get("email", "").lower()
         name  = user_info.get("name", "")
 
-        if not email:
-            flash("Could not get email from Google.", "error")
+        if not email or not user_info.get("email_verified"):
+            flash("Could not verify your email with Google.", "error")
             return redirect(url_for("auth.login"))
 
         # Find or create user
@@ -214,11 +215,11 @@ def google_callback():
 
         flash(f"Welcome, {session['user_name']}!", "success")
         next_url = request.args.get("next")
-        return redirect(next_url if next_url else url_for("shop.index"))
+        return redirect(safe_next(next_url))
 
     except Exception as e:
         import sys
-        print(f"[Google OAuth error] {e}", file=sys.stderr)
+        print(f"[Google OAuth error] {type(e).__name__}", file=sys.stderr)
         flash("Google sign-in failed. Please try again or use email.", "error")
         return redirect(url_for("auth.login"))
 
@@ -249,3 +250,10 @@ def profile():
         success = "Profile updated!"
         user = models.get_user_by_id(session["user_id"])
     return render_template("auth/profile.html", user=user, success=success)
+
+
+def safe_next(target):
+    from urllib.parse import urlsplit
+    if target and target.startswith('/') and not target.startswith('//') and not urlsplit(target).netloc and '\\' not in target:
+        return target
+    return url_for('shop.index')

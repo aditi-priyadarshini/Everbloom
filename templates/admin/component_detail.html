@@ -23,7 +23,7 @@
               <select name="material_id[]">
                 <option value="">Select material</option>
                 {% for m in materials %}
-                <option value="{{ m.id }}" {% if m.id == b.material_id %}selected{% endif %}>{{ m.icon or '🧪' }} {{ m.name }} ({{ m.unit }})</option>
+                <option value="{{ m.id }}" {% if m.id == b.material_id %}selected{% endif %}>{{ m.icon or '' }} {{ m.name }} ({{ m.unit }})</option>
                 {% endfor %}
               </select>
             </div>
@@ -38,7 +38,7 @@
           <div class="bom-row" style="display:grid;grid-template-columns:1fr 1fr auto;gap:.8rem;align-items:end;margin-bottom:.8rem;">
             <div class="form-group" style="margin:0;"><label>Raw Material</label>
               <select name="material_id[]"><option value="">Select material</option>
-                {% for m in materials %}<option value="{{ m.id }}">{{ m.icon or '🧪' }} {{ m.name }} ({{ m.unit }})</option>{% endfor %}
+                {% for m in materials %}<option value="{{ m.id }}">{{ m.icon or '' }} {{ m.name }} ({{ m.unit }})</option>{% endfor %}
               </select></div>
             <div class="form-group" style="margin:0;"><label>Qty per {{ comp.unit }}</label>
               <input type="number" name="quantity_used[]" min="0" step="0.001" value="0"></div>
@@ -145,7 +145,7 @@
           {% for b in bom %}
           {% for m in materials %}{% if m.id == b.material_id %}
           <div style="font-size:.82rem;color:#3a2a2a;display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem;">
-            <span>{{ m.icon or '🧪' }}</span>
+            <span>{{ m.icon or '' }}</span>
             <span>{{ b.quantity_used }} × <em id="mult">1</em> + <em class="waste-pct-display">0</em>% waste = <strong class="total-deduct" data-base="{{ b.quantity_used }}">{{ b.quantity_used }}</strong> {{ m.unit }} of {{ m.name }}</span>
             <span style="color:{% if m.current_stock >= b.quantity_used %}var(--sage-dark){% else %}#c0392b{% endif %};">({{ m.current_stock }} available)</span>
           </div>
@@ -182,7 +182,7 @@
 <script>
 const materials = {{ materials | tojson }};
 function addBomRow() {
-  const opts = materials.map(m => `<option value="${m.id}">${m.icon || '🧪'} ${m.name} (${m.unit})</option>`).join('');
+  const opts = materials.map(m => `<option value="${m.id}">${m.icon || ''} ${m.name} (${m.unit})</option>`).join('');
   const row = document.createElement('div');
   row.className = 'bom-row';
   row.style.cssText = 'display:grid;grid-template-columns:1fr 1fr auto;gap:.8rem;align-items:end;margin-bottom:.8rem;';
@@ -208,7 +208,7 @@ function updateMfgPreview() {
   });
   const wastePreview = document.getElementById('waste-cost-preview');
   if (wastePreview && waste > 0) {
-    wastePreview.textContent = `⚠ ${waste}% wastage will consume extra materials beyond what's needed to make ${qty} unit(s).`;
+    wastePreview.textContent = ` ${waste}% wastage will consume extra materials beyond what's needed to make ${qty} unit(s).`;
   } else if (wastePreview) {
     wastePreview.textContent = '';
   }

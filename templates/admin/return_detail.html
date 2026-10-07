@@ -1,9 +1,1 @@
-{% extends "base.html" %}
-{% block title %}Coming Soon{% endblock %}
-{% block content %}
-<div class="page-wrap" style="text-align:center;padding:6rem 2rem;">
-  <h1 class="page-title">Coming Soon</h1>
-  <p style="color:var(--text-soft);margin-bottom:2rem;">This page is under construction.</p>
-  <a href="{{ url_for('shop.index') }}" class="btn-primary">Back to Home</a>
-</div>
-{% endblock %}
+{% extends 'admin/base_admin.html' %}{% block title %}Return request{% endblock %}{% block page_title %}Return request{% endblock %}{% block content %}<section class="admin-card"><h3>Order #{{ ret.order_id[:8]|upper }}</h3><p>{{ ret.reason }}</p><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><div class="form-group"><label>Return status</label><select name="status">{% for s in ['pending','reviewing','approved','rejected','received','refunded','closed'] %}<option {% if ret.status==s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div><div class="form-group"><label>Private admin note</label><textarea name="admin_note">{{ ret.admin_note or '' }}</textarea></div><button class="btn-primary">Save return update</button></form></section>{% endblock %}

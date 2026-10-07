@@ -1,44 +1,14 @@
-{% extends "admin/base_admin.html" %}
-{% block title %}Settings{% endblock %}
-{% block page_title %}Settings{% endblock %}
-{% block content %}
-<div class="form-page-wrap" style="max-width:640px;">
-  <form method="post" enctype="multipart/form-data">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div class="admin-card">
-      <h3>Store Identity</h3>
-      <div class="form-group">
-        <label>Store Name</label>
-        <input type="text" name="store_name" value="{{ s.get('store_name','Everbloom') }}">
-      </div>
-      <div class="form-group">
-        <label>Tagline</label>
-        <input type="text" name="store_tagline" value="{{ s.get('store_tagline','Handcrafted with Love') }}">
-      </div>
-      <div class="form-group">
-        <label>Instagram Handle (without @)</label>
-        <input type="text" name="instagram_handle" value="{{ s.get('instagram_handle','') }}" placeholder="everbloom.in">
-      </div>
-      <div class="form-group">
-        <label>WhatsApp Number (with country code, no spaces)</label>
-        <input type="text" name="whatsapp_number" value="{{ s.get('whatsapp_number','') }}" placeholder="919876543210">
-      </div>
-    </div>
-    <div class="admin-card">
-      <h3>UPI Payment</h3>
-      <div class="form-group">
-        <label>UPI ID</label>
-        <input type="text" name="upi_id" value="{{ s.get('upi_id','') }}" placeholder="yourname@upi">
-      </div>
-      <div class="form-group">
-        <label>UPI QR Code</label>
-        {% if s.get('upi_qr_url') %}
-        <img src="{{ s['upi_qr_url'] }}" alt="UPI QR" style="width:140px;border-radius:8px;border:1px solid #e8c4b8;margin-bottom:.8rem;display:block;">
-        {% endif %}
-        <input type="file" name="upi_qr" accept="image/*" class="file-input">
-      </div>
-    </div>
-    <button type="submit" class="btn-primary">Save All Settings</button>
-  </form>
-</div>
-{% endblock %}
+{% extends 'admin/base_admin.html' %}
+{% block title %}Store settings{% endblock %}
+{% block page_title %}Store settings & content{% endblock %}
+{% block content %}<form method="post" enctype="multipart/form-data">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<div class="settings-grid">{% for title,fields in [('Business',['store_name','store_tagline','business_email','business_phone','business_address','whatsapp_number','instagram_handle']),('Homepage',['announcement','hero_eyebrow','hero_headline','hero_body','hero_image','hero_mobile_image','hero_primary_label','hero_secondary_label','story_headline','brand_story','custom_headline','custom_body','footer_text']),('Payment & preparation',['upi_id','processing_buffer']),('Policies',['policy_shipping','policy_returns','policy_privacy','policy_terms'])] %}<section class="admin-card">
+<h3>{{ title }}</h3>{% for key in fields %}<div class="form-group">
+<label for="setting-{{ key }}">{{ key|replace('_',' ')|title }}</label>{% if key in ['hero_body','brand_story','custom_body','business_address'] or key.startswith('policy_') %}<textarea id="setting-{{ key }}" name="{{ key }}" rows="4">{{ s.get(key,'') }}</textarea>{% else %}<input id="setting-{{ key }}" name="{{ key }}" value="{{ s.get(key,'') }}" {% if key=='processing_buffer' %}type="number" min="0"{% endif %}>{% endif %}</div>{% endfor %}
+{% if title=='Payment & preparation' %}<div class="form-group">
+<label for="qr">UPI QR image</label>
+<input id="qr" name="upi_qr" type="file" accept="image/png,image/jpeg,image/webp">
+</div>{% endif %}</section>{% endfor %}</div>
+<button class="btn-primary" type="submit">Save store settings</button>
+</form>{% endblock %}

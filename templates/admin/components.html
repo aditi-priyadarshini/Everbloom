@@ -5,7 +5,7 @@
 
 {% if low_stock %}
 <div style="background:#fce4e4;border:1px solid #e8a0a0;border-radius:6px;padding:1rem 1.2rem;margin-bottom:1.5rem;display:flex;align-items:center;gap:.8rem;">
-  <span style="font-size:1.3rem;">⚠️</span>
+  <span style="font-size:1.3rem;"></span>
   <div style="flex:1;">
     <strong style="color:#c0392b;">Low Component Stock!</strong>
     <p style="font-size:.84rem;color:#c0392b;margin:.2rem 0 0;">
@@ -60,7 +60,7 @@
           </label>
           {% endfor %}
         </div>
-        <p style="font-size:.78rem;color:var(--text-soft);margin-top:.3rem;">Selected: <span id="selectedIcon">🔧</span></p>
+        <p style="font-size:.78rem;color:var(--text-soft);margin-top:.3rem;">Selected: <span id="selectedIcon"></span></p>
       </div>
       <div class="form-group">
         <label>Notes</label>
@@ -82,7 +82,7 @@
       <tr>
         <td>
           <div style="display:flex;align-items:center;gap:.6rem;">
-            <span style="font-size:1.5rem;">{{ c.icon or '🔧' }}</span>
+            <span style="font-size:1.5rem;">{{ c.icon or '' }}</span>
             <div>
               <strong>{{ c.name }}</strong>
               {% if c.notes %}<br><span style="font-size:.75rem;color:var(--text-soft);">{{ c.notes }}</span>{% endif %}
@@ -94,9 +94,9 @@
         <td style="color:var(--text-soft);font-size:.84rem;">Calculated in detail</td>
         <td>
           {% if is_low %}
-          <span style="background:#fce4e4;color:#c0392b;font-size:.68rem;padding:.2rem .5rem;border-radius:20px;">⚠ Low</span>
+          <span style="background:#fce4e4;color:#c0392b;font-size:.68rem;padding:.2rem .5rem;border-radius:20px;"> Low</span>
           {% else %}
-          <span style="background:#e8f5e9;color:#2e7d32;font-size:.68rem;padding:.2rem .5rem;border-radius:20px;">✓ OK</span>
+          <span style="background:#e8f5e9;color:#2e7d32;font-size:.68rem;padding:.2rem .5rem;border-radius:20px;"> OK</span>
           {% endif %}
         </td>
         <td>

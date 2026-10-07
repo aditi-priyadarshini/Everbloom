@@ -4,6 +4,7 @@ import supa
 import uuid
 import os
 from routes.auth import admin_only
+from services.commerce import MODES, PAYMENT_STATUSES, FULFILMENT_STATUSES, money
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -14,11 +15,19 @@ admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 @admin_only
 def dashboard():
     stats = models.get_stats()
-    recent_orders = models.get_orders(limit=10)
+    all_orders = models.get_orders()
+    recent_orders = all_orders[:10]
+    from datetime import date
+    today=date.today().isoformat()
+    ops={'today_orders':sum(1 for o in all_orders if (o.get('created_at') or '').startswith(today)),
+         'month_revenue':sum(float(o.get('total') or 0) for o in all_orders if o.get('status')=='delivered' and (o.get('created_at') or '').startswith(today[:7])),
+         'pending_payments':sum(1 for o in all_orders if o.get('payment_status')=='advance_submitted'),
+         'custom_pending':sum(1 for r in models.get_custom_requests() if r.get('status') not in ('converted','closed','rejected')),
+         'due_orders':sorted([o for o in all_orders if o.get('preferred_delivery_date') and o.get('status') not in ('cancelled','delivered')],key=lambda o:o['preferred_delivery_date'])[:10]}
     low_stock_materials = models.get_low_stock_materials()
     low_stock_components = models.get_low_stock_components()
     return render_template("admin/dashboard.html", stats=stats,
-                           recent_orders=recent_orders,
+                           recent_orders=recent_orders, ops=ops,
                            low_stock_materials=low_stock_materials,
                            low_stock_components=low_stock_components)
 
@@ -33,7 +42,11 @@ def orders():
         order_list = models.get_orders(status=status)
     else:
         order_list = models.get_orders()
-    return render_template("admin/orders.html", orders=order_list,
+    query=request.args.get('q','').strip().casefold()
+    if query: order_list=[o for o in order_list if query in ' '.join(str(o.get(k) or '') for k in ('id','name','email','phone')).casefold()]
+    if request.args.get('payment'): order_list=[o for o in order_list if o.get('payment_status')==request.args['payment']]
+    if request.args.get('fulfilment'): order_list=[o for o in order_list if o.get('fulfilment_status')==request.args['fulfilment']]
+    return render_template("admin/orders.html", orders=order_list, payment_statuses=PAYMENT_STATUSES, fulfilment_statuses=FULFILMENT_STATUSES,
                            selected_status=status,
                            statuses=models.ORDER_STATUSES,
                            status_labels=models.STATUS_LABELS)
@@ -48,7 +61,7 @@ def order_detail(oid):
         return redirect(url_for("admin.orders"))
     items = models.get_order_items(oid)
     tracking = models.get_tracking(oid)
-    user = models.get_user_by_id(order["user_id"]) if order.get("user_id") else None
+    user = models.get_user_by_id(order["user_id"]) if order.get("user_id") else ({"email":order["email"]} if order.get("email") else None)
 
     if request.method == "POST":
         action = request.form.get("action")
@@ -72,6 +85,9 @@ def order_detail(oid):
                 shipping = float(shipping)
             except Exception:
                 shipping = 0
+            if advance < 0 or shipping < 0 or advance > float(order.get('total',0)) + shipping:
+                flash('Advance and shipping must be nonnegative; advance cannot exceed the total.','error')
+                return redirect(url_for('admin.order_detail',oid=oid))
             # Add shipping to order total
             new_total = float(order.get("total", 0)) + shipping
             update_data = {
@@ -81,6 +97,7 @@ def order_detail(oid):
             }
             if shipping > 0:
                 update_data["total"] = new_total
+            update_data["payment_status"] = "advance_requested"
             models.update_order(oid, update_data)
             note = f"Advance of ₹{advance} requested."
             if shipping > 0:
@@ -94,7 +111,7 @@ def order_detail(oid):
                     upi_id, upi_qr_url, site_url
                 )
                 models.create_notification(
-                    order["user_id"],
+                    order.get("user_id"),
                     f"Advance payment of ₹{advance:.0f} requested.",
                     url_for("orders.pay_advance", oid=oid)
                 )
@@ -104,16 +121,36 @@ def order_detail(oid):
             if order.get("status") != "advance_paid":
                 flash("This order is not awaiting advance confirmation.", "error")
             else:
-                models.update_order(oid, {"status": "advance_confirmed"})
+                models.update_order(oid, {"status": "advance_confirmed", "payment_status":"advance_verified", "fulfilment_status":"confirmed"})
                 models.add_tracking(oid, "advance_confirmed", note or "Advance payment verified.")
                 if user:
                     emails.send_status_update(user["email"], order, "advance_confirmed", note)
                     models.create_notification(
-                        order["user_id"],
+                        order.get("user_id"),
                         "Payment confirmed! Crafting begins.",
                         url_for("orders.order_detail", oid=oid)
                     )
                 flash("Advance confirmed. Crafting email sent.", "success")
+
+        elif action == 'internal_note':
+            existing=order.get('internal_notes') or ''
+            models.update_order(oid, {'internal_notes':(existing+'\n'+request.form.get('internal_note','').strip())[-20000:]})
+            flash('Internal note saved.','success')
+
+        elif action == 'commerce_status':
+            payment = request.form.get('payment_status')
+            fulfilment = request.form.get('fulfilment_status')
+            if payment not in PAYMENT_STATUSES or fulfilment not in FULFILMENT_STATUSES:
+                flash('Invalid payment or fulfilment state.', 'error')
+            else:
+                try:
+                    if fulfilment == 'cancelled': models.delete_order(oid)
+                    else:
+                        models.update_order(oid, {'payment_status':payment,'fulfilment_status':fulfilment})
+                        if fulfilment != order.get('fulfilment_status'):
+                            models.add_tracking(oid,fulfilment,note or None)
+                    flash('Order updated.', 'success')
+                except ValueError as error: flash(str(error),'error')
 
         elif action == "update_status":
             new_status = request.form.get("new_status")
@@ -127,7 +164,7 @@ def order_detail(oid):
                 if user:
                     emails.send_status_update(user["email"], order, new_status, note)
                     models.create_notification(
-                        order["user_id"],
+                        order.get("user_id"),
                         f"Order status updated: {models.STATUS_LABELS.get(new_status, new_status)}",
                         url_for("orders.order_detail", oid=oid)
                     )
@@ -138,11 +175,13 @@ def order_detail(oid):
         return redirect(url_for("admin.order_detail", oid=oid))
 
     order = models.get_order(oid)  # refresh
+    if order.get("payment_screenshot_url"):
+        order["payment_screenshot_url"] = supa.receipt_url(order["payment_screenshot_url"])
     return render_template("admin/order_detail.html",
                            order=order, items=items, tracking=tracking, user=user,
                            next_status=models.NEXT_STATUS.get(order["status"]),
                            status_labels=models.STATUS_LABELS,
-                           statuses=models.ORDER_STATUSES)
+                           statuses=models.ORDER_STATUSES, payment_statuses=PAYMENT_STATUSES, fulfilment_statuses=FULFILMENT_STATUSES)
 
 
 # ── Products ──────────────────────────────────────────────
@@ -167,10 +206,11 @@ def product_new():
         data = _parse_product_form(request)
         product = models.create_product(data)
         if product:
+            _save_memberships(product["id"])
             flash("Product created!", "success")
             return redirect(url_for("admin.products"))
         flash("Error creating product.", "error")
-    return render_template("admin/product_form.html", product=None, categories=categories, action="new")
+    return render_template("admin/product_form.html", product=None, categories=categories, action="new", **_catalog_editor_context())
 
 
 @admin_bp.route("/products/<pid>/edit", methods=["GET", "POST"])
@@ -184,10 +224,11 @@ def product_edit(pid):
     if request.method == "POST":
         data = _parse_product_form(request, existing=product)
         models.update_product(pid, data)
+        _save_memberships(pid)
         flash("Product updated!", "success")
         return redirect(url_for("admin.products"))
     return render_template("admin/product_form.html", product=product,
-                           categories=categories, action="edit")
+                           categories=categories, action="edit", variants=models.get_variants(pid), **_catalog_editor_context(pid))
 
 
 @admin_bp.route("/products/<pid>/toggle-listing", methods=["POST"])
@@ -208,13 +249,27 @@ def product_toggle_listing(pid):
 @admin_only
 def product_delete(pid):
     models.delete_product(pid)
-    flash("Product deleted.", "success")
+    flash("Product archived. Order history retained.", "success")
     return redirect(url_for("admin.products"))
 
 
 def _parse_product_form(req, existing=None):
-    import sys
+    import sys, json, re
+    mode = req.form.get('availability_mode','READY_TO_SHIP')
+    if mode not in MODES: raise ValueError('Choose a valid availability mode.')
+    fields = json.loads(req.form.get('personalization_fields','[]') or '[]')
+    if not isinstance(fields,list) or len(fields)>12: raise ValueError('Use at most 12 personalization fields.')
+    for field in fields:
+        if not isinstance(field,dict) or not re.fullmatch(r'[a-z][a-z0-9_]{0,39}',field.get('name','')): raise ValueError('Personalization field names must use lowercase letters and underscores.')
     data = {
+        'availability_mode':mode,
+        'accepting_orders':req.form.get('accepting_orders') == 'on',
+        'lead_time_min':max(0,int(req.form.get('lead_time_min') or 0)),
+        'lead_time_max':max(0,int(req.form.get('lead_time_max') or req.form.get('crafting_days') or 7)),
+        'max_order_quantity':max(1,min(99,int(req.form.get('max_order_quantity') or 99))),
+        'sale_price':float(money(req.form['sale_price'])) if req.form.get('sale_price') else None,
+        'personalization_fields':fields,
+        'slug':req.form.get('slug','').strip() or re.sub(r'[^a-z0-9]+','-',req.form.get('title','').lower()).strip('-'),
         "title": req.form.get("title", "").strip(),
         "description": req.form.get("description", "").strip(),
         "price": float(req.form.get("price", 0)),
@@ -233,6 +288,7 @@ def _parse_product_form(req, existing=None):
     # Handle image uploads
     images = list((existing or {}).get("images") or [])
     files = req.files.getlist("images")
+    if len(images)+len([f for f in files if f.filename])>12: raise ValueError("Use at most 12 product images.")
     for f in files:
         if not f or not f.filename:
             continue
@@ -251,11 +307,11 @@ def _parse_product_form(req, existing=None):
                 flash(f"Image '{f.filename}' failed — check bucket 'everbloom' exists and is Public in Supabase Storage.", "error")
         except Exception as e:
             print(f"[upload EXCEPTION] {e}", file=sys.stderr)
-            flash(f"Upload error: {e}", "error")
+            flash("Image rejected. Use a valid JPEG, PNG or WebP under 8 MB.", "error")
 
-    # Remove images
+    # Remove images from highest index first to preserve indices.
     remove_indices = req.form.getlist("remove_image")
-    for idx in remove_indices:
+    for idx in sorted(remove_indices, key=int, reverse=True):
         try:
             images.pop(int(idx))
         except Exception:
@@ -291,6 +347,7 @@ def coupon_new():
         "code": request.form.get("code", "").strip().upper(),
         "discount_percent": int(request.form.get("discount_percent", 10)),
         "max_uses": int(request.form.get("max_uses", 100)),
+        "usage_limit": int(request.form.get("max_uses", 100)),
         "expires_at": request.form.get("expires_at") or None,
         "active": True,
     }
@@ -446,6 +503,7 @@ def custom_request_create_product(rid):
     product = models.create_product({
         "title": title, "price": price, "category_id": category_id,
         "stock": stock, "description": description, "is_listed": is_listed,
+        "availability_mode":"READY_TO_SHIP" if stock>0 else "MADE_TO_ORDER",
         "images": images, "crafting_days": int(req.get("quoted_days") or 14),
     })
     if product:
@@ -713,7 +771,7 @@ def artisan_edit(aid):
 @admin_only
 def artisan_delete(aid):
     models.delete_artisan(aid)
-    flash("Artisan deleted.", "success")
+    flash("Artisan archived.", "success")
     return redirect(url_for("admin.artisans"))
 
 
@@ -766,12 +824,12 @@ def broadcast():
         sent = 0
         for u in customers:
             try:
-                email_mod._send(u["email"], subject,
+                delivered = email_mod._send(u["email"], subject,
                     f'<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;">'
                     f'<h2 style="color:#5c3d3d;">Everbloom</h2>{body}'
                     f'<p style="color:#999;font-size:12px;margin-top:2rem;">You received this because you have an account with Everbloom.</p>'
                     f'</div>')
-                sent += 1
+                sent += int(bool(delivered))
             except Exception:
                 pass
         models.log_broadcast(subject, body, sent)
@@ -811,10 +869,9 @@ def variant_delete(vid):
 @admin_only
 def settings():
     if request.method == "POST":
-        for key in ["upi_id", "whatsapp_number", "instagram_handle", "store_name", "store_tagline"]:
+        for key in ["upi_id", "whatsapp_number", "instagram_handle", "store_name", "store_tagline", "business_email", "business_phone", "business_address", "announcement", "hero_eyebrow", "hero_headline", "hero_body", "hero_image", "hero_mobile_image", "hero_primary_label", "hero_secondary_label", "brand_story", "story_headline", "custom_headline", "custom_body", "footer_text", "processing_buffer", "policy_shipping", "policy_returns", "policy_privacy", "policy_terms"]:
             val = request.form.get(key, "").strip()
-            if val:
-                models.set_setting(key, val)
+            models.set_setting(key, val)
         qr_file = request.files.get("upi_qr")
         if qr_file and qr_file.filename:
             path = f"settings/upi_qr_{uuid.uuid4()}.png"
@@ -899,7 +956,7 @@ def order_send_email(oid):
     if not order:
         flash("Order not found.", "error")
         return redirect(url_for("admin.orders"))
-    user = models.get_user_by_id(order["user_id"]) if order.get("user_id") else None
+    user = models.get_user_by_id(order["user_id"]) if order.get("user_id") else ({"email":order["email"]} if order.get("email") else None)
     if not user:
         flash("No customer email found.", "error")
         return redirect(url_for("admin.order_detail", oid=oid))
@@ -907,10 +964,10 @@ def order_send_email(oid):
     subject = request.form.get("subject", "").strip()
     message = request.form.get("message", "").strip()
 
-    emails.send_manual_email(user["email"], subject, message)
+    sent = emails.send_manual_email(user["email"], subject, message)
     models.log_email(user["email"], subject, message,
                      session["user_id"], "order", oid)
-    flash("Email sent to customer!", "success")
+    flash("Email sent to customer." if sent else "Email could not be delivered. Check SMTP configuration.", "success" if sent else "error")
     return redirect(url_for("admin.order_detail", oid=oid))
 
 
@@ -964,7 +1021,7 @@ def inventory_edit(mid):
 @admin_only
 def inventory_delete(mid):
     models.delete_raw_material(mid)
-    flash("Material deleted.", "success")
+    flash("Material archived.", "success")
     return redirect(url_for("admin.inventory"))
 
 
@@ -976,7 +1033,7 @@ def inventory_purchase(mid):
     supplier = request.form.get("supplier", "").strip()
     note     = request.form.get("note", "").strip()
     if qty > 0:
-        models.add_expenditure({
+        received = models.add_expenditure({
             "material_id":   mid,
             "quantity":      qty,
             "cost_per_unit": cpu,
@@ -984,7 +1041,7 @@ def inventory_purchase(mid):
             "supplier":      supplier,
             "note":          note,
         })
-        flash(f"Stock updated! Added {qty} units.", "success")
+        flash(f"Received {qty} units." if received else "Receiving failed. Stock was not changed.", "success" if received else "error")
     return redirect(url_for("admin.inventory"))
 
 
@@ -1105,7 +1162,7 @@ def component_detail(cid):
 @admin_only
 def component_delete(cid):
     models.delete_component(cid)
-    flash("Component deleted.", "success")
+    flash("Component archived.", "success")
     return redirect(url_for("admin.components"))
 
 
@@ -1151,7 +1208,7 @@ def product_cost_detail(pid):
     return render_template("admin/product_cost_detail.html",
                            product=product, materials=materials,
                            components=components, product_cost=product_cost,
-                           product_bom=product_bom, cost_breakdown=cost_breakdown)
+                           product_bom=product_bom, cost_breakdown=cost_breakdown, capacity=models.manufacturable_quantity(pid))
 
 
 # ── Order Requirements Panel ──────────────────────────────
@@ -1180,7 +1237,11 @@ def order_deduct_stock(oid):
     if not order:
         flash("Order not found.", "error")
         return redirect(url_for("admin.orders"))
-    models.deduct_order_materials(oid)
+    try:
+        models.deduct_order_materials(oid)
+    except ValueError as error:
+        flash(str(error), 'error')
+        return redirect(url_for('admin.order_requirements',oid=oid))
     models.add_tracking(oid, order["status"], "Inventory deducted for this order.")
     flash("Stock deducted from inventory!", "success")
     return redirect(url_for("admin.order_requirements", oid=oid))
@@ -1190,9 +1251,22 @@ def order_deduct_stock(oid):
 @admin_bp.route("/custom-requests/<rid>/quote", methods=["POST"])
 @admin_only
 def custom_request_quote(rid):
-    """Legacy route — redirects to new workflow."""
-    flash("Please use the new 'Create Order' workflow instead.", "info")
-    return redirect(url_for("admin.custom_request_detail", rid=rid))
+    req=models.get_custom_request(rid)
+    if not req or req.get('converted_order_id'):
+        flash('This request cannot be quoted.','error')
+        return redirect(url_for('admin.custom_requests'))
+    try:
+        amount=money(request.form.get('quoted_price'))
+        if amount<=0: raise ValueError('Enter a positive quote.')
+        from datetime import datetime,timezone
+        import emails
+        payload={'quoted_price':float(amount),'quoted_days':max(1,int(request.form.get('quoted_days') or 7)),'quote_message':request.form.get('quote_message','').strip()[:2000],'quote_sent_at':datetime.now(timezone.utc).isoformat(),'status':'quoted'}
+        if not models.update_custom_request(rid,payload): raise ValueError('Could not save the quote.')
+        track_url=url_for('shop.custom_order_track',token=req['tracking_token'],_external=True)
+        sent=emails.send_custom_quote(req['email'],req['name'],{**req,**payload},track_url,track_url)
+        flash('Quote saved and emailed.' if sent else 'Quote saved. Email delivery failed; share the request tracking link manually.','success' if sent else 'error')
+    except ValueError as error: flash(str(error),'error')
+    return redirect(url_for('admin.custom_request_detail',rid=rid))
 
 
 # ── Order Delete ──────────────────────────────────────────
@@ -1210,5 +1284,66 @@ def order_delete(oid):
         flash("Cancel the order first before deleting.", "error")
         return redirect(url_for("admin.order_detail", oid=oid))
     models.delete_order(oid)
-    flash("Order deleted.", "success")
+    flash("Order cancelled. Historical records retained.", "success")
     return redirect(url_for("admin.orders"))
+
+
+@admin_bp.after_request
+def audit_admin_action(response):
+    if request.method == 'POST' and response.status_code < 400 and session.get('user_id'):
+        supa.insert('audit_log', {'actor_id':session['user_id'],'action':request.endpoint,'entity':'admin_request','entity_id':str(request.view_args or {}),'metadata':{'http_status':response.status_code}})
+    return response
+
+
+@admin_bp.route('/stock-movements')
+@admin_only
+def stock_movements():
+    return render_template('admin/stock_movements.html', movements=supa.select('inventory_movements',order='created_at.desc',limit=200))
+
+
+@admin_bp.route('/audit-log')
+@admin_only
+def audit_log():
+    return render_template('admin/audit_log.html', entries=supa.select('audit_log',order='created_at.desc',limit=200))
+
+MERCHANDISING = {'categories':'Categories','collections':'Collections','occasions':'Occasions','testimonials':'Testimonials'}
+
+@admin_bp.route('/merchandising/<kind>', methods=['GET','POST'])
+@admin_only
+def merchandising(kind):
+    from flask import abort
+    import re
+    if kind not in MERCHANDISING: abort(404)
+    if request.method=='POST':
+        name=request.form.get('name','').strip()[:150]
+        if not name: flash('Enter a name.','error')
+        else:
+            data={'name':name}
+            if kind=='testimonials': data['quote']=request.form.get('quote','').strip()[:2000]
+            else: data['slug']=re.sub(r'[^a-z0-9]+','-',request.form.get('slug') or name.lower()).strip('-')
+            if kind=='collections': data['featured']=request.form.get('featured')=='on'
+            saved=supa.insert(kind,data)
+            flash('Saved.' if saved else 'Could not save. Check that the slug is unique.','success' if saved else 'error')
+        return redirect(url_for('admin.merchandising',kind=kind))
+    return render_template('admin/merchandising.html',kind=kind,title=MERCHANDISING[kind],entries=supa.select(kind,order='name.asc'))
+
+@admin_bp.route('/reviews', methods=['GET','POST'])
+@admin_only
+def reviews():
+    if request.method=='POST':
+        models.update_review(request.form['review_id'],{'visible':request.form.get('visible')=='1'})
+        return redirect(url_for('admin.reviews'))
+    return render_template('admin/reviews.html',reviews=supa.select('reviews',order='created_at.desc'))
+
+
+def _catalog_editor_context(pid=None):
+    return {'collections':supa.select('collections'),'occasions':supa.select('occasions'),
+            'selected_collections':[str(r['collection_id']) for r in supa.select('collection_products',{'product_id':'eq.'+str(pid)})] if pid else [],
+            'selected_occasions':[str(r['occasion_id']) for r in supa.select('product_occasions',{'product_id':'eq.'+str(pid)})] if pid else []}
+
+
+def _save_memberships(pid):
+    for kind,table,column in [('collection','collection_products','collection_id'),('occasion','product_occasions','occasion_id')]:
+        supa.delete(table,{'product_id':'eq.'+str(pid)})
+        for key in request.form.getlist(kind+'_ids'):
+            supa.insert(table,{'product_id':str(pid),column:int(key)})

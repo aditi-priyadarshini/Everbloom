@@ -15,16 +15,16 @@
         </div>
         <div class="cart-info">
           <a href="{{ url_for('shop.product', pid=item.product.id) }}" class="cart-name">{{ item.product.title }}</a>
-          <div class="cart-price">₹{{ "%.0f"|format(discounted_price(item.product)) }} each</div>
+          {% include 'shop/_line_options.html' %}<p class="availability-note">{{ availability(item.product).label }}</p><div class="cart-price">₹{{ "%.0f"|format(item.unit_price) }} each</div>
         </div>
-        <form method="post" action="{{ url_for('shop.cart_update', pid=item.product.id) }}" class="cart-qty-form">
+        <form method="post" action="{{ url_for('shop.cart_update', pid=item.key) }}" class="cart-qty-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="number" name="qty" value="{{ item.qty }}" min="0" max="{{ item.product.stock }}" class="qty-input" onchange="this.form.submit()">
+          <input type="number" name="qty" value="{{ item.qty }}" min="1" max="99" class="qty-input" onchange="this.form.submit()">
         </form>
         <div class="cart-subtotal">₹{{ "%.0f"|format(item.subtotal) }}</div>
-        <form method="post" action="{{ url_for('shop.cart_remove', pid=item.product.id) }}">
+        <form method="post" action="{{ url_for('shop.cart_remove', pid=item.key) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="cart-remove">&times;</button>
+          <button type="submit" class="cart-remove" aria-label="Remove {{ item.product.title }}">&times;</button>
         </form>
       </div>
       {% endfor %}
@@ -32,7 +32,7 @@
     <div class="cart-summary">
       <h3>Order Summary</h3>
       <div class="summary-row"><span>Subtotal</span><span>₹{{ "%.0f"|format(total) }}</span></div>
-      <div class="summary-row muted"><span>Shipping</span><span>Calculated at checkout</span></div>
+      <div class="summary-row muted"><span>Shipping</span><span>Confirmed after review</span></div>
       <div class="summary-total"><span>Total</span><span>₹{{ "%.0f"|format(total) }}</span></div>
       <a href="{{ url_for('shop.checkout') }}" class="btn-primary btn-full">Proceed to Checkout</a>
       <a href="{{ url_for('shop.shop') }}" class="btn-outline btn-full" style="margin-top:.8rem;">Continue Shopping</a>

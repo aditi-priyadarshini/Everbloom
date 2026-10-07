@@ -8,7 +8,7 @@
   <!-- Status badge -->
   <div style="margin-bottom:2rem;">
     {% set status_map = {
-      'pending': ('Pending Review', 'status-placed'),
+      'pending': ('Request received', 'status-placed'), 'new': ('Request received','status-placed'), 'discussing': ('Discussing','status-crafting'), 'agreed': ('Quote agreed','status-crafting'), 'converted': ('Converted to order','status-delivered'), 'closed': ('Closed','status-cancelled'),
       'reviewing': ('Under Review', 'status-advance_requested'),
       'quoted': ('Quote Sent', 'status-crafting'),
       'accepted': ('Accepted — Order Created', 'status-delivered'),
@@ -88,8 +88,8 @@
     <p style="font-size:.88rem;color:var(--text-soft);margin-bottom:1.2rem;">Estimated crafting time: {{ req.quoted_days }} days</p>
     {% if req.quote_message %}<p style="font-style:italic;color:var(--text-soft);margin-bottom:1.2rem;">"{{ req.quote_message }}"</p>{% endif %}
     <div style="display:flex;gap:.8rem;flex-wrap:wrap;">
-      <a href="{{ url_for('shop.custom_order_respond', token=req.tracking_token, response='accepted') }}" class="btn-primary">✓ Accept Quote</a>
-      <a href="{{ url_for('shop.custom_order_respond', token=req.tracking_token, response='declined') }}" class="btn-outline">✗ Decline</a>
+      <form method="post" action="{{ url_for('shop.custom_order_respond', token=req.tracking_token, response='accepted') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn-primary" type="submit">✓ Accept Quote</button></form>
+      <form method="post" action="{{ url_for('shop.custom_order_respond', token=req.tracking_token, response='declined') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn-outline" type="submit">✗ Decline</button></form>
     </div>
   </div>
   {% endif %}

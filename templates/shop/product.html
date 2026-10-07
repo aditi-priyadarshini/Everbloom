@@ -1,7 +1,10 @@
 {% extends "base.html" %}
 {% block title %}{{ product.title }}{% endblock %}
+{% block description %}{{ (product.description or product.title)|truncate(155,true) }}{% endblock %}
+{% block head %}<meta property="og:title" content="{{ product.title }}"><meta property="og:type" content="product"><meta property="og:url" content="{{ request.base_url }}">{% if product.images %}<meta property="og:image" content="{{ product.images[0] }}">{% endif %}
+<script type="application/ld+json">{{ {'@context':'https://schema.org','@type':'Product','name':product.title,'description':product.description or product.title,'image':product.images or [],'offers':{'@type':'Offer','priceCurrency':'INR','price':discounted_price(product),'url':request.base_url,'availability':'https://schema.org/InStock' if availability(product).purchasable else 'https://schema.org/OutOfStock'}}|tojson }}</script>{% endblock %}
 {% block content %}
-<div class="product-detail-wrap">
+<div class="breadcrumbs section-inner"><a href="{{ url_for('shop.index') }}">Home</a> / <a href="{{ url_for('shop.shop') }}">Shop</a> / {{ product.title }}</div><div class="product-detail-wrap">
   <!-- Gallery -->
   <div class="product-gallery">
     {% set imgs = product.images or [] %}
@@ -12,7 +15,7 @@
     {% if imgs|length > 1 %}
     <div class="gallery-thumbs">
       {% for img in imgs %}
-      <img src="{{ img }}" alt="" class="thumb {% if loop.first %}active{% endif %}" onclick="setMain('{{ img }}', this)">
+      <a href="{{ img }}" data-gallery-src="{{ img }}" aria-label="View image {{ loop.index }} of {{ product.title }}"><img src="{{ img }}" alt="{{ product.title }} — view {{ loop.index }}" class="thumb {% if loop.first %}active{% endif %}"></a>
       {% endfor %}
     </div>
     {% endif %}
@@ -32,15 +35,12 @@
   <!-- Info -->
   <div class="product-info">
     <div class="product-info-cat">
-      {% if product.category_id == 1 %}Paintings
-      {% elif product.category_id == 2 %}DIY Kits
-      {% elif product.category_id == 3 %}Sculptures
-      {% else %}Craft{% endif %}
+      {{ category_name(product.category_id) }}
     </div>
     <div class="product-title-row">
       <h1 class="product-info-title">{{ product.title }}</h1>
       {% if session.user_id %}
-
+      <form method="post" action="{{ url_for('shop.wishlist_toggle',pid=product.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="wishlist-btn {% if wishlisted %}wishlisted{% endif %}" title="{% if wishlisted %}Remove from wishlist{% else %}Add to wishlist{% endif %}">
           {% if wishlisted %}♥{% else %}♡{% endif %}
@@ -73,20 +73,14 @@
     <div class="flash-banner">⚡ Flash Sale — Limited time offer!</div>
     {% endif %}
 
-    <div class="product-meta">
-      <span class="{% if product.stock > 0 %}in-stock{% else %}out-stock{% endif %}">
-        {% if product.stock > 0 %}✓ In Stock ({{ product.stock }} left){% else %}📦 Available for Pre-order{% endif %}
-      </span>
-      {% if product.crafting_days %}
-      <span class="crafting-info">Ready in approx. {{ product.crafting_days }} days</span>
-      {% endif %}
-    </div>
+    {% set state = availability(product) %}
+    <div class="product-meta"><span>{{ state.label }}</span>{% if state.mode in ['MADE_TO_ORDER','PREORDER'] %}<span>Usually ready in {{ product.lead_time_min or product.crafting_days or 3 }}–{{ product.lead_time_max or (product.crafting_days or 5) + 2 }} days</span>{% endif %}</div>
 
     {% if product.description %}
     <p class="product-desc">{{ product.description }}</p>
     {% endif %}
 
-    {% if product.stock > 0 %}
+    {% if state.purchasable %}
     <form method="post" action="{{ url_for('shop.cart_add', pid=product.id) }}" class="add-to-cart-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       {% if variants %}
@@ -98,7 +92,7 @@
         <div class="variant-options">
           {% for v in group_variants %}
           <label class="variant-option">
-            <input type="radio" name="variant_{{ group_name|lower|replace(' ','_') }}" value="{{ v.value }}" {% if loop.first %}checked{% endif %}>
+            <input type="radio" name="variant_{{ group_name|lower|replace(' ','_') }}" value="{{ v.id }}" {% if loop.first %}checked{% endif %}>
             <span class="variant-pill">{{ v.value }}{% if v.price_modifier > 0 %} +₹{{ "%.0f"|format(v.price_modifier) }}{% elif v.price_modifier < 0 %} -₹{{ "%.0f"|format(v.price_modifier|abs) }}{% endif %}</span>
           </label>
           {% endfor %}
@@ -106,30 +100,16 @@
       </div>
       {% endfor %}
       {% endif %}
+      {% for field in product.personalization_fields or [] %}
+      <div class="form-group"><label for="personal-{{ loop.index }}">{{ field.label or field.name }}</label><input id="personal-{{ loop.index }}" name="personalization_{{ field.name }}" maxlength="1000" {% if field.required %}required{% endif %}></div>
+      {% endfor %}
       <div class="qty-wrap">
         <label>Qty</label>
-        <input type="number" name="qty" value="1" min="1" max="{{ product.stock }}" class="qty-input">
+        <input type="number" name="qty" value="1" min="1" max="{{ product.stock if state.mode in ['READY_TO_SHIP','ONE_OF_ONE'] else product.max_order_quantity or 99 }}" class="qty-input">
       </div>
       <button type="submit" class="btn-primary btn-full">Add to Cart</button>
     </form>
-    {% else %}
-    <form method="post" action="{{ url_for('shop.cart_add', pid=product.id) }}" class="add-to-cart-form">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="is_preorder" value="1">
-      <div class="preorder-info">
-        <span>📦</span>
-        <div>
-          <strong>Made to order</strong>
-          <p>This item will be crafted especially for you in {{ product.crafting_days or 7 }}–{{ (product.crafting_days or 7) + 3 }} days after payment.</p>
-        </div>
-      </div>
-      <div class="qty-wrap">
-        <label>Qty</label>
-        <input type="number" name="qty" value="1" min="1" class="qty-input">
-      </div>
-      <button type="submit" class="btn-primary btn-full btn-preorder-lg">Pre-order Now</button>
-    </form>
-    {% endif %}
+    {% else %}<p class="availability-note">{{ state.label }}</p>{% endif %}
 
     <a href="{{ url_for('shop.custom_order') }}" class="custom-order-link">Want something custom? →</a>
   </div>
@@ -139,7 +119,7 @@
 <div class="reviews-section">
   <h2>Customer Reviews</h2>
 
-  {% if session.user_id %}
+  {% if can_review %}
   <div class="review-form-wrap">
     <h3>{{ 'Edit Your Review' if user_review else 'Leave a Review' }}</h3>
     <form method="post" action="{{ url_for('shop.submit_review', pid=product.id) }}">
@@ -150,7 +130,7 @@
         <label for="star{{ i }}">★</label>
         {% endfor %}
       </div>
-      <textarea name="comment" placeholder="Share your experience…" rows="3">{{ user_review.comment if user_review else '' }}</textarea>
+      <label for="review-comment">Your experience</label><textarea id="review-comment" name="comment" maxlength="2000" placeholder="Share your experience…" rows="3">{{ user_review.comment if user_review else '' }}</textarea>
       <button type="submit" class="btn-primary">{{ 'Update Review' if user_review else 'Submit Review' }}</button>
     </form>
   </div>
@@ -166,7 +146,7 @@
         </div>
         <span class="review-date">{{ r.created_at[:10] }}</span>
       </div>
-      {% if r.comment %}<p class="review-comment">{{ r.comment }}</p>{% endif %}
+      {% if r.verified_purchase %}<span class="availability-note">Verified purchase</span>{% endif %}{% if r.comment %}<p class="review-comment">{{ r.comment }}</p>{% endif %}
     </div>
     {% endfor %}
   </div>
@@ -187,11 +167,5 @@
 </div>
 {% endif %}
 
-<script>
-function setMain(src, el) {
-  document.getElementById('mainImg').src = src;
-  document.querySelectorAll('.thumb').forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
-}
-</script>
+
 {% endblock %}

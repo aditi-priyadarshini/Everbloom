@@ -1,9 +1,1 @@
-{% extends "base.html" %}
-{% block title %}Coming Soon{% endblock %}
-{% block content %}
-<div class="page-wrap" style="text-align:center;padding:6rem 2rem;">
-  <h1 class="page-title">Coming Soon</h1>
-  <p style="color:var(--text-soft);margin-bottom:2rem;">This page is under construction.</p>
-  <a href="{{ url_for('shop.index') }}" class="btn-primary">Back to Home</a>
-</div>
-{% endblock %}
+{% extends 'base.html' %}{% block title %}Our story{% endblock %}{% block content %}<article class="page-wrap policy-page"><p class="eyebrow">The Everbloom studio</p><h1>{{ store.get('story_headline','Thoughtful things, made by hand.') }}</h1><p>{{ store.get('brand_story','Everbloom is a place for personal gifts and handmade creations. Explore the collection, or bring us an idea for a piece that means something to you.') }}</p><a class="btn-primary" href="{{ url_for('shop.custom_order') }}">Create something personal</a></article>{% endblock %}

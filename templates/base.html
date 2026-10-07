@@ -1,181 +1,21 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{% block title %}Everbloom{% endblock %} — Handcrafted with Love</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/css/main.css">
-{% block head %}{% endblock %}
-</head>
-<body>
-
-<script>
-// Pick a random palette each session (persisted for the session)
-const palettes = {
-  blush: {
-    '--blush':'#f5e6e0','--rose':'#e8c4b8','--petal':'#d4a0a0',
-    '--mauve':'#b07878','--bark':'#5c3d3d','--cream':'#fdf6f0',
-    '--sage':'#c8d8c0','--sage-dark':'#8aaa7e','--gold':'#c9a96e',
-    '--text':'#3a2a2a','--text-soft':'#7a5c5c','--white':'#ffffff'
-  },
-  sage: {
-    '--blush':'#e8f0e4','--rose':'#c0d4b8','--petal':'#9ab88a',
-    '--mauve':'#6a9a58','--bark':'#2d4a20','--cream':'#f4f8f2',
-    '--sage':'#d4e8cc','--sage-dark':'#6a9a58','--gold':'#b8a84e',
-    '--text':'#1e3018','--text-soft':'#4a6a3a','--white':'#ffffff'
-  },
-  lavender: {
-    '--blush':'#f0eaf8','--rose':'#d8c8f0','--petal':'#bba0e0',
-    '--mauve':'#8a6ab8','--bark':'#3d2a5c','--cream':'#f8f4fd',
-    '--sage':'#d0d8f0','--sage-dark':'#6870b8','--gold':'#c9a96e',
-    '--text':'#2a1a3a','--text-soft':'#6a4a8a','--white':'#ffffff'
-  },
-  terracotta: {
-    '--blush':'#f8ede6','--rose':'#e8c4a8','--petal':'#d4986a',
-    '--mauve':'#b86840','--bark':'#5c2d10','--cream':'#fdf6f0',
-    '--sage':'#d8c8a8','--sage-dark':'#9a8850','--gold':'#c9952e',
-    '--text':'#3a1a08','--text-soft':'#7a4a28','--white':'#ffffff'
-  },
-  midnight: {
-    '--blush':'#e8eaf8','--rose':'#b8bce8','--petal':'#8890d8',
-    '--mauve':'#5058b8','--bark':'#1a2060','--cream':'#f2f4fd',
-    '--sage':'#c8d8e8','--sage-dark':'#5888b8','--gold':'#c9a96e',
-    '--text':'#0a1040','--text-soft':'#3848a0','--white':'#ffffff'
-  },
-  rose_gold: {
-    '--blush':'#faeee8','--rose':'#f0c8b8','--petal':'#e0988a',
-    '--mauve':'#c06858','--bark':'#6a2820','--cream':'#fdf8f6',
-    '--sage':'#e8d8c8','--sage-dark':'#b09070','--gold':'#d4a060',
-    '--text':'#3a1010','--text-soft':'#8a4840','--white':'#ffffff'
-  },
-  forest: {
-    '--blush':'#e8f4ec','--rose':'#b8d8c0','--petal':'#80b890',
-    '--mauve':'#488858','--bark':'#1a4028','--cream':'#f2f9f4',
-    '--sage':'#d0e8d4','--sage-dark':'#488858','--gold':'#b8a040',
-    '--text':'#0c2818','--text-soft':'#386848','--white':'#ffffff'
-  },
-  dusty_blue: {
-    '--blush':'#e8eef8','--rose':'#b8c8e8','--petal':'#88a0c8',
-    '--mauve':'#587098','--bark':'#1e3050','--cream':'#f2f6fd',
-    '--sage':'#c8d8e0','--sage-dark':'#5888a0','--gold':'#c9a96e',
-    '--text':'#0e2040','--text-soft':'#385878','--white':'#ffffff'
-  }
-};
-
-const keys = Object.keys(palettes);
-let stored = sessionStorage.getItem('eb_palette');
-if (!stored) {
-  stored = keys[Math.floor(Math.random() * keys.length)];
-  sessionStorage.setItem('eb_palette', stored);
-}
-const palette = palettes[stored] || palettes.blush;
-const root = document.documentElement;
-Object.entries(palette).forEach(([k, v]) => root.style.setProperty(k, v));
-</script>
-<nav class="navbar">
-  <a class="nav-logo" href="{{ url_for('shop.index') }}">Ever<span>bloom</span></a>
-  <ul class="nav-links">
-    <li><a href="{{ url_for('shop.shop') }}">Shop</a></li>
-    <li><a href="{{ url_for('shop.custom_order') }}">Custom Order</a></li>
-  </ul>
-  <div class="nav-actions">
-    {% if session.user_id %}
-    <div class="notif-wrap">
-      <button class="notif-btn" id="notifBtn" aria-label="Notifications">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-        <span class="notif-badge" id="notifBadge" style="display:none">0</span>
-      </button>
-      <div class="notif-dropdown" id="notifDropdown">
-        <div class="notif-header">Notifications</div>
-        <div id="notifList"><p class="notif-empty">All caught up!</p></div>
-      </div>
-    </div>
-    <a href="{{ url_for('orders.orders_list') }}" class="nav-icon-link">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/></svg>
-    </a>
-    <a href="{{ url_for('auth.profile') }}" class="nav-user">{{ session.user_name or 'Profile' }}</a>
-    <a href="{{ url_for('auth.logout') }}" class="nav-link-subtle">Logout</a>
-    {% if session.is_admin %}
-    <a href="{{ url_for('admin.dashboard') }}" class="btn-admin">Admin</a>
-    {% endif %}
-    {% else %}
-    <a href="{{ url_for('auth.login') }}" class="nav-link-subtle">Login</a>
-    <a href="{{ url_for('auth.signup') }}" class="btn-primary-sm">Sign up</a>
-    {% endif %}
-    <a href="{{ url_for('shop.cart') }}" class="btn-cart">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
-      Cart {% if cart_count %}({{ cart_count }}){% endif %}
-    </a>
-    <button class="hamburger" id="hamburger">&#9776;</button>
-  </div>
-</nav>
-
-<div class="mobile-nav" id="mobileNav">
-  <a href="{{ url_for('shop.shop') }}">Shop</a>
-  <a href="{{ url_for('shop.custom_order') }}">Custom Order</a>
-  <a href="{{ url_for('shop.cart') }}">Cart ({{ cart_count }})</a>
-  {% if session.user_id %}
-  <a href="{{ url_for('orders.orders_list') }}">My Orders</a>
-  <a href="{{ url_for('auth.profile') }}">Profile</a>
-  <a href="{{ url_for('auth.logout') }}">Logout</a>
-  {% else %}
-  <a href="{{ url_for('auth.login') }}">Login</a>
-  <a href="{{ url_for('auth.signup') }}">Sign up</a>
-  {% endif %}
-  {% if session.is_admin %}
-  <a href="{{ url_for('admin.dashboard') }}">Admin Panel</a>
-  {% endif %}
-</div>
-
-{% with messages = get_flashed_messages(with_categories=true) %}
-{% if messages %}
-<div class="flash-wrap">
-  {% for cat, msg in messages %}
-  <div class="flash flash-{{ cat }}">{{ msg }}
-    <button onclick="this.parentElement.remove()">&times;</button>
-  </div>
-  {% endfor %}
-</div>
-{% endif %}
-{% endwith %}
-
-<main>{% block content %}{% endblock %}</main>
-
-<footer class="site-footer">
-  <div class="footer-inner">
-    <div class="footer-brand">
-      <span class="footer-logo">Ever<span>bloom</span></span>
-      <p>Handcrafted pieces made with love by Indian artisans.</p>
-    </div>
-    <div class="footer-col">
-      <h4>Shop</h4>
-      <a href="{{ url_for('shop.shop') }}">All Products</a>
-      <a href="{{ url_for('shop.custom_order') }}">Custom Order</a>
-    </div>
-    <div class="footer-col">
-      <h4>Help</h4>
-      <a href="{{ url_for('shop.custom_order') }}">Contact Us</a>
-    </div>
-    <div class="footer-col">
-      <h4>Account</h4>
-      {% if session.user_id %}
-      <a href="{{ url_for('orders.orders_list') }}">My Orders</a>
-      <a href="{{ url_for('auth.profile') }}">Profile</a>
-      {% else %}
-      <a href="{{ url_for('auth.login') }}">Login</a>
-      <a href="{{ url_for('auth.signup') }}">Sign up</a>
-      {% endif %}
-    </div>
-  </div>
-  <div class="footer-bottom">
-    <p>&copy; 2025 Everbloom. Made with ♡ by <a href="https://ashutosh-jena.in">MAVERICK-VF142</a>.</p>
-  </div>
-</footer>
-
-<script src="/static/js/main.js"></script>
-{% block scripts %}{% endblock %}
-</body>
-</html>
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>{% block title %}Handmade gifts & bouquets{% endblock %} — Everbloom</title>
+<meta name="description" content="{% block description %}Thoughtful bouquets, personalised gifts and handmade creations from Everbloom.{% endblock %}">
+<link rel="canonical" href="{{ request.base_url }}"><link rel="icon" href="{{ url_for('static',filename='favicon.svg') }}" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Jost:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static',filename='css/main.css') }}"><script type="application/ld+json">{{ {"@context":"https://schema.org","@type":"Organization","name":store.get("store_name","Everbloom"),"url":SITE_URL}|tojson }}</script>{% block head %}{% endblock %}
+</head><body>
+<a class="skip-link" href="#main">Skip to content</a>
+{% if store.get('announcement') %}<div class="announcement">{{ store.announcement }}</div>{% endif %}
+<header class="site-header"><nav class="navbar" aria-label="Main navigation">
+<a class="nav-logo" href="{{ url_for('shop.index') }}">Ever<span>bloom</span><small>THOUGHTFULLY HANDMADE</small></a>
+<ul class="nav-links"><li><a href="{{ url_for('shop.shop') }}">Shop all</a></li><li><a href="{{ url_for('shop.custom_order') }}">Custom creations</a></li><li><a href="{{ url_for('shop.about') }}">Our story</a></li></ul>
+<div class="nav-actions"><a class="nav-link-subtle" href="{{ url_for('shop.wishlist') }}" aria-label="Your wishlist">Saved</a><a class="nav-link-subtle" href="{{ url_for('auth.profile') if session.user_id else url_for('auth.login') }}">Account</a>{% if session.is_admin %}<a class="btn-admin" href="{{ url_for('admin.dashboard') }}">Admin</a>{% endif %}<a class="btn-cart" href="{{ url_for('shop.cart') }}">Bag <span>{{ cart_count or 0 }}</span></a><button class="hamburger" id="hamburger" aria-label="Open menu" aria-controls="mobileNav" aria-expanded="false"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 7h18M3 12h18M3 17h18"/></svg></button></div>
+</nav><div class="mobile-nav" id="mobileNav"><a href="{{ url_for('shop.shop') }}">Shop all creations</a>{% for c in nav_categories %}<a href="{{ url_for('shop.shop', category=c.id) }}">{{ c.name }}</a>{% endfor %}<a href="{{ url_for('shop.custom_order') }}">Custom creations</a><a href="{{ url_for('shop.about') }}">Our story</a><a href="{{ url_for('orders.orders_list') }}">My orders</a>{% if session.user_id %}<a href="{{ url_for('auth.logout') }}">Sign out</a>{% endif %}</div></header>
+{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}<div class="flash-wrap" aria-live="polite">{% for cat,msg in messages %}<div class="flash flash-{{ cat }}">{{ msg }}<button aria-label="Dismiss message" type="button" onclick="this.parentElement.remove()">×</button></div>{% endfor %}</div>{% endif %}{% endwith %}
+<main id="main">{% block content %}{% endblock %}</main>
+<footer class="site-footer"><div class="footer-inner"><div class="footer-brand"><a class="footer-logo" href="{{ url_for('shop.index') }}">Ever<em>bloom</em></a><p>{{ store.get('footer_text','Little things. Lasting feelings.') }}</p>{% if store.get('business_email') %}<a href="mailto:{{ store.business_email }}">{{ store.business_email }}</a>{% endif %}</div><div class="footer-col"><h4>Explore</h4><a href="{{ url_for('shop.shop') }}">Shop all</a><a href="{{ url_for('shop.custom_order') }}">Custom creations</a><a href="{{ url_for('shop.artisans') }}">Our makers</a></div><div class="footer-col"><h4>Here to help</h4><a href="{{ url_for('shop.faq') }}">FAQs</a><a href="{{ url_for('shop.policy',slug='shipping') }}">Shipping & delivery</a><a href="{{ url_for('shop.policy',slug='returns') }}">Returns</a><a href="{{ url_for('shop.policy',slug='privacy') }}">Privacy</a><a href="{{ url_for('shop.policy',slug='terms') }}">Terms</a></div><div class="footer-col"><h4>Keep in touch</h4><a href="{{ url_for('shop.about') }}">Our story</a>{% if store.get('instagram_handle') %}<a href="https://www.instagram.com/{{ store.instagram_handle }}" rel="noopener" target="_blank">Instagram</a>{% endif %}<a href="{{ url_for('orders.orders_list') }}">My orders</a></div></div><div class="footer-bottom">© {{ current_year }} {{ store.get('store_name','Everbloom') }} · Made with thought, given with love.</div></footer>
+<script src="{{ url_for('static',filename='js/main.js') }}" defer></script>{% block scripts %}{% endblock %}</body></html>

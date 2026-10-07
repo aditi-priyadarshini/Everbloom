@@ -1,9 +1,1 @@
-{% extends "base.html" %}
-{% block title %}Coming Soon{% endblock %}
-{% block content %}
-<div class="page-wrap" style="text-align:center;padding:6rem 2rem;">
-  <h1 class="page-title">Coming Soon</h1>
-  <p style="color:var(--text-soft);margin-bottom:2rem;">This page is under construction.</p>
-  <a href="{{ url_for('shop.index') }}" class="btn-primary">Back to Home</a>
-</div>
-{% endblock %}
+{% extends 'admin/base_admin.html' %}{% block title %}Return requests{% endblock %}{% block page_title %}Return requests{% endblock %}{% block content %}<div class="admin-card table-responsive"><table class="admin-table"><thead><tr><th>Request</th><th>Order</th><th>Reason</th><th>Status</th></tr></thead><tbody>{% for r in returns %}<tr><td><a href="{{ url_for('admin.return_detail',rid=r.id) }}">{{ r.id[:8]|upper }}</a></td><td>{{ r.order_id[:8]|upper }}</td><td>{{ r.reason }}</td><td>{{ r.status }}</td></tr>{% else %}<tr><td colspan="4">No return requests.</td></tr>{% endfor %}</tbody></table></div>{% endblock %}

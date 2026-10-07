@@ -2,9 +2,11 @@
 {% block title %}Order #{{ order.id[:8]|upper }}{% endblock %}
 {% block page_title %}Order #{{ order.id[:8]|upper }}{% endblock %}
 {% block content %}
+<section class="admin-card"><h3>Payment & fulfilment</h3><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="commerce_status"><div class="form-row"><div class="form-group"><label>Payment</label><select name="payment_status">{% for state in payment_statuses %}<option {% if order.payment_status==state %}selected{% endif %}>{{ state }}</option>{% endfor %}</select></div><div class="form-group"><label>Fulfilment</label><select name="fulfilment_status">{% for state in fulfilment_statuses %}<option {% if order.fulfilment_status==state %}selected{% endif %}>{{ state }}</option>{% endfor %}</select></div></div><div class="form-group"><label>Customer-safe update</label><textarea name="note" rows="2"></textarea></div><button class="btn-primary" type="submit">Update order</button> <a class="btn-outline" href="{{ url_for('admin.order_requirements',oid=order.id) }}">Material readiness</a></form></section>
+
 <div class="order-detail-layout">
 
-  <!-- Left: items + tracking -->
+  <section class="admin-card"><h3>Internal notes</h3><p class="policy-copy">{{ order.internal_notes or 'No private notes yet.' }}</p><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="internal_note"><div class="form-group"><label>Private note — never shown to customers</label><textarea name="internal_note" rows="3" required></textarea></div><button class="btn-outline">Add note</button></form></section><!-- Left: items + tracking -->
   <div class="order-detail-main">
     <div class="admin-card">
       <h3>Order Items
@@ -31,7 +33,7 @@
               <div class="item-row">
                 {% if item.image_url %}<img src="{{ item.image_url }}" class="item-thumb" alt="">{% else %}<div class="item-thumb-ph"></div>{% endif %}
                 <span>
-                  {{ item.title }}
+                  {{ item.title }}{% include "shop/_line_options.html" %}
                   {% if item.get('is_custom') %}<span style="font-size:.68rem;background:#f5eeff;color:#7b4fa6;border:1px solid #c4a8e8;border-radius:10px;padding:.1rem .45rem;margin-left:.4rem;">custom</span>{% endif %}
                 </span>
               </div>
@@ -84,7 +86,7 @@
     {% if order.is_preorder %}
     <div class="admin-card" style="border-color:var(--gold);background:#fffbf0;">
       <div style="display:flex;align-items:center;gap:.6rem;">
-        <span style="font-size:1.3rem;">📦</span>
+        <span style="font-size:1.3rem;"></span>
         <div>
           <strong style="color:var(--bark);">Pre-order</strong>
           <p style="font-size:.82rem;color:var(--text-soft);margin:.2rem 0 0;">Customer pre-ordered an out-of-stock item. Craft after advance confirmation.</p>
@@ -95,7 +97,7 @@
 
     {% if order.from_custom_request %}
     <div class="admin-card" style="border-color:#90caf9;background:#e3f2fd;margin-bottom:.8rem;">
-      <h3 style="color:#1565c0;margin-bottom:.5rem;">✏️ From Custom Request</h3>
+      <h3 style="color:#1565c0;margin-bottom:.5rem;"> From Custom Request</h3>
       <p style="font-size:.84rem;color:#1565c0;margin-bottom:.6rem;">This order was created from a custom order request.</p>
       {% if order.custom_notes %}
       <div class="readonly-block" style="font-size:.82rem;background:#fff;margin-bottom:.6rem;">{{ order.custom_notes }}</div>
@@ -110,13 +112,13 @@
       <h3>Delivery Type</h3>
       {% if order.delivery_type == 'pickup' %}
       <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.5rem;">
-        <span style="font-size:1.3rem;">🏪</span>
+        <span style="font-size:1.3rem;"></span>
         <span style="font-weight:500;color:var(--sage-dark);">Self Pickup</span>
       </div>
       <p style="font-size:.84rem;color:var(--text-soft);">Customer will pick up. No shipping needed.</p>
       {% else %}
       <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.5rem;">
-        <span style="font-size:1.3rem;">🚚</span>
+        <span style="font-size:1.3rem;"></span>
         <span style="font-weight:500;color:var(--bark);">Home Delivery</span>
       </div>
       {% if order.shipping_charge and order.shipping_charge > 0 %}
@@ -131,7 +133,7 @@
     <div class="admin-card">
       <h3>Customer</h3>
       <p><strong>{{ order.name }}</strong></p>
-      <p>{{ order.phone }}</p>
+      <p>{{ order.phone }}</p><button class="btn-outline-sm" data-copy="{{ order.phone }}" type="button">Copy phone</button>{% set digits=order.phone|phone_digits %}{% if digits %}<a class="btn-outline-sm" href="https://wa.me/{{ digits }}" target="_blank" rel="noopener">Open WhatsApp</a>{% endif %}
       {% if user %}<p>{{ user.email }}</p>{% endif %}
       {% if order.address != 'SELF PICKUP' %}
       <p class="address-block">{{ order.address }}</p>
@@ -139,14 +141,14 @@
     </div>
 
     <div class="admin-card" style="background:#e8f0fe;border-color:#b0c4f8;">
-      <h3 style="color:#1a3a8a;">📦 Materials Check</h3>
+      <h3 style="color:#1a3a8a;"> Materials Check</h3>
       <p style="font-size:.84rem;color:#1a3a8a;margin-bottom:.8rem;">See what raw materials & components are needed for this order.</p>
       <a href="{{ url_for('admin.order_requirements', oid=order.id) }}" class="btn-primary btn-full" style="background:#1a3a8a;">Check Inventory →</a>
     </div>
 
     {% if order.preferred_delivery_date %}
     <div class="admin-card" style="border-color:#c9a96e;background:#fffbf0;">
-      <h3 style="color:#5c3d3d;">📅 Preferred Delivery Date</h3>
+      <h3 style="color:#5c3d3d;"> Preferred Delivery Date</h3>
       <p style="font-size:1.1rem;font-weight:500;color:#3a2a2a;">{{ order.preferred_delivery_date }}</p>
       {% set today = now.strftime('%Y-%m-%d') if now else '' %}
       <p style="font-size:.8rem;color:var(--text-soft);margin-top:.3rem;">Customer requested this date — confirm if achievable when setting advance.</p>
@@ -199,9 +201,9 @@
         <input type="hidden" name="action" value="confirm_advance">
         <div class="form-group">
           <label>Note to customer (optional)</label>
-          <input type="text" name="note" placeholder="Payment verified, crafting begins!">
+          <input type="text" name="note" placeholder="Payment verified. We’ll confirm preparation shortly.">
         </div>
-        <button type="submit" class="btn-primary btn-full">Confirm Payment & Start Crafting</button>
+        <button type="submit" class="btn-primary btn-full">Verify advance payment</button>
       </form>
 
       {% elif order.status not in ('delivered','cancelled') %}

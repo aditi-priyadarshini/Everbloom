@@ -25,11 +25,11 @@
               <input type="number" name="price" step="0.01" value="{{ product.price if product else '' }}" required>
             </div>
             <div class="form-group">
-              <label>Discount %</label>
+              <label>Legacy discount %</label>
               <input type="number" name="discount_percent" min="0" max="100" value="{{ product.discount_percent if product else '0' }}">
             </div>
             <div class="form-group">
-              <label>Stock Qty *</label>
+              <label>Finished quantity</label>
               <input type="number" name="stock" min="0" value="{{ product.stock if product else '0' }}" required>
             </div>
           </div>
@@ -51,7 +51,7 @@
         </div>
 
         <div class="admin-card">
-          <h3>Images</h3>
+          <h3>Collections & occasions</h3>{% for kind,entries,selected in [('collection',collections or [],selected_collections or []),('occasion',occasions or [],selected_occasions or [])] %}<fieldset><legend>{{ kind|title }}</legend>{% for e in entries %}<label><input type="checkbox" name="{{ kind }}_ids" value="{{ e.id }}" {% if e.id|string in selected %}checked{% endif %}> {{ e.name }}</label>{% else %}<p class="form-hint">Create {{ kind }}s in the catalog menu.</p>{% endfor %}</fieldset>{% endfor %}<h3>Personalisation</h3><div class="form-group"><label>Customer fields (JSON)</label><textarea name="personalization_fields" rows="4">{{ (product.personalization_fields or [])|tojson if product else '[]' }}</textarea><p class="form-hint">Example: [{"name":"recipient_name","label":"Recipient name","required":true}]</p></div><div class="form-group"><label>Sale price (optional)</label><input type="number" name="sale_price" min="0" step="0.01" value="{{ product.sale_price if product and product.sale_price is not none else '' }}"></div><div class="form-group"><label>Slug</label><input name="slug" value="{{ product.slug or '' if product else '' }}"></div></div><div class="admin-card"><h3>Images</h3>
           {% if product and product.images %}
           <div class="existing-images">
             {% for img in product.images %}
@@ -74,6 +74,11 @@
 
       <div class="form-col-side">
         <div class="admin-card">
+          <h3>Availability & preparation</h3>
+          <div class="form-group"><label>Availability mode</label><select name="availability_mode">{% for mode in ['READY_TO_SHIP','MADE_TO_ORDER','PREORDER','ONE_OF_ONE','CUSTOM_ONLY','UNAVAILABLE','DRAFT','ARCHIVED'] %}<option value="{{ mode }}" {% if product and availability(product).mode==mode %}selected{% endif %}>{{ mode|replace('_',' ')|title }}</option>{% endfor %}</select></div>
+          <label><input type="checkbox" name="accepting_orders" {% if not product or product.accepting_orders != false %}checked{% endif %}> Accepting orders</label>
+          <div class="form-row"><div class="form-group"><label>Lead time minimum (days)</label><input type="number" name="lead_time_min" min="0" value="{{ product.lead_time_min or 3 if product else 3 }}"></div><div class="form-group"><label>Lead time maximum (days)</label><input type="number" name="lead_time_max" min="0" value="{{ product.lead_time_max or product.crafting_days or 7 if product else 7 }}"></div></div>
+          <div class="form-group"><label>Maximum per order</label><input type="number" name="max_order_quantity" min="1" max="99" value="{{ product.max_order_quantity or 99 if product else 99 }}"></div>
           <h3>Visibility</h3>
           <label class="toggle-label" style="margin-bottom:.8rem;">
             <input type="checkbox" name="is_listed" {% if product and product.is_listed != false %}checked{% endif %}>
@@ -118,6 +123,7 @@
       </div>
     </div>
   </form>
+{% if product %}<section class="admin-card"><h3>Product options</h3><p class="form-hint">Each group is a choice such as Size, Colour or Wrapping. Customers must choose one option from each group.</p>{% for v in variants or [] %}<div class="option-admin-row"><span>{{ v.name }}: {{ v.value }} · ₹{{ v.price_modifier }}</span><form method="post" action="{{ url_for('admin.variant_delete',vid=v.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product_id" value="{{ product.id }}"><button class="btn-outline-sm">Remove option</button></form></div>{% endfor %}<form method="post" action="{{ url_for('admin.variant_add',pid=product.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><div class="form-row-3"><div class="form-group"><label>Group</label><input name="name" placeholder="Size" required></div><div class="form-group"><label>Option</label><input name="value" placeholder="Grand" required></div><div class="form-group"><label>Price adjustment</label><input type="number" name="price_modifier" step="0.01" value="0"></div></div><button class="btn-primary" type="submit">Add option</button></form></section>{% endif %}
 </div>
 <script>
 function toggleFlash(cb) {

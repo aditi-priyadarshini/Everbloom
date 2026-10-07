@@ -49,7 +49,7 @@
         Products
       </a>
 
-      <div class="nav-section-label">Manufacturing</div>
+      {% for kind,label in [('categories','Categories'),('collections','Collections'),('occasions','Occasions'),('testimonials','Testimonials')] %}<a href="{{ url_for('admin.merchandising',kind=kind) }}">{{ label }}</a>{% endfor %}<a href="{{ url_for('admin.reviews') }}">Reviews</a><div class="nav-section-label">Production & inventory</div>
       <a href="{{ url_for('admin.inventory') }}" class="{% if request.endpoint in ['admin.inventory','admin.inventory_detail'] %}active{% endif %}">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
         Raw Materials
@@ -64,6 +64,8 @@
       </a>
 
 
+      <div class="nav-section-label">Marketing & reports</div>
+      {% for endpoint,label in [('admin.returns','Returns'),('admin.artisans','Artisans'),('admin.faqs','FAQs'),('admin.gift_cards','Gift cards'),('admin.broadcast','Email broadcasts'),('admin.analytics','Analytics'),('admin.stock_movements','Stock movements'),('admin.audit_log','Audit log')] %}<a href="{{ url_for(endpoint) }}">{{ label }}</a>{% endfor %}
       <div class="nav-section-label">Settings</div>
       <a href="{{ url_for('admin.email_templates') }}" class="{% if 'email_template' in request.endpoint %}active{% endif %}">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>

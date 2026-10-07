@@ -56,7 +56,11 @@ def get_products(category_id=None, featured=False, in_stock=False,
         filters["title"] = f"ilike.*{search}*"
     if listed_only:
         filters["is_listed"] = "eq.true"
-    return supa.select("products", filters, order=order, limit=limit)
+    rows=supa.select("products", filters, order=order, limit=limit)
+    if listed_only:
+        from services.commerce import availability
+        rows=[p for p in rows if availability(p)['published']]
+    return rows
 
 
 def get_product(pid):
@@ -73,15 +77,12 @@ def update_product(pid, data):
 
 
 def delete_product(pid):
-    return supa.delete("products", {"id": f"eq.{pid}"})
+    return update_product(pid, {"is_listed": False, "availability_mode": "ARCHIVED"})
 
 
 def discounted_price(product):
-    price = float(product["price"])
-    disc = int(product.get("discount_percent") or 0)
-    if disc > 0:
-        return round(price * (1 - disc / 100), 2)
-    return price
+    from services.commerce import price
+    return float(price(product))
 
 
 def is_flash_active(product):
@@ -122,7 +123,7 @@ def update_coupon(cid, data):
 
 
 def delete_coupon(cid):
-    return supa.delete("coupons", {"id": f"eq.{cid}"})
+    return update_coupon(cid,{"active":False})
 
 
 # ── Orders ────────────────────────────────────────────────
@@ -175,7 +176,9 @@ def create_order(data):
 
 
 def update_order(oid, data):
-    return supa.update("orders", {"id": f"eq.{oid}"}, data)
+    result = supa.rpc('update_commerce_order', {'p_order_id':str(oid),'p_data':data})
+    if not result: raise ValueError('Order update failed. Check the current state, amounts and material readiness.')
+    return result
 
 
 def get_order_items(oid):
@@ -211,6 +214,7 @@ def get_notifications(user_id, unread_only=False):
 
 
 def create_notification(user_id, message, link=None):
+    if not user_id: return None
     return supa.insert("notifications", {"user_id": user_id, "message": message, "link": link})
 
 
@@ -221,7 +225,7 @@ def mark_notifications_read(user_id):
 # ── Reviews ───────────────────────────────────────────────
 
 def get_reviews(product_id):
-    return supa.select("reviews", {"product_id": f"eq.{product_id}"}, order="created_at.desc")
+    return supa.select("reviews", {"product_id": f"eq.{product_id}", "visible":"eq.true"}, order="created_at.desc")
 
 
 def get_review_by_user(product_id, user_id):
@@ -275,7 +279,10 @@ def get_setting(key):
 
 
 def set_setting(key, value):
-    return supa.update("settings", {"key": f"eq.{key}"}, {"value": value})
+    rows = supa.select("settings", {"key": f"eq.{key}"})
+    if rows:
+        return supa.update("settings", {"key": f"eq.{key}"}, {"value": value})
+    return supa.insert("settings", {"key": key, "value": value})
 
 
 def get_all_settings():
@@ -440,7 +447,7 @@ def update_artisan(aid, data):
 
 
 def delete_artisan(aid):
-    return supa.delete("artisans", {"id": f"eq.{aid}"})
+    return update_artisan(aid,{"active":False})
 
 
 # ── FAQs ──────────────────────────────────────────────────
@@ -658,7 +665,7 @@ def get_email_log(related_type, related_id):
 # ── Raw Materials ─────────────────────────────────────────
 
 def get_raw_materials():
-    return supa.select("raw_materials", order="name.asc")
+    return supa.select("raw_materials", {"active":"eq.true"}, order="name.asc")
 
 def get_raw_material(mid):
     rows = supa.select("raw_materials", {"id": f"eq.{mid}"})
@@ -671,7 +678,7 @@ def update_raw_material(mid, data):
     return supa.update("raw_materials", {"id": f"eq.{mid}"}, data)
 
 def delete_raw_material(mid):
-    return supa.delete("raw_materials", {"id": f"eq.{mid}"})
+    return update_raw_material(mid,{"active":False})
 
 def get_low_stock_materials():
     """Materials where current_stock <= reorder_level."""
@@ -689,17 +696,8 @@ def get_expenditures(material_id=None):
     return supa.select("expenditures", filters, order="purchased_at.desc")
 
 def add_expenditure(data):
-    exp = supa.insert("expenditures", data)
-    if exp:
-        # Update material stock and cost_per_unit
-        mat = get_raw_material(data["material_id"])
-        if mat:
-            new_stock = float(mat.get("current_stock", 0)) + float(data["quantity"])
-            supa.update("raw_materials", {"id": f"eq.{data['material_id']}"}, {
-                "current_stock": new_stock,
-                "cost_per_unit": float(data["cost_per_unit"]),
-            })
-    return exp
+    return supa.rpc('receive_material', {'p_data':data})
+
 
 def deduct_material_stock(material_id, quantity):
     mat = get_raw_material(material_id)
@@ -762,7 +760,7 @@ def calculate_product_cost(product_id):
 # ── Components ────────────────────────────────────────────
 
 def get_components():
-    return supa.select("components", order="name.asc")
+    return supa.select("components", {"active":"eq.true"}, order="name.asc")
 
 def get_component(cid):
     rows = supa.select("components", {"id": f"eq.{cid}"})
@@ -775,7 +773,7 @@ def update_component(cid, data):
     return supa.update("components", {"id": f"eq.{cid}"}, data)
 
 def delete_component(cid):
-    return supa.delete("components", {"id": f"eq.{cid}"})
+    return update_component(cid,{"active":False})
 
 def get_low_stock_components():
     comps = get_components()
@@ -808,45 +806,8 @@ def calculate_component_cost(component_id):
     return round(total, 2)
 
 def manufacture_component(component_id, quantity, notes="", wastage_percent=0):
-    """Deduct raw materials and add to component stock, accounting for wastage."""
-    bom = get_component_bom(component_id)
-    errors = []
-    wastage_factor = 1 + float(wastage_percent or 0) / 100.0
-    for item in bom:
-        mat = get_raw_material(item["material_id"])
-        if not mat:
-            continue
-        needed = float(item["quantity_used"]) * float(quantity) * wastage_factor
-        available = float(mat.get("current_stock", 0))
-        if available < needed:
-            errors.append(f"Not enough {mat['name']}: need {needed:.2f} {mat['unit']} (incl. {wastage_percent}% waste), have {available}")
-    if errors:
-        return False, errors
-    # Deduct materials (including waste)
-    total_waste_cost = 0.0
-    for item in bom:
-        mat = get_raw_material(item["material_id"])
-        if mat:
-            base_needed = float(item["quantity_used"]) * float(quantity)
-            waste_qty = base_needed * float(wastage_percent or 0) / 100.0
-            total_needed = base_needed + waste_qty
-            new_stock = max(0, float(mat.get("current_stock", 0)) - total_needed)
-            supa.update("raw_materials", {"id": f"eq.{item['material_id']}"}, {"current_stock": new_stock})
-            total_waste_cost += waste_qty * float(mat.get("cost_per_unit", 0))
-    # Add to component stock (only non-wasted quantity)
-    comp = get_component(component_id)
-    if comp:
-        new_stock = float(comp.get("current_stock", 0)) + float(quantity)
-        supa.update("components", {"id": f"eq.{component_id}"}, {"current_stock": new_stock})
-    # Log it with waste info
-    supa.insert("manufacture_log", {
-        "component_id": int(component_id),
-        "quantity_made": float(quantity),
-        "wastage_percent": float(wastage_percent or 0),
-        "waste_cost": round(total_waste_cost, 2),
-        "notes": notes,
-    })
-    return True, []
+    result = supa.rpc('produce_component', {'p_component_id':component_id,'p_quantity':quantity,'p_wastage':wastage_percent,'p_notes':notes})
+    return (True, []) if result else (False, ['Production failed. Check recipe and available materials.'])
 
 
 def get_manufacturing_analytics():
@@ -963,7 +924,9 @@ def calculate_order_requirements(order_id):
     requirements = {}  # key: 'material_X' or 'component_X'
     for item in items:
         qty = int(item.get("quantity", 1))
-        bom = get_product_bom(str(item["product_id"]))
+        if not item.get('product_id') or item.get('availability_mode') in ('READY_TO_SHIP','ONE_OF_ONE'):
+            continue
+        bom = get_product_bom(str(item['product_id']))
         for b in bom:
             needed = float(b["quantity_used"]) * qty
             if b["item_type"] == "material" and b.get("material_id"):
@@ -1019,28 +982,26 @@ def check_requirements_availability(requirements):
     return result
 
 def deduct_order_materials(order_id):
-    """Deduct all materials and components when order is confirmed."""
-    reqs = calculate_order_requirements(order_id)
-    for req in reqs:
-        needed = float(req["quantity_needed"])
-        if req["item_type"] == "material" and req.get("material_id"):
-            mat = get_raw_material(req["material_id"])
-            if mat:
-                new_stock = max(0, float(mat.get("current_stock", 0)) - needed)
-                supa.update("raw_materials", {"id": f"eq.{req['material_id']}"}, {"current_stock": new_stock})
-        elif req["item_type"] == "component" and req.get("component_id"):
-            comp = get_component(req["component_id"])
-            if comp:
-                new_stock = max(0, float(comp.get("current_stock", 0)) - needed)
-                supa.update("components", {"id": f"eq.{req['component_id']}"}, {"current_stock": new_stock})
+    result = supa.rpc('consume_order_inventory', {'p_order_id': str(order_id)})
+    if not result:
+        raise ValueError('Materials could not be deducted. Check availability and migration setup.')
+    return result
 
 
 def delete_order(oid):
-    """Hard delete an order and all its items/tracking."""
-    supa.delete("order_items",  {"order_id": f"eq.{oid}"})
-    supa.delete("tracking",     {"order_id": f"eq.{oid}"})
-    supa.delete("notifications",{"order_id": f"eq.{oid}"})
-    return supa.delete("orders", {"id": f"eq.{oid}"})
+    """Retain commerce history; legacy delete actions now cancel atomically."""
+    result = supa.rpc('cancel_commerce_order', {'p_order_id': str(oid)})
+    if not result:
+        raise ValueError('Order could not be cancelled safely.')
+    return result
+
+
+def review_eligible(product_id, user_id):
+    for order in get_orders(user_id=user_id):
+        if order.get('fulfilment_status') == 'delivered' or order.get('status') == 'delivered':
+            if any(str(i.get('product_id')) == str(product_id) for i in get_order_items(order['id'])):
+                return True
+    return False
 
 
 # ── New Custom Request Workflow ───────────────────────────
@@ -1059,66 +1020,11 @@ def convert_custom_to_order(rid, admin_price, admin_note=""):
     req = get_custom_request(rid)
     if not req:
         return None, "Request not found"
+    if req.get("converted_order_id"):
+        return get_order(req["converted_order_id"]), None
 
-    # Build order data — only include columns that definitely exist
-    order_data = {
-        "name":          req.get("name", ""),
-        "phone":         req.get("phone") or "",
-        "address":       "To be confirmed",
-        "total":         float(admin_price),
-        "status":        "placed",
-        "delivery_type": "delivery",
-        "shipping_charge": 0,
-    }
-    # Only set user_id if it exists (guest requests may not have one)
-    user_id = req.get("user_id")
-    if user_id:
-        order_data["user_id"] = str(user_id)
-
-    # Add optional columns only if they exist in DB (safe to include, Supabase ignores unknown)
-    try:
-        order_data["is_preorder"] = False
-    except Exception:
-        pass
-
-    order = create_order(order_data)
-    if not order:
-        return None, "Could not create order. Check Supabase orders table has all required columns."
-
-    # ── Create an order item so the order shows what was ordered ──
-    # Use linked product if exists, otherwise create a placeholder item
-    linked_pid = req.get("linked_product_id")
-    linked_product = get_product(str(linked_pid)) if linked_pid else None
-
-    item_data = {
-        "order_id":  str(order["id"]),
-        "title":     linked_product["title"] if linked_product else (req.get("craft_type") or "Custom Order"),
-        "price":     float(admin_price),
-        "quantity":  1,
-        "image_url": (linked_product.get("images") or [""])[0] if linked_product else (req.get("reference_image_url") or ""),
-    }
-    if linked_pid:
-        item_data["product_id"] = str(linked_pid)
-    create_order_item(item_data)
-
-    # Update custom request
-    update_data = {
-        "status":             "converted",
-        "converted_order_id": str(order["id"]),
-        "quoted_price":       float(admin_price),
-        "customer_response":  "admin_converted",
-    }
-    if admin_note:
-        update_data["admin_note"] = admin_note
-    update_custom_request(str(req["id"]), update_data)
-
-    # Add tracking
-    note_text = "Custom order converted by admin."
-    if admin_note:
-        note_text += f" {admin_note}"
-    add_tracking(str(order["id"]), "placed", note_text)
-
-    return order, None
+    result = supa.rpc('convert_custom_request', {'p_request_id':str(rid),'p_price':float(admin_price),'p_note':admin_note})
+    return (result, None) if result else (None, 'Could not convert request. Check quote, request state and migration setup.')
 
 
 def add_custom_internal_note(rid, note):
@@ -1132,3 +1038,12 @@ def add_custom_internal_note(rid, note):
     combined = f"{existing}\n{new_note}".strip() if existing else new_note
     update_custom_request(rid, {"admin_note": combined})
     return True
+
+
+def manufacturable_quantity(product_id):
+    requirements=check_requirements_availability(calculate_product_requirements(product_id))
+    return min((int(r['available']//r['quantity_needed']) for r in requirements if r['quantity_needed']>0),default=None)
+
+
+def calculate_product_requirements(product_id):
+    return [{'item_type':b['item_type'],'material_id':b.get('material_id'),'component_id':b.get('component_id'),'quantity_needed':float(b['quantity_used'])} for b in get_product_bom(product_id)]

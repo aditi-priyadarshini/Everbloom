@@ -1,30 +1,35 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, jsonify, flash
 import models
+import supa
+from services.commerce import availability, quantity, line_key, earliest_date, coupon_discount, money
+from services.cart import normalize, resolve, selection
 from routes.auth import login_required
 
 shop_bp = Blueprint("shop", __name__)
 
 
 def _cart():
-    return session.setdefault("cart", {})
+    session["cart"] = normalize(session.get("cart", {}))
+    return session["cart"]
 
 
 def _cart_count():
-    return sum(_cart().values())
+    return sum(line["qty"] for line in _cart().values())
 
 
 def _cart_total(cart):
-    total = 0
-    for pid, qty in cart.items():
-        p = models.get_product(pid)
-        if p:
-            total += models.discounted_price(p) * qty
-    return round(total, 2)
+    return sum(i['subtotal'] for i in resolve(cart))
 
 
-@shop_bp.context_processor
 def inject_cart():
-    return {"cart_count": _cart_count()}
+    from flask import g
+    from datetime import date
+    try:
+        if not hasattr(g, 'store_settings'): g.store_settings = models.get_all_settings()
+        if not hasattr(g, 'nav_categories'): g.nav_categories = models.get_categories()
+    except Exception:
+        g.store_settings = {}; g.nav_categories = []
+    return {"cart_count": _cart_count(), 'store':g.store_settings, 'nav_categories':g.nav_categories, 'current_year':date.today().year}
 
 
 @shop_bp.route("/")
@@ -44,56 +49,46 @@ def index():
                            featured=featured,
                            categories=categories,
                            flash_products=flash_products,
-                           cat_images=cat_images)
+                           cat_images=cat_images,
+                           occasions=supa.select('occasions',{'active':'eq.true'}),
+                           collections=supa.select('collections',{'active':'eq.true','featured':'eq.true'}),
+                           testimonials=supa.select('testimonials',{'active':'eq.true'}))
 
 
 @shop_bp.route("/shop")
 def shop():
-    category_id = request.args.get("category")
-    price_max = request.args.get("price_max")
-    in_stock = request.args.get("in_stock") == "1"
-    on_sale = request.args.get("on_sale") == "1"
-    sort = request.args.get("sort", "newest")
-    search = request.args.get("q", "").strip()
-
-    order_map = {
-        "newest": "created_at.desc",
-        "price_asc": "price.asc",
-        "price_desc": "price.desc",
-    }
-    order = order_map.get(sort, "created_at.desc")
-
-    products = models.get_products(
-        category_id=category_id,
-        in_stock=in_stock,
-        on_sale=on_sale,
-        order=order,
-        search=search or None,
-    )
-
-    # Price filter client-side (Supabase free tier doesn't support lte easily without RLS)
-    if price_max:
+    category_id=request.args.get('category')
+    search=request.args.get('q','').strip()[:150]
+    sort=request.args.get('sort','featured')
+    products=models.get_products(category_id=category_id)
+    categories=models.get_categories()
+    category_names={str(c['id']):c['name'] for c in categories}
+    if search:
+        query=search.casefold()
+        products=[p for p in products if query in (' '.join([p.get('title',''),p.get('description') or '',category_names.get(str(p.get('category_id')),'')])).casefold()]
+    products=[p for p in products if availability(p)['published']]
+    mode=request.args.get('availability','')
+    if mode: products=[p for p in products if availability(p)['mode']==mode]
+    if request.args.get('in_stock')=='1': products=[p for p in products if availability(p)['mode'] in ('READY_TO_SHIP','ONE_OF_ONE') and availability(p)['purchasable']]
+    on_sale=request.args.get('on_sale')=='1'
+    if on_sale: products=[p for p in products if models.discounted_price(p)<float(p['price'])]
+    for param,comparison in [('price_min',lambda x,y:x>=y),('price_max',lambda x,y:x<=y)]:
         try:
-            pm = float(price_max)
-            products = [p for p in products if models.discounted_price(p) <= pm]
-        except Exception:
-            pass
-
-    categories = models.get_categories()
-    return render_template("shop/shop.html",
-                           products=products,
-                           categories=categories,
-                           selected_category=category_id,
-                           sort=sort,
-                           in_stock=in_stock,
-                           on_sale=on_sale,
-                           search=search)
+            if request.args.get(param): products=[p for p in products if comparison(models.discounted_price(p),float(request.args[param]))]
+        except ValueError: flash('Enter a valid price range.','error')
+    for kind,table,column in [('collection','collection_products','collection_id'),('occasion','product_occasions','occasion_id')]:
+        if request.args.get(kind):
+            ids={str(r['product_id']) for r in supa.select(table,{column:'eq.'+request.args[kind]})}
+            products=[p for p in products if str(p['id']) in ids]
+    if sort in ('price_asc','price_desc'): products.sort(key=models.discounted_price,reverse=sort=='price_desc')
+    elif sort=='featured': products.sort(key=lambda p:bool(p.get('featured')),reverse=True)
+    return render_template('shop/shop.html',products=products,categories=categories,selected_category=category_id,sort=sort,in_stock=request.args.get('in_stock')=='1',on_sale=on_sale,search=search,collections=supa.select('collections',{'active':'eq.true'}),occasions=supa.select('occasions',{'active':'eq.true'}))
 
 
 @shop_bp.route("/product/<pid>")
 def product(pid):
     p = models.get_product(pid)
-    if not p:
+    if not p or not availability(p)["published"]:
         flash("Product not found.", "error")
         return redirect(url_for("shop.shop"))
     reviews = models.get_reviews(pid)
@@ -112,255 +107,167 @@ def product(pid):
                            variants=variants,
                            wishlisted=wishlisted,
                            user_review=user_review,
-                           related=related)
+                           related=related, can_review=bool(session.get("user_id") and models.review_eligible(pid,session["user_id"])))
 
 
 @shop_bp.route("/product/<pid>/review", methods=["POST"])
 @login_required
 def submit_review(pid):
-    rating = int(request.form.get("rating", 5))
+    if not models.review_eligible(pid, session['user_id']):
+        flash('Reviews are available after your purchase is delivered.', 'error')
+        return redirect(url_for('shop.product', pid=pid))
+    try:
+        rating = int(request.form.get('rating', 0))
+    except ValueError:
+        rating = 0
+    if rating not in range(1, 6):
+        flash('Choose a rating from 1 to 5.', 'error')
+        return redirect(url_for('shop.product', pid=pid))
     comment = request.form.get("comment", "").strip()
     existing = models.get_review_by_user(pid, session["user_id"])
     if existing:
-        models.update_review(existing["id"], {"rating": rating, "comment": comment})
+        models.update_review(existing["id"], {"rating": rating, "comment": comment, "verified_purchase":True})
     else:
         models.create_review({"product_id": pid, "user_id": session["user_id"],
-                               "rating": rating, "comment": comment})
+                               "rating": rating, "comment": comment, "verified_purchase":True})
     return redirect(url_for("shop.product", pid=pid))
 
 
-@shop_bp.route("/cart")
+@shop_bp.route('/cart')
 def cart():
-    cart = _cart()
-    items = []
-    for pid, qty in cart.items():
-        p = models.get_product(pid)
-        if p:
-            items.append({"product": p, "qty": qty,
-                          "subtotal": round(models.discounted_price(p) * qty, 2)})
-    total = sum(i["subtotal"] for i in items)
-    return render_template("shop/cart.html", items=items, total=total)
+    try:
+        items = resolve(_cart(), strict=False)
+    except ValueError as error:
+        flash(str(error), 'error')
+        items = []
+    return render_template('shop/cart.html', items=items, total=sum(i['subtotal'] for i in items))
 
 
-@shop_bp.route("/cart/add/<pid>", methods=["POST"])
+@shop_bp.route('/cart/add/<pid>', methods=['POST'])
 def cart_add(pid):
-    qty = int(request.form.get("qty", 1))
-    is_preorder = request.form.get("preorder") == "1"
-    p = models.get_product(pid)
-    if not p:
-        flash("Product not found.", "error")
-        return redirect(request.referrer or url_for("shop.shop"))
-
-    stock = int(p.get("stock", 0))
-    cart = _cart()
-    already_in_cart = cart.get(pid, 0)
-
-    if stock <= 0 and not p.get("allow_preorder"):
-        flash("This product is out of stock.", "error")
-        return redirect(request.referrer or url_for("shop.shop"))
-
-    # Prevent adding more than available stock
-    if stock > 0 and (already_in_cart + qty) > stock:
-        allowed = max(0, stock - already_in_cart)
-        if allowed <= 0:
-            flash(f"You already have the maximum available quantity ({stock}) in your cart.", "error")
-        else:
-            cart[pid] = already_in_cart + allowed
-            session.modified = True
-            flash(f"Only {stock} available — added {allowed} to your cart.", "info")
-        return redirect(request.referrer or url_for("shop.cart"))
-
-    cart[pid] = already_in_cart + qty
-    preorders = session.setdefault("preorder_items", [])
-    if is_preorder and pid not in preorders:
-        preorders.append(pid)
-    session.modified = True
-    if is_preorder:
-        flash("Pre-order added! We'll craft this especially for you.", "success")
-    else:
-        flash("Added to cart!", "success")
-    return redirect(request.referrer or url_for("shop.cart"))
-
-
-@shop_bp.route("/cart/update/<pid>", methods=["POST"])
-def cart_update(pid):
-    qty = int(request.form.get("qty", 1))
-    cart = _cart()
-    if qty <= 0:
-        cart.pop(pid, None)
-    else:
+    try:
         p = models.get_product(pid)
-        stock = int(p.get("stock", 0)) if p else 0
-        preorders = session.get("preorder_items", [])
-        is_pre = pid in preorders
-        # Cap at stock unless preorder
-        if stock > 0 and not is_pre and qty > stock:
-            qty = stock
-            flash(f"Quantity capped at {stock} (available stock).", "info")
-        cart[pid] = qty
-    session.modified = True
-    return redirect(url_for("shop.cart"))
+        if not p or not availability(p)['purchasable']:
+            raise ValueError('This creation is not currently accepting orders.')
+        qty = quantity(request.form.get('qty', 1))
+        ids, personal = selection(p, request.form)
+        key = line_key(pid, ids, personal)
+        bag = _cart()
+        total = qty + bag.get(key, {}).get('qty', 0)
+        quantity(total)
+        if total > int(p.get('max_order_quantity') or 99):
+            raise ValueError('This exceeds the maximum order quantity.')
+        if availability(p)['mode'] in ('READY_TO_SHIP','ONE_OF_ONE'):
+            combined = qty + sum(l['qty'] for l in bag.values() if str(l['product_id']) == str(pid))
+            if combined > int(p.get('stock') or 0): raise ValueError('The requested quantity is unavailable.')
+        import json
+        candidate = dict(bag)
+        candidate[key] = {'product_id':str(pid), 'qty':total, 'variant_ids':ids, 'personalization':personal}
+        if len(json.dumps(candidate)) > 2800: raise ValueError('Your bag has reached its size limit. Please complete this order before adding more personalisations.')
+        bag[key] = candidate[key]
+        session.modified = True
+        flash('Added to your bag.', 'success')
+    except ValueError as error:
+        flash(str(error), 'error')
+        return redirect(url_for('shop.product', pid=pid))
+    return redirect(url_for('shop.cart'))
 
 
-@shop_bp.route("/cart/remove/<pid>", methods=["POST"])
+@shop_bp.route('/cart/update/<pid>', methods=['POST'])
+def cart_update(pid):
+    bag = _cart()
+    try:
+        if pid in bag: bag[pid]['qty'] = quantity(request.form.get('qty', 1))
+        session.modified = True
+    except ValueError as error: flash(str(error), 'error')
+    return redirect(url_for('shop.cart'))
+
+
+@shop_bp.route('/cart/remove/<pid>', methods=['POST'])
 def cart_remove(pid):
     _cart().pop(pid, None)
     session.modified = True
-    return redirect(url_for("shop.cart"))
+    return redirect(url_for('shop.cart'))
 
 
-@shop_bp.route("/checkout", methods=["GET", "POST"])
-@login_required
+@shop_bp.route('/checkout', methods=['GET','POST'])
 def checkout():
-    cart = _cart()
-    if not cart:
-        return redirect(url_for("shop.cart"))
+    import secrets, emails
+    if not _cart(): return redirect(url_for('shop.cart'))
+    user = models.get_user_by_id(session['user_id']) if session.get('user_id') else {}
+    try:
+        items = resolve(_cart())
+    except ValueError as error:
+        flash(str(error), 'error')
+        return redirect(url_for('shop.cart'))
+    subtotal = sum(i['subtotal'] for i in items)
+    min_date = earliest_date(items, models.get_setting('processing_buffer') or 0).isoformat()
+    session.setdefault('checkout_key', secrets.token_urlsafe(24))
+    error = None
+    discount = money(0)
+    if request.method == 'POST':
+        try:
+            import re
+            name = request.form.get('name','').strip()[:150]
+            email = request.form.get('email','').strip().lower()[:254]
+            phone = request.form.get('phone','').strip()[:30]
+            delivery = request.form.get('delivery_type','delivery')
+            address = request.form.get('address','').strip()[:2000]
+            if not name or not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+', email) or len(re.sub(r'\D','',phone)) < 7:
+                raise ValueError('Enter your name, valid email and phone number.')
+            if delivery not in ('delivery','pickup') or (delivery == 'delivery' and len(address)<10):
+                raise ValueError('Enter a complete delivery address.')
+            pref = request.form.get('preferred_delivery_date') or None
+            if pref:
+                from datetime import date
+                if date.fromisoformat(pref) < date.fromisoformat(min_date): raise ValueError('Choose a date on or after '+min_date+'.')
+            code = request.form.get('coupon_code','').strip().upper()
+            if code: discount = coupon_discount(models.get_coupon(code), subtotal)
+            payload = {'user_id':session.get('user_id'), 'name':name,'email':email,'phone':phone,
+                       'address':address if delivery=='delivery' else 'SELF PICKUP', 'delivery_type':delivery,
+                       'preferred_delivery_date':pref, 'coupon_code':code or None,
+                       'tracking_token':secrets.token_urlsafe(32), 'idempotency_key':session['checkout_key'],
+                       'gift_card_code':request.form.get('gift_card_code','').strip().upper() or None, 'gift_message':request.form.get('gift_message','')[:1000], 'order_notes':request.form.get('order_notes','')[:2000]}
+            lines = [{'product_id':str(i['product']['id']),'quantity':i['qty'],'variant_ids':i['variant_ids'], 'personalization':i['personalization']} for i in items]
+            order = supa.rpc('place_commerce_order', {'p_order':payload,'p_lines':lines})
+            if not order: raise ValueError('We could not place your order. Availability may have changed. Please try again.')
+            session.pop('cart',None); session.pop('checkout_key',None)
+            emails.send_order_placed(email, order)
+            return redirect(url_for('shop.guest_order', token=order['tracking_token']))
+        except (ValueError, TypeError) as exc: error = str(exc)
+    return render_template('shop/checkout.html',items=items,subtotal=subtotal,discount=discount,user=user or {},coupon_error=error,min_date=min_date)
 
-    items = []
-    for pid, qty in cart.items():
-        p = models.get_product(pid)
-        if p:
-            items.append({"product": p, "qty": qty,
-                          "subtotal": round(models.discounted_price(p) * qty, 2)})
-    subtotal = sum(i["subtotal"] for i in items)
 
-    coupon_error = None
-    discount = 0
-    coupon_obj = None
+@shop_bp.route('/order/<token>')
+def guest_order(token):
+    from flask import abort
+    rows = supa.select('orders', {'tracking_token':'eq.'+token})
+    if not rows: abort(404)
+    order = rows[0]
+    return render_template('shop/confirmation.html', order=order, items=models.get_order_items(order['id']), tracking=models.get_tracking(order['id']))
 
-    if request.method == "POST":
-        name = request.form.get("name", "").strip()
-        phone = request.form.get("phone", "").strip()
-        address = request.form.get("address", "").strip()
-        coupon_code = request.form.get("coupon_code", "").strip().upper()
-        gift_card_code = request.form.get("gift_card_code", "").strip().upper()
-        gift_card_discount = 0
-        gift_card_obj = None
 
-        if coupon_code:
-            coupon_obj = models.get_coupon(coupon_code)
-            if coupon_obj:
-                discount = round(subtotal * coupon_obj["discount_percent"] / 100, 2)
-            else:
-                coupon_error = "Invalid or expired coupon."
-
-        if gift_card_code and not coupon_error:
-            try:
-                gift_card_obj = models.get_gift_card(gift_card_code)
-                if gift_card_obj:
-                    gift_card_discount = min(float(gift_card_obj["balance"]), subtotal - discount)
-                else:
-                    coupon_error = "Invalid or expired gift card."
-            except Exception:
-                coupon_error = "Gift card feature coming soon."
-
-        if not coupon_error:
-            delivery_type = request.form.get("delivery_type", "delivery")
-            if delivery_type == "pickup":
-                address = "SELF PICKUP"
-
-            # ── Stock validation ── check live stock right now before placing
-            stock_errors = []
-            for i in items:
-                p = i["product"]
-                live = models.get_product(str(p["id"]))  # fresh from DB
-                if not live:
-                    stock_errors.append(f"'{p['title']}' is no longer available.")
-                    continue
-                available = int(live.get("stock", 0))
-                can_preorder = live.get("allow_preorder", False)
-                if available <= 0 and not can_preorder:
-                    stock_errors.append(f"'{p['title']}' is out of stock.")
-                elif available > 0 and i["qty"] > available and not can_preorder:
-                    stock_errors.append(
-                        f"Only {available} unit(s) of '{p['title']}' available. You have {i['qty']} in cart."
-                    )
-
-            if stock_errors:
-                for err in stock_errors:
-                    flash(err, "error")
-                return render_template("shop/checkout.html",
-                                       items=items, subtotal=subtotal,
-                                       discount=discount, user=user,
-                                       coupon_error=None)
-
-            preorder_pids = session.get("preorder_items", [])
-            is_preorder_order = any(str(i["product"]["id"]) in preorder_pids for i in items)
-            total = round(subtotal - discount - gift_card_discount, 2)
-            total = max(0, total)
-            pref_date = request.form.get("preferred_delivery_date", "").strip() or None
-            order = models.create_order({
-                "user_id": session["user_id"],
-                "name": name, "phone": phone, "address": address,
-                "total": total,
-                "coupon_code": coupon_code or None,
-                "discount_amount": discount,
-                "delivery_type": delivery_type,
-                "shipping_charge": 0,
-                "is_preorder": is_preorder_order,
-                "preferred_delivery_date": pref_date,
-                "status": "placed",
-            })
-            if order:
-                for i in items:
-                    p = i["product"]
-                    live = models.get_product(str(p["id"]))
-                    models.create_order_item({
-                        "order_id": order["id"],
-                        "product_id": str(p["id"]),
-                        "title": p["title"],
-                        "price": models.discounted_price(p),
-                        "quantity": i["qty"],
-                        "image_url": (p.get("images") or [""])[0],
-                    })
-                    # Only reduce stock for non-preorder items with stock
-                    if live and int(live.get("stock", 0)) > 0:
-                        new_stock = max(0, int(live.get("stock", 0)) - i["qty"])
-                        models.update_product(str(p["id"]), {"stock": new_stock})
-
-                models.add_tracking(order["id"], "placed", "Order placed by customer.")
-                models.create_notification(session["user_id"],
-                                           f"Order #{str(order['id'])[:8].upper()} placed!",
-                                           url_for("orders.order_detail", oid=order["id"]))
-                if coupon_code and coupon_obj:
-                    models.use_coupon(coupon_code)
-                if gift_card_code and gift_card_obj and gift_card_discount > 0:
-                    try:
-                        models.use_gift_card(gift_card_code, gift_card_discount)
-                    except Exception:
-                        pass
-
-                import emails, os
-                user = models.get_user_by_id(session["user_id"])
-                emails.send_order_placed(user["email"], order)
-                # Alert admin
-                admin_email = os.environ.get("MAIL_USERNAME", "")
-                if admin_email:
-                    site_url = os.environ.get("SITE_URL", "http://localhost:5000")
-                    emails.send_admin_new_order(admin_email, order, site_url)
-
-                session.pop("cart", None)
-                flash("Order placed successfully!", "success")
-                return redirect(url_for("orders.orders_list"))
-
-    from datetime import date, timedelta
-    user = models.get_user_by_id(session["user_id"])
-    # Min delivery date = today + max crafting days across cart items
-    max_crafting = max((i["product"].get("crafting_days") or 7 for i in items), default=7)
-    min_date = (date.today() + timedelta(days=int(max_crafting))).isoformat()
-    return render_template("shop/checkout.html",
-                           items=items, subtotal=subtotal,
-                           discount=discount, user=user,
-                           coupon_error=coupon_error,
-                           min_date=min_date)
+@shop_bp.route('/newsletter', methods=['POST'])
+def newsletter():
+    import re
+    email = request.form.get('email','').strip().lower()
+    if not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+',email):
+        flash('Enter a valid email address.', 'error')
+    elif supa.rpc('subscribe_newsletter', {'p_email':email}):
+        flash('You’re on the list. Thank you for joining us.', 'success')
+    else: flash('Subscription could not be saved. Please try again.', 'error')
+    return redirect(url_for('shop.index'))
 
 
 @shop_bp.route("/custom-order", methods=["GET", "POST"])
-@login_required
 def custom_order():
     success = False
     tracking_token = None
     if request.method == "POST":
+        import re
+        if not request.form.get('name','').strip() or not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+',request.form.get('email','').strip()) or len(request.form.get('description','').strip())<10:
+            flash('Please enter your name, a valid email and a description of at least 10 characters.','error')
+            return redirect(url_for('shop.custom_order'))
         import supa, uuid, secrets
         ref_url = None
         ref_file = request.files.get("reference_image")
@@ -413,80 +320,23 @@ def custom_order_track(token):
     return render_template("shop/custom_order_track.html", req=req)
 
 
-@shop_bp.route("/custom-order/respond/<token>/<response>")
+@shop_bp.route("/custom-order/respond/<token>/<response>", methods=["GET","POST"])
 def custom_order_respond(token, response):
+    if request.method == "GET": return redirect(url_for("shop.custom_order_track",token=token))
     req = models.get_custom_request_by_token(token)
     if not req or req.get("status") != "quoted":
         flash("This link is no longer valid.", "error")
         return redirect(url_for("shop.index"))
-    import os, emails
-    site_url = os.environ.get("SITE_URL", "http://localhost:5000")
-
-    if response == "accepted":
-        # The user_id on the custom request must match the logged-in user, or the user
-        # must log in first so the converted order is always owned by a real account.
-        req_user_id = req.get("user_id")
-        if not req_user_id:
-            # Guest custom request — we can't attach to an account; just mark accepted
-            # and create the order without a user_id (admin-only visibility).
-            flash("Your quote has been accepted. Please contact us to finalise your account.", "info")
-        elif not session.get("user_id"):
-            # User is not logged in — redirect to login, then back here
-            login_url = url_for("auth.login", next=url_for("shop.custom_order_respond", token=token, response=response))
-            flash("Please log in to confirm your custom order.", "info")
-            return redirect(login_url)
-        elif str(session["user_id"]) != str(req_user_id):
-            # Logged-in user is NOT the one who made the request
-            flash("This quote belongs to a different account.", "error")
-            return redirect(url_for("shop.index"))
-
-        # Create the regular order, explicitly marked as a custom conversion
-        order = models.create_order({
-            "user_id": req_user_id,
-            "name": req["name"],
-            "phone": req.get("phone", ""),
-            "address": "To be confirmed",
-            "total": float(req["quoted_price"]),
-            "status": "placed",
-            "is_custom_order": True,
-            "custom_request_id": req["id"],
-            "custom_notes": req["description"],
-            "delivery_type": "delivery",
-            "shipping_charge": 0,
-        })
-        if order:
-            # Create a synthetic order_item so the order is never empty
-            models.create_order_item({
-                "order_id": order["id"],
-                "product_id": None,               # no shop product — this is custom
-                "title": f"Custom Order — {req.get('craft_type') or req['description'][:60]}",
-                "price": float(req["quoted_price"]),
-                "quantity": 1,
-                "image_url": req.get("reference_image_url") or "",
-                "is_custom": True,
-            })
-            models.add_tracking(order["id"], "placed", "Custom order accepted by customer.")
-            models.update_custom_request(req["id"], {
-                "status": "accepted",
-                "customer_response": "accepted",
-                "converted_order_id": order["id"],
-            })
-            if req_user_id:
-                models.create_notification(
-                    req_user_id,
-                    f"Custom order confirmed! Order #{str(order['id'])[:8].upper()} created.",
-                    url_for("orders.order_detail", oid=order["id"])
-                )
-            emails.send_custom_accepted(req["email"], req["name"], order["id"], site_url)
-            flash("Quote accepted! Your custom order has been created.", "success")
-            return redirect(url_for("shop.custom_order_track", token=token))
-    else:
-        models.update_custom_request(req["id"], {
-            "status": "rejected",
-            "customer_response": "declined",
-        })
-        flash("You've declined the quote. Feel free to submit a new request anytime.", "info")
-    return redirect(url_for("shop.custom_order_track", token=token))
+    if response == 'accepted':
+        order,error=models.convert_custom_to_order(req['id'],req['quoted_price'])
+        if error: flash(error,'error')
+        else:
+            flash('Your custom order is confirmed.','success')
+            return redirect(url_for('shop.guest_order',token=order['tracking_token']))
+    elif response=='declined':
+        models.update_custom_request(req['id'],{'status':'rejected','customer_response':'declined'})
+        flash('Quote declined. You can start another creation whenever you’re ready.','info')
+    return redirect(url_for('shop.custom_order_track',token=token))
 
 
 @shop_bp.route("/wishlist")
@@ -586,3 +436,55 @@ def notifications_api():
 def mark_read():
     models.mark_notifications_read(session["user_id"])
     return jsonify({"ok": True})
+
+
+@shop_bp.route('/policies/<slug>')
+def policy(slug):
+    from flask import abort
+    titles={'shipping':'Shipping & delivery','returns':'Returns & care','privacy':'Privacy policy','terms':'Terms of service'}
+    if slug not in titles: abort(404)
+    return render_template('shop/policy.html',title=titles[slug],body=models.get_setting('policy_'+slug))
+
+
+@shop_bp.route('/order/<token>/payment', methods=['GET','POST'])
+def guest_payment(token):
+    from flask import abort
+    rows=supa.select('orders',{'tracking_token':'eq.'+token})
+    if not rows: abort(404)
+    order=rows[0]
+    if order.get('payment_status')!='advance_requested':
+        return redirect(url_for('shop.guest_order',token=token))
+    if request.method=='POST':
+        file=request.files.get('screenshot')
+        if file and file.filename:
+            try:
+                import uuid
+                receipt=supa.upload_file('everbloom','payments/'+str(uuid.uuid4())+'.webp',file.read())
+                if receipt:
+                    models.update_order(order['id'],{'payment_screenshot_url':receipt,'payment_status':'advance_submitted','status':'advance_paid'})
+                    models.add_tracking(order['id'],'advance_paid','Payment proof received. Awaiting verification.')
+                    flash('Payment proof received. We will verify it shortly.','success')
+                    return redirect(url_for('shop.guest_order',token=token))
+            except ValueError as error: flash(str(error),'error')
+        else: flash('Choose a payment screenshot.','error')
+    return render_template('shop/pay_advance.html',order=order,upi_id=models.get_setting('upi_id'),upi_qr_url=models.get_setting('upi_qr_url'))
+
+
+@shop_bp.route('/robots.txt')
+def robots():
+    from flask import Response
+    return Response('User-agent: *\nDisallow: /admin/\nDisallow: /auth/\nDisallow: /orders/\nDisallow: /order/\nDisallow: /checkout\nDisallow: /custom-order/track/\nSitemap: '+url_for('shop.sitemap',_external=True)+'\n',mimetype='text/plain')
+
+@shop_bp.route('/sitemap.xml')
+def sitemap():
+    from flask import Response
+    from xml.sax.saxutils import escape
+    urls=[url_for('shop.index',_external=True),url_for('shop.shop',_external=True),url_for('shop.about',_external=True)]
+    urls += [url_for('shop.product',pid=p['id'],_external=True) for p in models.get_products() if availability(p)['published']]
+    return Response('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+''.join('<url><loc>'+escape(u)+'</loc></url>' for u in urls)+'</urlset>',mimetype='application/xml')
+
+
+@shop_bp.route('/account/notifications')
+@login_required
+def account_notifications():
+    return render_template('account/notifications.html',notifications=models.get_notifications(session['user_id']))

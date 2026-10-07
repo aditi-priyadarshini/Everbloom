@@ -1,125 +1,32 @@
-{% extends "base.html" %}
-{% block title %}My Orders{% endblock %}
-{% block content %}
-<div class="page-wrap">
-  <h1 class="page-title">My Orders</h1>
-
-  <!-- ── Custom Requests ── -->
-  {% if custom_requests %}
-  <div style="margin-bottom:2rem;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.9rem;">
-      <h2 style="font-family:'Cormorant Garamond',serif;font-size:1.3rem;font-weight:400;color:var(--bark);">Custom Requests</h2>
-      <a href="{{ url_for('shop.custom_order') }}" class="btn-outline-sm">+ New Request</a>
-    </div>
-    <div class="orders-list">
-      {% for r in custom_requests %}
-      {% set status_display = {
-        'new':'Received','discussing':'Being Reviewed',
-        'agreed':'Price Agreed','converted':'Order Created!',
-        'closed':'Closed','pending':'Received','reviewing':'Being Reviewed',
-        'quoted':'Quote Sent','accepted':'Accepted','rejected':'Declined'
-      } %}
-      {% set status_pill = {
-        'new':'status-placed','discussing':'status-advance_requested',
-        'agreed':'status-advance_confirmed','converted':'status-delivered',
-        'closed':'status-cancelled','pending':'status-placed',
-        'reviewing':'status-advance_requested','quoted':'status-crafting',
-        'accepted':'status-delivered','rejected':'status-cancelled'
-      } %}
-      <div class="order-card" style="{% if r.status=='converted' %}border-color:var(--sage-dark);{% endif %}">
-        <div class="order-card-header">
-          <div>
-            <span class="order-id">✏️ Custom Request</span>
-            <span class="order-date">{{ r.created_at[:10] }}</span>
-          </div>
-          <span class="status-pill {{ status_pill.get(r.status,'status-placed') }}">
-            {{ status_display.get(r.status, r.status|capitalize) }}
-          </span>
-        </div>
-
-        <div style="padding:.6rem 0;font-size:.88rem;color:var(--text-soft);line-height:1.6;">
-          {% if r.craft_type %}<strong style="color:var(--bark);">{{ r.craft_type }}</strong>{% if r.occasion %} · {{ r.occasion }}{% endif %}<br>{% endif %}
-          {{ r.description[:100] }}{% if r.description|length > 100 %}…{% endif %}
-        </div>
-
-        {% if r.status == 'converted' and r.converted_order_id %}
-        <div style="background:#e8f5e9;border-radius:6px;padding:.6rem .8rem;margin:.3rem 0;font-size:.84rem;color:#2e7d32;">
-          ✅ Your order has been created! Track it below.
-        </div>
-        {% endif %}
-
-        <div class="order-card-footer">
-          <span class="order-total">
-            {% if r.quoted_price %}₹{{ "%.0f"|format(r.quoted_price|float) }}{% else %}<span style="font-size:.82rem;color:var(--text-soft);">Awaiting quote</span>{% endif %}
-          </span>
-          <div class="order-actions">
-            {% if r.status == 'converted' and r.converted_order_id %}
-            <a href="{{ url_for('orders.order_detail', oid=r.converted_order_id) }}" class="btn-primary-sm">View Order →</a>
-            {% elif r.tracking_token %}
-            <a href="{{ url_for('shop.custom_order_track', token=r.tracking_token) }}" class="btn-outline-sm">Track</a>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- ── Regular Orders ── -->
-  {% if orders %}
-  <div>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.9rem;">
-      <h2 style="font-family:'Cormorant Garamond',serif;font-size:1.3rem;font-weight:400;color:var(--bark);">
-        {% if custom_requests %}Orders{% else %}My Orders{% endif %}
-      </h2>
-    </div>
-    <div class="orders-list">
-      {% for o in orders %}
-      <div class="order-card">
-        <div class="order-card-header">
-          <div>
-            <span class="order-id">#{{ o.id[:8]|upper }}</span>
-            {% if o.from_custom_request %}
-            <span class="status-pill status-crafting" style="font-size:.62rem;padding:.1rem .4rem;margin-left:.3rem;">Custom</span>
-            {% endif %}
-            <span class="order-date">{{ o.created_at[:10] }}</span>
-          </div>
-          <span class="status-pill status-{{ o.status }}">{{ STATUS_LABELS.get(o.status, o.status) }}</span>
-        </div>
-
-        <div class="order-progress">
-          {% set si = status_index(o.status) %}
-          {% for i in range(ORDER_STATUSES|length - 1) %}
-          <div class="progress-step {% if i < si %}done{% elif i == si %}active{% endif %}"></div>
-          {% endfor %}
-        </div>
-
-        <div class="order-card-footer">
-          <span class="order-total">₹{{ "%.0f"|format(o.total) }}</span>
-          <div class="order-actions">
-            {% if o.status == 'advance_requested' %}
-            <a href="{{ url_for('orders.pay_advance', oid=o.id) }}" class="btn-primary-sm">Pay Advance</a>
-            {% endif %}
-            <a href="{{ url_for('orders.track', oid=o.id) }}" class="btn-outline-sm">Track</a>
-            <a href="{{ url_for('orders.order_detail', oid=o.id) }}" class="btn-outline-sm">Details</a>
-          </div>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-  </div>
-  {% endif %}
-
-  {% if not orders and not custom_requests %}
-  <div class="empty-state" style="text-align:center;padding:4rem 2rem;">
-    <div style="font-size:3rem;margin-bottom:1rem;">🌸</div>
-    <p style="color:var(--text-soft);margin-bottom:1.2rem;">You haven't placed any orders yet.</p>
-    <div style="display:flex;gap:.8rem;justify-content:center;flex-wrap:wrap;">
-      <a href="{{ url_for('shop.shop') }}" class="btn-primary">Browse Shop</a>
-      <a href="{{ url_for('shop.custom_order') }}" class="btn-outline">Request Custom Order</a>
-    </div>
-  </div>
-  {% endif %}
+{% extends 'base.html' %}
+{% block title %}Your account{% endblock %}
+{% block content %}<div class="page-wrap">
+<p class="eyebrow">Your little corner of Everbloom</p>
+<h1>Hello, {{ session.user_name or 'there' }}.</h1>{% include 'account/_nav.html' %}<div class="account-layout">
+<section>
+<h2>Your orders</h2>{% for o in orders %}<article class="account-card">
+<div class="section-heading">
+<div>
+<p class="eyebrow">#{{ o.id[:8]|upper }} · {{ o.created_at[:10] }}</p>
+<h3>{{ o.fulfilment_status|default(o.status)|replace('_',' ')|title }}</h3>
 </div>
-{% endblock %}
+<strong>₹{{ '%.2f'|format(o.total) }}</strong>
+</div>
+<p class="availability-note">Payment: {{ o.payment_status|default('unpaid')|replace('_',' ')|title }}</p>
+<a class="text-link" href="{{ url_for('orders.order_detail',oid=o.id) }}">View order & journey ↗</a>
+</article>{% else %}<div class="account-card">
+<p>Your first thoughtful gesture starts here.</p>
+<a class="btn-primary" href="{{ url_for('shop.shop') }}">Explore the collection</a>
+</div>{% endfor %}</section>
+<section>
+<h2>Custom creations</h2>{% for r in custom_requests %}<article class="account-card">
+<p class="eyebrow">{{ r.status|replace('_',' ')|title }}</p>
+<h3>{{ r.craft_type or 'Your custom creation' }}</h3>
+<p>{{ r.description|truncate(130) }}</p>
+<a class="text-link" href="{{ url_for('shop.custom_order_track',token=r.tracking_token) }}">Follow your request ↗</a>
+</article>{% else %}<div class="account-card">
+<p>Have something particular in mind?</p>
+<a class="text-link" href="{{ url_for('shop.custom_order') }}">Bring us your idea ↗</a>
+</div>{% endfor %}</section>
+</div>
+</div>{% endblock %}

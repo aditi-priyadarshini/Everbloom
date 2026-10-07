@@ -73,7 +73,7 @@ def pay_advance(oid):
             if url:
                 models.update_order(oid, {
                     "payment_screenshot_url": url,
-                    "status": "advance_paid"
+                    "status": "advance_paid", "payment_status":"advance_submitted"
                 })
                 models.add_tracking(oid, "advance_paid",
                                     "Customer uploaded payment screenshot.")
@@ -91,3 +91,23 @@ def pay_advance(oid):
 
     return render_template("shop/pay_advance.html",
                            order=order, upi_id=upi_id, upi_qr_url=upi_qr_url)
+
+@orders_bp.route('/<oid>/return', methods=['GET','POST'])
+@login_required
+def request_return(oid):
+    from flask import abort
+    order=models.get_order(oid)
+    if not order or str(order.get('user_id'))!=str(session['user_id']): abort(404)
+    if order.get('fulfilment_status')!='delivered' and order.get('status')!='delivered':
+        flash('Return enquiries are available after delivery. Contact us for an open order.','error')
+        return redirect(url_for('orders.order_detail',oid=oid))
+    if request.method=='POST':
+        reason=request.form.get('reason','').strip()[:2000]
+        existing=supa.select('returns',{'order_id':'eq.'+str(oid),'user_id':'eq.'+str(session['user_id'])})
+        if existing: flash('Your return request is already being reviewed.','info')
+        elif len(reason)<10: flash('Please describe the issue in at least 10 characters.','error')
+        elif models.create_return({'order_id':oid,'user_id':session['user_id'],'reason':reason,'status':'pending'}):
+            flash('Return request received. We will review the details and contact you.','success')
+            return redirect(url_for('orders.order_detail',oid=oid))
+        else: flash('Could not save your request. Please try again.','error')
+    return render_template('shop/return_request.html',order=order)

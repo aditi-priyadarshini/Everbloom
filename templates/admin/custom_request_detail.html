@@ -6,7 +6,7 @@
 <a href="{{ url_for('admin.custom_requests') }}" class="btn-outline-sm">← All Requests</a>
 {% endblock %}
 
-{% block content %}
+{% block content %}{% if not req.converted_order_id %}<section class="admin-card"><h3>Send a customer quote</h3><form method="post" action="{{ url_for('admin.custom_request_quote',rid=req.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><div class="form-row"><div class="form-group"><label>Quoted total (₹)</label><input type="number" name="quoted_price" step="0.01" min="1" required value="{{ req.quoted_price or '' }}"></div><div class="form-group"><label>Preparation days</label><input type="number" name="quoted_days" min="1" value="{{ req.quoted_days or 7 }}"></div></div><div class="form-group"><label>Customer-safe quote message</label><textarea name="quote_message" rows="3">{{ req.quote_message or '' }}</textarea></div><button class="btn-primary">Save & email quote</button></form></section>{% endif %}
 
 {% set status_colors = {
   'new':'#1565c0','discussing':'#e65100','agreed':'#6a1b9a',
@@ -37,7 +37,7 @@
   </div>
   {% if req.preferred_delivery_date %}
   <div style="margin-left:auto;background:#fffbf0;border:1px solid #c9a96e;border-radius:6px;padding:.3rem .8rem;font-size:.8rem;color:#5c3d3d;">
-    📅 Wants by {{ req.preferred_delivery_date }}
+     Wants by {{ req.preferred_delivery_date }}
   </div>
   {% endif %}
 </div>
@@ -49,7 +49,7 @@
 
     <!-- Customer + Request info -->
     <div class="admin-card">
-      <h3>📋 Request Details</h3>
+      <h3> Request Details</h3>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.2rem;">
         <div style="background:#faf7f4;border-radius:8px;padding:.9rem;">
           <div style="font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--admin-muted);margin-bottom:.5rem;">Customer</div>
@@ -59,10 +59,10 @@
         </div>
         <div style="background:#faf7f4;border-radius:8px;padding:.9rem;">
           <div style="font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--admin-muted);margin-bottom:.5rem;">Specifics</div>
-          {% if req.craft_type %}<div style="font-size:.84rem;margin-bottom:.2rem;">🎨 <strong>{{ req.craft_type }}</strong>{% if req.occasion %} · {{ req.occasion }}{% endif %}</div>{% endif %}
-          {% if req.size_preference %}<div style="font-size:.84rem;margin-bottom:.2rem;">📐 {{ req.size_preference }}</div>{% endif %}
-          {% if req.colour_preference %}<div style="font-size:.84rem;margin-bottom:.2rem;">🖌 {{ req.colour_preference }}</div>{% endif %}
-          {% if req.budget %}<div style="font-size:.84rem;">💰 {{ req.budget }}</div>{% endif %}
+          {% if req.craft_type %}<div style="font-size:.84rem;margin-bottom:.2rem;"> <strong>{{ req.craft_type }}</strong>{% if req.occasion %} · {{ req.occasion }}{% endif %}</div>{% endif %}
+          {% if req.size_preference %}<div style="font-size:.84rem;margin-bottom:.2rem;"> {{ req.size_preference }}</div>{% endif %}
+          {% if req.colour_preference %}<div style="font-size:.84rem;margin-bottom:.2rem;"> {{ req.colour_preference }}</div>{% endif %}
+          {% if req.budget %}<div style="font-size:.84rem;"> {{ req.budget }}</div>{% endif %}
         </div>
       </div>
       <div>
@@ -82,7 +82,7 @@
     <!-- Converted Order — if exists -->
     {% if converted_order %}
     <div class="admin-card" style="border-color:#a5d6a7;background:linear-gradient(135deg,#f1f8e9,#e8f5e9);">
-      <h3 style="color:#2e7d32;">✅ Order Created from this Request</h3>
+      <h3 style="color:#2e7d32;"> Order Created from this Request</h3>
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
         <div>
           <div style="font-family:'Cormorant Garamond',serif;font-size:1.6rem;color:#1b5e20;">₹{{ "%.0f"|format(converted_order.total) }}</div>
@@ -101,7 +101,7 @@
     <!-- Linked Product -->
     {% if linked_product %}
     <div class="admin-card" style="border-color:#90caf9;">
-      <h3>🛍️ Listed in Shop</h3>
+      <h3> Listed in Shop</h3>
       <div style="display:flex;align-items:center;gap:1rem;">
         {% if linked_product.images %}
         <img src="{{ linked_product.images[0] }}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;border:1px solid var(--admin-border);">
@@ -110,7 +110,7 @@
           <div style="font-weight:500;">{{ linked_product.title }}</div>
           <div style="font-size:.82rem;color:var(--admin-muted);">₹{{ "%.0f"|format(linked_product.price) }} · {{ linked_product.stock }} in stock</div>
           <span class="{{ 'badge-yes' if linked_product.is_listed else 'badge-no' }}" style="margin-top:.3rem;display:inline-block;">
-            {{ '✓ Listed' if linked_product.is_listed else '✗ Unlisted' }}
+            {{ ' Listed' if linked_product.is_listed else ' Unlisted' }}
           </span>
         </div>
         <div style="display:flex;flex-direction:column;gap:.4rem;">
@@ -126,7 +126,7 @@
 
     <!-- Internal Notes -->
     <div class="admin-card">
-      <h3>📝 Internal Notes <span style="font-size:.72rem;color:var(--admin-muted);font-weight:400;">(customer never sees this)</span></h3>
+      <h3> Internal Notes <span style="font-size:.72rem;color:var(--admin-muted);font-weight:400;">(customer never sees this)</span></h3>
       {% if req.admin_note %}
       <div class="readonly-block" style="margin-bottom:1rem;white-space:pre-wrap;font-size:.84rem;">{{ req.admin_note }}</div>
       {% endif %}
@@ -142,7 +142,7 @@
     <!-- Email Log -->
     {% if email_log %}
     <div class="admin-card">
-      <h3>📧 Email History</h3>
+      <h3> Email History</h3>
       <div class="timeline">
         {% for e in email_log %}
         <div class="timeline-item">
@@ -165,7 +165,7 @@
     <!-- THE BIG ACTION: Convert to Order -->
     {% if req.status not in ['converted','closed'] %}
     <div class="admin-card" style="border-color:#c9a96e;background:linear-gradient(135deg,#fffbf0,#fdf6f0);">
-      <h3 style="color:#7c4f3a;">🎯 Convert to Order</h3>
+      <h3 style="color:#7c4f3a;"> Convert to Order</h3>
       <p style="font-size:.84rem;color:var(--admin-muted);margin-bottom:1rem;line-height:1.7;">
         Once you've agreed on a price with the customer (via WhatsApp/call/email), enter it here and create the order directly. No customer action needed.
       </p>
@@ -184,7 +184,7 @@
           <input type="text" name="note" placeholder="e.g. Customer agreed via WhatsApp">
         </div>
         <button type="submit" class="btn-primary btn-full" style="font-size:.95rem;padding:.8rem;">
-          ✓ Create Order Now
+           Create Order Now
         </button>
         <p style="font-size:.74rem;color:var(--admin-muted);margin-top:.5rem;text-align:center;line-height:1.6;">
           This creates a real order. Customer gets an email notification.
@@ -202,7 +202,7 @@
           <select name="status">
             {% for s in ['new','discussing','agreed','converted','closed'] %}
             <option value="{{ s }}" {% if req.status == s %}selected{% endif %}>
-              {{ {'new':'⭕ New','discussing':'💬 Discussing','agreed':'🤝 Price Agreed','converted':'✅ Converted','closed':'🔒 Closed'}[s] }}
+              {{ {'new':'⭕ New','discussing':' Discussing','agreed':' Price Agreed','converted':' Converted','closed':' Closed'}[s] }}
             </option>
             {% endfor %}
           </select>
@@ -213,7 +213,7 @@
 
     <!-- Send Email -->
     <div class="admin-card">
-      <h3>✉️ Email Customer</h3>
+      <h3> Email Customer</h3>
       <form method="post" action="{{ url_for('admin.custom_request_email', rid=req.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
@@ -233,7 +233,7 @@
 
     <!-- Link to existing product -->
     <div class="admin-card" style="border-color:#90caf9;">
-      <h3>🔗 Link to Existing Product</h3>
+      <h3> Link to Existing Product</h3>
       <p style="font-size:.82rem;color:var(--admin-muted);margin-bottom:.9rem;line-height:1.6;">
         Already have this in your catalogue? Link it here. The order item will update automatically.
       </p>
@@ -254,7 +254,7 @@
 
     <!-- Create new product listing -->
     <div class="admin-card">
-      <h3>🛍️ Create New Listing</h3>
+      <h3> Create New Listing</h3>
       <p style="font-size:.82rem;color:var(--admin-muted);margin-bottom:.9rem;line-height:1.6;">
         List this as a new product in your shop so other customers can buy it too.
       </p>
@@ -293,7 +293,7 @@
     {% else %}
     <!-- Already linked — show unlink option -->
     <div class="admin-card">
-      <h3>🔗 Product Linked</h3>
+      <h3> Product Linked</h3>
       <p style="font-size:.82rem;color:var(--admin-muted);margin-bottom:.8rem;">Want to link a different product?</p>
       <form method="post" action="{{ url_for('admin.custom_request_unlink', rid=req.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

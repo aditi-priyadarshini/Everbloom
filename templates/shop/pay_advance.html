@@ -2,7 +2,7 @@
 {% block title %}Pay Advance{% endblock %}
 {% block content %}
 <div class="page-wrap narrow">
-  <a href="{{ url_for('orders.orders_list') }}" class="back-link">← My Orders</a>
+  <a href="{{ url_for('shop.guest_order',token=order.tracking_token) if order.tracking_token else url_for('orders.orders_list') }}" class="back-link">← Your order</a>
   <h1 class="page-title">Pay Advance</h1>
   <p class="subtitle">Order #{{ order.id[:8]|upper }}</p>
 
@@ -22,7 +22,7 @@
     <div class="upi-id-wrap">
       <span class="upi-label">UPI ID</span>
       <span class="upi-value" id="upiId">{{ upi_id }}</span>
-      <button class="copy-btn" onclick="copyUPI()">Copy</button>
+      <button class="copy-btn" onclick="copyUPI(this)">Copy</button>
     </div>
     {% endif %}
 
@@ -43,10 +43,8 @@
   </div>
 </div>
 <script>
-function copyUPI() {
-  navigator.clipboard.writeText(document.getElementById('upiId').textContent);
-  event.target.textContent = 'Copied!';
-  setTimeout(() => event.target.textContent = 'Copy', 2000);
+async function copyUPI(button) {
+  try { await navigator.clipboard.writeText(document.getElementById('upiId').textContent); button.textContent = 'Copied'; setTimeout(() => button.textContent = 'Copy', 2000); } catch { button.textContent = 'Select the UPI ID to copy'; }
 }
 </script>
 {% endblock %}
