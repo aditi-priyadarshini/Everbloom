@@ -44,6 +44,10 @@ def _one_line(value, limit=240):
 
 
 def _backend_hint(status, code, scope=""):
+    if code in ("42703", "PGRST204") and scope in ("probe categories", "probe custom_requests"):
+        return ("Missing column in the deployed Supabase project. Run migration "
+                "016_missing_columns_repair.sql against the database targeted by "
+                "Vercel SUPABASE_URL, then NOTIFY pgrst to reload schema.")
     if scope == "RPC convert_custom_request":
         if code in ("42883", "PGRST202"):
             return ("Custom-order RPC or its dependencies are missing. Review migration "

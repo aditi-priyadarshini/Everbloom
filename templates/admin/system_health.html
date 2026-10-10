@@ -6,7 +6,8 @@
   <h2>Live database checks</h2>
   <p>These checks are read-only and verify that required tables and columns exist and that your server credential can access them.</p>
   <p><strong>Supabase service role configured:</strong> {{ 'Yes' if configured else 'No — required after enabling RLS' }}</p>
-  <p>A failed product schema check usually indicates a missing column (commonly image_alt_texts), a stale PostgREST schema cache, or bad credentials. For an existing database, review the additive repair migration <code>supabase/migrations/012_product_insert_repair.sql</code> on a staging copy first; do not re-run older migrations blindly or paste credentials here.</p>
+  <p><strong>Connected Supabase host:</strong> <code>{{ supabase_host }}</code>. Compare this with your Supabase project URL in Supabase → Project Settings → API; no credentials are shown here.</p>
+  <p>For missing <code>categories.active</code> or <code>custom_requests.linked_product_id</code>, review <code>supabase/migrations/016_missing_columns_repair.sql</code>. A deploy does not apply SQL migrations to an existing Supabase project. For a missing product column, review migration 012. Do not re-run the full fresh setup on an existing database.</p>
 </section>
 <section class="admin-card table-responsive">
 <table class="admin-table"><thead><tr><th>Feature</th><th>Result</th><th>Details</th></tr></thead>

@@ -90,7 +90,10 @@ def system_health():
         except supa.SupabaseError as error:
             results.append({'name': f'Storage: {bucket}', 'ok': False,
                             'detail': error.admin_detail})
+    from urllib.parse import urlsplit
+    supabase_host = urlsplit(os.environ.get('SUPABASE_URL', '')).hostname or '(not configured)'
     return render_template('admin/system_health.html', checks=results,
+                           supabase_host=supabase_host,
                            configured=bool(os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or os.environ.get('SUPABASE_SERVICE_KEY')))
 
 
