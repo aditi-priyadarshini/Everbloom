@@ -68,8 +68,12 @@ def pay_advance(oid):
         if screenshot and screenshot.filename:
             safe_name = screenshot.filename.replace(" ", "_")
             path = f"payments/{uuid.uuid4()}-{safe_name}"
-            url = supa.upload_file(BUCKET, path, screenshot.read(),
-                                   screenshot.content_type or "image/jpeg")
+            try:
+                url = supa.upload_file(BUCKET, path, screenshot.read(),
+                                       screenshot.content_type or 'image/jpeg')
+            except (ValueError, supa.SupabaseError) as error:
+                flash(f'Payment proof upload failed: {error}', 'error')
+                return redirect(url_for('orders.pay_advance', oid=oid))
             if url:
                 models.update_order(oid, {
                     "payment_screenshot_url": url,

@@ -12,9 +12,9 @@ def optimize_image(data):
                 image.verify()
             with Image.open(BytesIO(data)) as image:
                 image=ImageOps.exif_transpose(image)
-                image.thumbnail((2000,2000))
+                image.thumbnail((1600,1600))
                 image=image.convert('RGBA' if 'A' in image.getbands() else 'RGB')
-                output=BytesIO(); image.save(output,'WEBP',quality=85,method=4)
+                output=BytesIO(); image.save(output,'WEBP',quality=80,method=2)
                 return output.getvalue()
     except (UnidentifiedImageError,OSError,Image.DecompressionBombError,Image.DecompressionBombWarning) as exc:
         raise ValueError('This file is not a valid supported image.') from exc

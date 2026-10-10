@@ -26,7 +26,7 @@
 ('Customers',[('admin.customers','Customers','users'),('admin.reviews','Reviews','edit')]),
 ('Marketing',[('admin.coupons','Coupons','bag'),('admin.gift_cards','Gift cards','bag'),('admin.merchandising','Testimonials','edit','testimonials'),('admin.broadcast','Email','mail')]),
 ('Insights',[('admin.analytics','Analytics','grid'),('admin.audit_log','Audit log','edit')]),
-('System',[('admin.settings','Settings','grid'),('admin.email_templates','Email templates','mail'),('admin.faqs','FAQs','edit')])
+('System',[('admin.settings','Settings','grid'),('admin.email_templates','Email templates','mail'),('admin.faqs','FAQs','edit'),('admin.system_health','System health','grid')])
 ] %}<div class="nav-section-label">{{ section }}</div>{% for link in links %}{% set icon=link[2] %}<a href="{{ url_for(link[0],kind=link[3]) if link|length>3 else url_for(link[0]) }}" class="{% if (request.endpoint==link[0] and (link|length==3 or request.view_args.get('kind')==link[3])) or (link[0]=='admin.products' and request.endpoint in ['admin.product_new','admin.product_edit']) %}active{% endif %}">{% include 'shared/icon.html' %}{{ link[1] }}</a>{% endfor %}{% endfor %}
     </nav>
 

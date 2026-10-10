@@ -9,13 +9,86 @@ from services.commerce import availability as models_availability, MODES, PAYMEN
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
 
+def _saved(result, label):
+    """A database rejection must never produce a green success toast."""
+    ok = result is not None and result is not False and result != []
+    flash(f'{label} saved.' if ok else f'Could not save {label.lower()}. Check backend logs and migrations.',
+          'success' if ok else 'error')
+    return ok
+
+
+def _number(name, default=0, minimum=0):
+    """Validate untrusted admin numeric forms; avoid unhandled ValueError/500s."""
+    from decimal import Decimal, InvalidOperation
+    try:
+        value = Decimal(request.form.get(name) or str(default))
+        if not value.is_finite() or value < minimum:
+            raise ValueError
+    except (InvalidOperation, ValueError):
+        raise ValueError(f'Enter a valid {name.replace("_", " ")}.')
+    return float(value)
+
+
+def _refresh_catalogue():
+    from services.cache import invalidate
+    invalidate('public_catalogue')
+
+
+@admin_bp.errorhandler(ValueError)
+@admin_bp.errorhandler(supa.SupabaseError)
+def admin_action_error(error):
+    """Show actionable failures instead of redirecting into a generic 500 page."""
+    if request.method == 'POST':
+        from urllib.parse import urlsplit
+        referer = request.referrer or ''
+        target = referer if urlsplit(referer).netloc == request.host else url_for('admin.dashboard')
+        flash(str(error), 'error')
+        return redirect(target)
+    from flask import current_app
+    current_app.logger.warning('Admin backend operation failed: %s', error)
+    return render_template('errors/error.html', code=503), 503
+
+
+@admin_bp.route('/system-health')
+@admin_only
+def system_health():
+    """Read-only diagnostics to expose missing migrations/permissions in production."""
+    checks = [
+        ('Store settings', 'settings', 'key,value'),
+        ('Products', 'products', 'id,availability_mode,image_alt_texts'),
+        ('Categories', 'categories', 'id,active'),
+        ('Collections', 'collections', 'id,slug,active'),
+        ('Occasions', 'occasions', 'id,slug,active'),
+        ('Orders', 'orders', 'id,payment_status,fulfilment_status'),
+        ('Custom orders', 'custom_requests', 'id,quoted_price,converted_order_id'),
+        ('Gift cards', 'gift_cards', 'id,issued_to,balance'),
+        ('Inventory', 'raw_materials', 'id,active'),
+        ('Components', 'components', 'id,active'),
+        ('Reviews', 'reviews', 'id,visible'),
+        ('Artisans', 'artisans', 'id,speciality,instagram'),
+        ('FAQs', 'faqs', 'id,category'),
+        ('Product costs', 'product_costs', 'id,notes'),
+        ('Audit log', 'audit_log', 'id,actor_id'),
+        ('Testimonials', 'testimonials', 'id,active'),
+    ]
+    results = []
+    for label, table, fields in checks:
+        try:
+            supa.probe_table(table, fields)
+            results.append({'name':label, 'ok':True, 'detail':'Table and required columns reachable'})
+        except (supa.SupabaseError, ValueError) as error:
+            results.append({'name':label, 'ok':False, 'detail':str(error)})
+    return render_template('admin/system_health.html', checks=results,
+                           configured=bool(os.environ.get('SUPABASE_SERVICE_ROLE_KEY')))
+
+
 # ── Dashboard ─────────────────────────────────────────────
 
 @admin_bp.route("/")
 @admin_only
 def dashboard():
-    stats = models.get_stats()
     all_orders = models.get_orders()
+    stats = models.get_stats(all_orders=all_orders)
     recent_orders = all_orders[:10]
     from datetime import date
     today=date.today().isoformat()
@@ -115,7 +188,7 @@ def order_detail(oid):
                     f"Advance payment of ₹{advance:.0f} requested.",
                     url_for("orders.pay_advance", oid=oid)
                 )
-            flash("Advance requested and email sent.", "success")
+            flash('Advance request saved. Verify outbound email in SMTP logs.', 'success')
 
         elif action == "confirm_advance":
             if order.get("status") != "advance_paid":
@@ -130,7 +203,7 @@ def order_detail(oid):
                         "Payment confirmed! Crafting begins.",
                         url_for("orders.order_detail", oid=oid)
                     )
-                flash("Advance confirmed. Crafting email sent.", "success")
+                flash('Advance confirmed. Verify outbound email in SMTP logs.', 'success')
 
         elif action == 'internal_note':
             existing=order.get('internal_notes') or ''
@@ -207,15 +280,21 @@ def products():
 @admin_only
 def product_new():
     categories = models.get_categories()
-    if request.method == "POST":
-        data = _parse_product_form(request)
-        product = models.create_product(data)
-        if product:
-            _save_memberships(product["id"])
-            flash("Product created!", "success")
-            return redirect(url_for("admin.products"))
-        flash("Error creating product.", "error")
-    return render_template("admin/product_form.html", product=None, categories=categories, action="new", **_catalog_editor_context())
+    if request.method == 'POST':
+        try:
+            data = _parse_product_form(request)
+            if not data['title'] or data['price'] <= 0:
+                raise ValueError('A title and a positive price are required.')
+            product = models.create_product(data)
+            if not product: raise ValueError('Supabase did not create this product.')
+            _save_memberships(product['id'])
+            _refresh_catalogue()
+            flash('Product created!', 'success')
+            return redirect(url_for('admin.products'))
+        except (ValueError, supa.SupabaseError) as exc:
+            flash(str(exc), 'error')
+    return render_template('admin/product_form.html', product=None,
+                           categories=categories, action='new', **_catalog_editor_context())
 
 
 @admin_bp.route("/products/<pid>/edit", methods=["GET", "POST"])
@@ -223,17 +302,25 @@ def product_new():
 def product_edit(pid):
     product = models.get_product(pid)
     if not product:
-        flash("Product not found.", "error")
-        return redirect(url_for("admin.products"))
+        flash('Product not found.', 'error')
+        return redirect(url_for('admin.products'))
     categories = models.get_categories()
-    if request.method == "POST":
-        data = _parse_product_form(request, existing=product)
-        models.update_product(pid, data)
-        _save_memberships(pid)
-        flash("Product updated!", "success")
-        return redirect(url_for("admin.products"))
-    return render_template("admin/product_form.html", product=product,
-                           categories=categories, action="edit", variants=models.get_variants(pid), **_catalog_editor_context(pid))
+    if request.method == 'POST':
+        try:
+            data = _parse_product_form(request, existing=product)
+            if not data['title'] or data['price'] <= 0:
+                raise ValueError('A title and a positive price are required.')
+            if not models.update_product(pid, data):
+                raise ValueError('Supabase did not update the product.')
+            _save_memberships(pid)
+            _refresh_catalogue()
+            flash('Product updated!', 'success')
+            return redirect(url_for('admin.products'))
+        except (ValueError, supa.SupabaseError) as exc:
+            flash(str(exc), 'error')
+    return render_template('admin/product_form.html', product=product,
+                           categories=categories, action='edit', variants=models.get_variants(pid),
+                           **_catalog_editor_context(pid))
 
 
 @admin_bp.route("/products/<pid>/toggle-listing", methods=["POST"])
@@ -244,22 +331,21 @@ def product_toggle_listing(pid):
         current = p.get("is_listed", True)
         if current is None:
             current = True
-        models.update_product(pid, {"is_listed": not current})
-        state = "listed" if not current else "unlisted"
-        flash(f"Product {state}.", "success")
+        if _saved(models.update_product(pid, {"is_listed": not current}), 'Product visibility'):
+            _refresh_catalogue()
     return redirect(url_for("admin.products"))
 
 
 @admin_bp.route("/products/<pid>/delete", methods=["POST"])
 @admin_only
 def product_delete(pid):
-    models.delete_product(pid)
-    flash("Product archived. Order history retained.", "success")
+    if _saved(models.delete_product(pid), 'Product archive'):
+        _refresh_catalogue()
     return redirect(url_for("admin.products"))
 
 
 def _parse_product_form(req, existing=None):
-    import sys, json, re
+    import json, re
     mode = req.form.get('availability_mode','READY_TO_SHIP')
     if mode not in MODES: raise ValueError('Choose a valid availability mode.')
     fields = json.loads(req.form.get('personalization_fields','[]') or '[]')
@@ -311,14 +397,11 @@ def _parse_product_form(req, existing=None):
             path = f"products/{uuid.uuid4()}-{safe_name}"
             content_type = f.content_type or "image/jpeg"
             url = supa.upload_file("everbloom", path, file_bytes, content_type)
-            if url:
-                images.append(url)
-                print(f"[upload OK] {url}", file=sys.stderr)
-            else:
-                flash(f"Image '{f.filename}' failed — check bucket 'everbloom' exists and is Public in Supabase Storage.", "error")
-        except Exception as e:
-            print(f"[upload EXCEPTION] {e}", file=sys.stderr)
-            flash("Image rejected. Use a valid JPEG, PNG or WebP under 8 MB.", "error")
+            if not url:
+                raise ValueError(f"Image '{f.filename}' failed to upload. Verify the Supabase Storage bucket 'everbloom'.")
+            images.append(url)
+        except (ValueError, supa.SupabaseError) as error:
+            raise ValueError(f"Image '{f.filename}': {error}") from error
 
     # Remove images from highest index first to preserve indices.
     for index in remove_indices:
@@ -369,16 +452,20 @@ def coupons():
 @admin_bp.route("/coupons/new", methods=["POST"])
 @admin_only
 def coupon_new():
+    code = request.form.get('code', '').strip().upper()
+    percent = _number('discount_percent', 10, 0)
+    uses = _number('max_uses', 100, 1)
+    if not code or percent > 100 or not percent.is_integer() or not uses.is_integer():
+        raise ValueError('Enter a coupon code, a discount from 0–100%, and a whole-number usage limit.')
     data = {
-        "code": request.form.get("code", "").strip().upper(),
-        "discount_percent": int(request.form.get("discount_percent", 10)),
-        "max_uses": int(request.form.get("max_uses", 100)),
-        "usage_limit": int(request.form.get("max_uses", 100)),
+        "code": code,
+        "discount_percent": int(percent),
+        "max_uses": int(uses),
+        "usage_limit": int(uses),
         "expires_at": request.form.get("expires_at") or None,
         "active": True,
     }
-    models.create_coupon(data)
-    flash("Coupon created!", "success")
+    _saved(models.create_coupon(data), "Coupon")
     return redirect(url_for("admin.coupons"))
 
 
@@ -388,15 +475,14 @@ def coupon_toggle(cid):
     coupons_list = models.get_all_coupons()
     coupon = next((c for c in coupons_list if str(c["id"]) == str(cid)), None)
     if coupon:
-        models.update_coupon(cid, {"active": not coupon["active"]})
+        _saved(models.update_coupon(cid, {"active": not coupon["active"]}), "Coupon visibility")
     return redirect(url_for("admin.coupons"))
 
 
 @admin_bp.route("/coupons/<cid>/delete", methods=["POST"])
 @admin_only
 def coupon_delete(cid):
-    models.delete_coupon(cid)
-    flash("Coupon deleted.", "success")
+    _saved(models.delete_coupon(cid), "Coupon archive")
     return redirect(url_for("admin.coupons"))
 
 
@@ -615,8 +701,8 @@ def custom_request_unlink(rid):
 @admin_bp.route("/analytics")
 @admin_only
 def analytics():
-    stats = models.get_stats()
     all_orders = models.get_orders()
+    stats = models.get_stats(all_orders=all_orders)
     try:
         low_stock = models.get_low_stock_products(threshold=5)
     except Exception:
@@ -678,25 +764,24 @@ def gift_cards():
 @admin_bp.route("/gift-cards/new", methods=["POST"])
 @admin_only
 def gift_card_new():
-    import random, string
+    import secrets, string
     code = request.form.get("code", "").strip().upper()
     if not code:
-        code = "GIFT-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
-    models.create_gift_card({
+        code = "GIFT-" + "".join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(12))
+    result = models.create_gift_card({
         "code": code,
-        "amount": float(request.form.get("amount", 500)),
+        "amount": _number('amount', 500, 0.01),
         "issued_to": request.form.get("issued_to", ""),
         "expires_at": request.form.get("expires_at") or None,
     })
-    flash(f"Gift card {code} created!", "success")
+    _saved(result, "Gift card")
     return redirect(url_for("admin.gift_cards"))
 
 
 @admin_bp.route("/gift-cards/<gid>/delete", methods=["POST"])
 @admin_only
 def gift_card_delete(gid):
-    models.delete_gift_card(gid)
-    flash("Gift card deleted.", "success")
+    _saved(models.delete_gift_card(gid), "Gift card deletion")
     return redirect(url_for("admin.gift_cards"))
 
 
@@ -721,11 +806,11 @@ def return_detail(rid):
         flash("Return not found.", "error")
         return redirect(url_for("admin.returns"))
     if request.method == "POST":
-        models.update_return(rid, {
+        result = models.update_return(rid, {
             "status": request.form.get("status"),
             "admin_note": request.form.get("admin_note", ""),
         })
-        flash("Return updated.", "success")
+        _saved(result, "Return")
         return redirect(url_for("admin.return_detail", rid=rid))
     order = models.get_order(ret["order_id"]) if ret.get("order_id") else None
     return render_template("admin/return_detail.html", ret=ret, order=order)
@@ -752,7 +837,7 @@ def artisan_new():
         if img and img.filename:
             path = f"artisans/{uuid.uuid4()}-{img.filename}"
             image_url = supa.upload_file("everbloom", path, img.read(), img.content_type)
-        models.create_artisan({
+        result = models.create_artisan({
             "name": request.form.get("name", ""),
             "bio": request.form.get("bio", ""),
             "location": request.form.get("location", ""),
@@ -761,7 +846,7 @@ def artisan_new():
             "image_url": image_url,
             "active": request.form.get("active") == "on",
         })
-        flash("Artisan added!", "success")
+        if _saved(result, "Artisan"): _refresh_catalogue()
         return redirect(url_for("admin.artisans"))
     return render_template("admin/artisan_form.html", artisan=None)
 
@@ -787,8 +872,7 @@ def artisan_edit(aid):
             url = supa.upload_file("everbloom", path, img.read(), img.content_type)
             if url:
                 data["image_url"] = url
-        models.update_artisan(aid, data)
-        flash("Artisan updated!", "success")
+        if _saved(models.update_artisan(aid, data), "Artisan"): _refresh_catalogue()
         return redirect(url_for("admin.artisans"))
     return render_template("admin/artisan_form.html", artisan=artisan)
 
@@ -796,8 +880,7 @@ def artisan_edit(aid):
 @admin_bp.route("/artisans/<aid>/delete", methods=["POST"])
 @admin_only
 def artisan_delete(aid):
-    models.delete_artisan(aid)
-    flash("Artisan archived.", "success")
+    if _saved(models.delete_artisan(aid), "Artisan archive"): _refresh_catalogue()
     return redirect(url_for("admin.artisans"))
 
 
@@ -816,22 +899,21 @@ def faqs():
 @admin_bp.route("/faqs/new", methods=["POST"])
 @admin_only
 def faq_new():
-    models.create_faq({
+    result = models.create_faq({
         "question": request.form.get("question", ""),
         "answer": request.form.get("answer", ""),
         "category": request.form.get("category", "general"),
         "sort_order": int(request.form.get("sort_order", 0)),
         "active": True,
     })
-    flash("FAQ added!", "success")
+    _saved(result, "FAQ")
     return redirect(url_for("admin.faqs"))
 
 
 @admin_bp.route("/faqs/<fid>/delete", methods=["POST"])
 @admin_only
 def faq_delete(fid):
-    models.delete_faq(fid)
-    flash("FAQ deleted.", "success")
+    _saved(models.delete_faq(fid), "FAQ deletion")
     return redirect(url_for("admin.faqs"))
 
 
@@ -869,14 +951,14 @@ def broadcast():
 @admin_bp.route("/products/<pid>/variants/add", methods=["POST"])
 @admin_only
 def variant_add(pid):
-    models.create_variant({
+    result = models.create_variant({
         "product_id": pid,
         "name": request.form.get("name", ""),
         "value": request.form.get("value", ""),
         "price_modifier": float(request.form.get("price_modifier", 0)),
         "stock": int(request.form.get("stock", 0)),
     })
-    flash("Variant added!", "success")
+    if _saved(result, "Variant"): _refresh_catalogue()
     return redirect(url_for("admin.product_edit", pid=pid))
 
 
@@ -884,8 +966,7 @@ def variant_add(pid):
 @admin_only
 def variant_delete(vid):
     pid = request.form.get("product_id")
-    models.delete_variant(vid)
-    flash("Variant deleted.", "success")
+    if _saved(models.delete_variant(vid), "Variant deletion"): _refresh_catalogue()
     return redirect(url_for("admin.product_edit", pid=pid))
 
 
@@ -895,17 +976,20 @@ def variant_delete(vid):
 @admin_only
 def settings():
     if request.method == "POST":
-        for key in ["upi_id", "whatsapp_number", "instagram_handle", "store_name", "store_tagline", "business_email", "business_phone", "business_address", "announcement", "hero_eyebrow", "hero_headline", "hero_body", "hero_image", "hero_mobile_image", "hero_primary_label", "hero_secondary_label", "brand_story", "story_headline", "custom_headline", "custom_body", "footer_text", "processing_buffer", "policy_shipping", "policy_returns", "policy_privacy", "policy_terms"]:
-            val = request.form.get(key, "").strip()
-            models.set_setting(key, val)
-        qr_file = request.files.get("upi_qr")
-        if qr_file and qr_file.filename:
-            path = f"settings/upi_qr_{uuid.uuid4()}.png"
-            url = supa.upload_file("everbloom", path, qr_file.read(), qr_file.content_type)
-            if url:
-                models.set_setting("upi_qr_url", url)
-        flash("Settings saved!", "success")
-        return redirect(url_for("admin.settings"))
+        keys = ["upi_id", "whatsapp_number", "instagram_handle", "store_name", "store_tagline", "business_email", "business_phone", "business_address", "announcement", "hero_eyebrow", "hero_headline", "hero_body", "hero_image", "hero_mobile_image", "hero_primary_label", "hero_secondary_label", "brand_story", "story_headline", "custom_headline", "custom_body", "footer_text", "processing_buffer", "policy_shipping", "policy_returns", "policy_privacy", "policy_terms"]
+        values = {key: request.form.get(key, '').strip() for key in keys}
+        try:
+            _number('processing_buffer', minimum=0)
+            qr_file = request.files.get('upi_qr')
+            if qr_file and qr_file.filename:
+                values['upi_qr_url'] = supa.upload_file('everbloom',
+                    f'settings/upi_qr_{uuid.uuid4()}.png', qr_file.read(), qr_file.content_type)
+                if not values['upi_qr_url']:
+                    raise ValueError('QR code upload failed.')
+            _saved(models.save_settings(values), 'Store settings')
+        except (ValueError, supa.SupabaseError) as error:
+            flash(str(error), 'error')
+        return redirect(url_for('admin.settings'))
     s = models.get_all_settings()
     return render_template("admin/settings.html", s=s)
 
@@ -961,8 +1045,7 @@ def email_template_edit(key):
     if request.method == "POST":
         subject = request.form.get("subject", "").strip()
         body_html = request.form.get("body_html", "").strip()
-        models.save_email_template(key, subject, body_html)
-        flash("Template saved!", "success")
+        _saved(models.save_email_template(key, subject, body_html), "Email template")
         return redirect(url_for("admin.email_template_edit", key=key))
 
     return render_template("admin/email_template_edit.html",
@@ -1022,8 +1105,7 @@ def inventory_new():
         "supplier":      request.form.get("supplier", "").strip(),
         "notes":         request.form.get("notes", "").strip(),
     }
-    models.create_raw_material(data)
-    flash("Material added!", "success")
+    _saved(models.create_raw_material(data), "Material")
     return redirect(url_for("admin.inventory"))
 
 
@@ -1038,16 +1120,14 @@ def inventory_edit(mid):
         "supplier":      request.form.get("supplier", "").strip(),
         "notes":         request.form.get("notes", "").strip(),
     }
-    models.update_raw_material(mid, data)
-    flash("Material updated!", "success")
+    _saved(models.update_raw_material(mid, data), "Material")
     return redirect(url_for("admin.inventory"))
 
 
 @admin_bp.route("/inventory/<int:mid>/delete", methods=["POST"])
 @admin_only
 def inventory_delete(mid):
-    models.delete_raw_material(mid)
-    flash("Material archived.", "success")
+    _saved(models.delete_raw_material(mid), "Material archive")
     return redirect(url_for("admin.inventory"))
 
 
@@ -1123,8 +1203,7 @@ def component_new():
         "icon":          request.form.get("icon", "🔧"),
         "notes":         request.form.get("notes", "").strip(),
     }
-    models.create_component(data)
-    flash("Component added!", "success")
+    _saved(models.create_component(data), "Component")
     return redirect(url_for("admin.components"))
 
 @admin_bp.route("/components/<int:cid>", methods=["GET", "POST"])
@@ -1135,8 +1214,6 @@ def component_detail(cid):
         flash("Component not found.", "error")
         return redirect(url_for("admin.components"))
     materials = models.get_raw_materials()
-    bom = models.get_component_bom(cid)
-    cost = models.calculate_component_cost(cid)
     log = supa.select("manufacture_log", {"component_id": f"eq.{cid}"}, order="manufactured_at.desc")
 
     if request.method == "POST":
@@ -1149,12 +1226,12 @@ def component_detail(cid):
                 for m, q in zip(mat_ids, qtys)
             ])
             # Also update icon/notes
-            models.update_component(cid, {
+            result = models.update_component(cid, {
                 "icon":  request.form.get("icon", comp.get("icon","🔧")),
                 "notes": request.form.get("notes", "").strip(),
                 "reorder_level": float(request.form.get("reorder_level", 0)),
             })
-            flash("Component BOM saved!", "success")
+            _saved(result, 'Component recipe')
         elif action == "manufacture":
             qty   = float(request.form.get("quantity", 1))
             notes = request.form.get("notes", "").strip()
@@ -1167,14 +1244,14 @@ def component_detail(cid):
                 for e in errors:
                     flash(e, "error")
         elif action == "edit":
-            models.update_component(cid, {
+            result = models.update_component(cid, {
                 "name":  request.form.get("name", comp["name"]).strip(),
                 "unit":  request.form.get("unit", comp["unit"]),
                 "icon":  request.form.get("icon", comp.get("icon","🔧")),
                 "reorder_level": float(request.form.get("reorder_level", 0)),
                 "notes": request.form.get("notes", "").strip(),
             })
-            flash("Component updated!", "success")
+            _saved(result, 'Component')
         return redirect(url_for("admin.component_detail", cid=cid))
 
     comp = models.get_component(cid)
@@ -1187,8 +1264,7 @@ def component_detail(cid):
 @admin_bp.route("/components/<int:cid>/delete", methods=["POST"])
 @admin_only
 def component_delete(cid):
-    models.delete_component(cid)
-    flash("Component archived.", "success")
+    _saved(models.delete_component(cid), "Component archive")
     return redirect(url_for("admin.components"))
 
 
@@ -1205,12 +1281,13 @@ def product_cost_detail(pid):
     components = models.get_components()
 
     if request.method == "POST":
-        models.save_product_cost(pid, {
+        if not models.save_product_cost(pid, {
             "labour_cost":    float(request.form.get("labour_cost", 0)),
             "overhead_cost":  float(request.form.get("overhead_cost", 0)),
             "margin_percent": float(request.form.get("margin_percent", 30)),
             "notes":          request.form.get("notes", "").strip(),
-        })
+        }):
+            raise ValueError('Could not save the product cost fields.')
         item_types  = request.form.getlist("item_type[]")
         mat_ids     = request.form.getlist("material_id[]")
         comp_ids    = request.form.getlist("component_id[]")
@@ -1224,13 +1301,15 @@ def product_cost_detail(pid):
             elif itype == "component":
                 cid_val = comp_ids[i] if i < len(comp_ids) else ""
                 bom_items.append({"item_type": "component", "material_id": None, "component_id": cid_val, "quantity_used": qty})
-        models.save_product_bom(pid, bom_items)
+        if not models.save_product_bom(pid, bom_items):
+            raise ValueError('Could not save the product recipe.')
         flash("Cost breakdown saved!", "success")
         return redirect(url_for("admin.product_cost_detail", pid=pid))
 
     product_cost   = models.get_product_cost(pid)
     product_bom    = models.get_product_bom(pid)
-    cost_breakdown = models.calculate_product_bom_cost(pid)
+    cost_breakdown = models.calculate_product_bom_cost(
+        pid, bom=product_bom, pc=product_cost, materials=materials, components=components)
     return render_template("admin/product_cost_detail.html",
                            product=product, materials=materials,
                            components=components, product_cost=product_cost,
@@ -1265,7 +1344,7 @@ def order_deduct_stock(oid):
         return redirect(url_for("admin.orders"))
     try:
         models.deduct_order_materials(oid)
-    except ValueError as error:
+    except (ValueError, supa.SupabaseError) as error:
         flash(str(error), 'error')
         return redirect(url_for('admin.order_requirements',oid=oid))
     models.add_tracking(oid, order["status"], "Inventory deducted for this order.")
@@ -1309,15 +1388,23 @@ def order_delete(oid):
     if not safe and not force:
         flash("Cancel the order first before deleting.", "error")
         return redirect(url_for("admin.order_detail", oid=oid))
-    models.delete_order(oid)
-    flash("Order cancelled. Historical records retained.", "success")
+    if _saved(models.delete_order(oid), 'Order cancellation'):
+        _refresh_catalogue()
     return redirect(url_for("admin.orders"))
 
 
 @admin_bp.after_request
 def audit_admin_action(response):
     if request.method == 'POST' and response.status_code < 400 and session.get('user_id'):
-        supa.insert('audit_log', {'actor_id':session['user_id'],'action':request.endpoint,'entity':'admin_request','entity_id':str(request.view_args or {}),'metadata':{'http_status':response.status_code}})
+        try:
+            supa.insert('audit_log', {'actor_id':session['user_id'], 'action':request.endpoint,
+                                      'entity':'admin_request', 'entity_id':str(request.view_args or {}),
+                                      'metadata':{'http_status':response.status_code}})
+        except supa.SupabaseError:
+            # Audit is operational telemetry. Missing migration 002 must never
+            # convert a successful mutation into a misleading HTTP 500.
+            from flask import current_app
+            current_app.logger.exception('Admin audit write failed; check migration 002')
     return response
 
 
@@ -1360,7 +1447,7 @@ def merchandising(kind):
                 else: data['slug']=re.sub(r'[^a-z0-9]+','-',(request.form.get('slug') or name).lower()).strip('-')
                 if kind=='collections': data['featured']=request.form.get('featured')=='on'
                 saved=supa.update(kind, {'id':'eq.'+str(entry_id)},data)
-            flash('Changes saved.' if saved else 'Could not save. Check the slug and that the category visibility migration is applied.','success' if saved else 'error')
+            if _saved(saved, 'Catalogue entry'): _refresh_catalogue()
             return redirect(url_for('admin.merchandising',kind=kind))
         name=request.form.get('name','').strip()[:150]
         if not name: flash('Enter a name.','error')
@@ -1370,7 +1457,7 @@ def merchandising(kind):
             else: data['slug']=re.sub(r'[^a-z0-9]+','-',request.form.get('slug') or name.lower()).strip('-')
             if kind=='collections': data['featured']=request.form.get('featured')=='on'
             saved=supa.insert(kind,data)
-            flash('Saved.' if saved else 'Could not save. Check that the slug is unique.','success' if saved else 'error')
+            if _saved(saved, 'Catalogue entry'): _refresh_catalogue()
         return redirect(url_for('admin.merchandising',kind=kind))
     entries=supa.select(kind,order='name.asc')
     if kind in ('categories','collections','occasions'):
@@ -1381,7 +1468,8 @@ def merchandising(kind):
 @admin_only
 def reviews():
     if request.method=='POST':
-        models.update_review(request.form['review_id'],{'visible':request.form.get('visible')=='1'})
+        if _saved(models.update_review(request.form['review_id'],{'visible':request.form.get('visible')=='1'}), "Review"):
+            _refresh_catalogue()
         return redirect(url_for('admin.reviews'))
     return render_template('admin/reviews.html',reviews=supa.select('reviews',order='created_at.desc'))
 
@@ -1393,7 +1481,17 @@ def _catalog_editor_context(pid=None):
 
 
 def _save_memberships(pid):
-    for kind,table,column in [('collection','collection_products','collection_id'),('occasion','product_occasions','occasion_id')]:
-        supa.delete(table,{'product_id':'eq.'+str(pid)})
-        for key in request.form.getlist(kind+'_ids'):
-            supa.insert(table,{'product_id':str(pid),column:int(key)})
+    for kind, table, column in [
+        ('collection', 'collection_products', 'collection_id'),
+        ('occasion', 'product_occasions', 'occasion_id'),
+    ]:
+        try:
+            ids = {int(key) for key in request.form.getlist(kind + '_ids')}
+        except (ValueError, TypeError) as error:
+            raise ValueError('Invalid catalogue collection or occasion selection.') from error
+        existing = {int(row[column]) for row in supa.select(table, {'product_id': 'eq.' + str(pid)})}
+        for old in existing - ids:
+            supa.delete(table, {'product_id': 'eq.' + str(pid), column: 'eq.' + str(old)})
+        for new in ids - existing:
+            if not supa.insert(table, {'product_id': str(pid), column: new}):
+                raise ValueError('Failed to link product to ' + kind + '.')

@@ -22,14 +22,24 @@ def _cart_total(cart):
 
 
 def inject_cart():
-    from flask import g
+    from flask import g, request
     from datetime import date
+    # Admin templates don't render storefront navigation/cart/settings.
+    if request.blueprint == 'admin' or request.path == '/healthz':
+        return {'current_year': date.today().year}
     try:
-        if not hasattr(g, 'store_settings'): g.store_settings = models.get_all_settings()
-        if not hasattr(g, 'nav_categories'): g.nav_categories = models.get_public_merchandising()['categories']
+        g.store_settings = models.get_all_settings()
+        g.nav_categories = models.get_public_merchandising()['categories']
     except Exception:
-        g.store_settings = {}; g.nav_categories = []
-    return {"cart_count": _cart_count(), 'store':g.store_settings, 'nav_categories':g.nav_categories, 'nav_occasions':getattr(g, 'public_merchandising', {}).get('occasions', []), 'current_year':date.today().year}
+        # Preserve useful error pages, but do not silently change admin data.
+        import logging
+        logging.getLogger(__name__).exception('Storefront navigation unavailable')
+        g.store_settings = {}
+        g.nav_categories = []
+    return {'cart_count': _cart_count(), 'store': g.store_settings,
+            'nav_categories': g.nav_categories,
+            'nav_occasions': getattr(g, 'public_merchandising', {}).get('occasions', []),
+            'current_year': date.today().year}
 
 
 @shop_bp.route("/")
@@ -42,13 +52,17 @@ def index():
     for product in products:
         if product.get('images'):
             cat_images.setdefault(product.get('category_id'), product['images'][0])
+    try:
+        testimonials = supa.select('testimonials', {'active': 'eq.true'})
+    except supa.SupabaseError:
+        testimonials = []
     return render_template("shop/index.html", featured=featured,
                            hero_products=[p for p in products if p.get('images')][:2],
                            categories=merchandising['categories'], cat_images=cat_images,
                            flash_products=[p for p in products if models.is_flash_active(p) and p.get('is_flash_sale')][:3],
                            occasions=merchandising['occasions'],
                            collections=[c for c in merchandising['collections'] if c.get('featured')],
-                           testimonials=supa.select('testimonials', {'active': 'eq.true'}))
+                           testimonials=testimonials)
 
 
 @shop_bp.route("/shop")
@@ -273,7 +287,13 @@ def custom_order():
         ref_file = request.files.get("reference_image")
         if ref_file and ref_file.filename:
             path = f"custom/{uuid.uuid4()}-{ref_file.filename}"
-            ref_url = supa.upload_file("everbloom", path, ref_file.read(), ref_file.content_type)
+            try:
+                ref_url = supa.upload_file('everbloom', path, ref_file.read(), ref_file.content_type)
+                if not ref_url:
+                    raise ValueError('Reference image could not be uploaded.')
+            except (ValueError, supa.SupabaseError) as error:
+                flash(f'Image upload failed: {error}', 'error')
+                return redirect(url_for('shop.custom_order'))
         tracking_token = secrets.token_urlsafe(24)
         data = {
             "name": request.form.get("name", "").strip(),
@@ -465,7 +485,7 @@ def guest_payment(token):
                     models.add_tracking(order['id'],'advance_paid','Payment proof received. Awaiting verification.')
                     flash('Payment proof received. We will verify it shortly.','success')
                     return redirect(url_for('shop.guest_order',token=token))
-            except ValueError as error: flash(str(error),'error')
+            except (ValueError, supa.SupabaseError) as error: flash(str(error),'error')
         else: flash('Choose a payment screenshot.','error')
     return render_template('shop/pay_advance.html',order=order,upi_id=models.get_setting('upi_id'),upi_qr_url=models.get_setting('upi_qr_url'))
 

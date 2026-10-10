@@ -1,0 +1,17 @@
+{% extends 'admin/base_admin.html' %}
+{% block title %}System health{% endblock %}
+{% block page_title %}Backend diagnostics{% endblock %}
+{% block content %}
+<section class="admin-card">
+  <h2>Live database checks</h2>
+  <p>These checks are read-only and verify that required tables and columns exist and that your server credential can access them.</p>
+  <p><strong>Supabase service role configured:</strong> {{ 'Yes' if configured else 'No — required after enabling RLS' }}</p>
+  <p>Failed checks usually mean unapplied SQL migrations or a missing service-role key. Apply migrations 001–011 in order to a staging backup first; do not paste credentials into this page.</p>
+</section>
+<section class="admin-card table-responsive">
+<table class="admin-table"><thead><tr><th>Feature</th><th>Result</th><th>Details</th></tr></thead>
+<tbody>{% for check in checks %}
+<tr><td>{{ check.name }}</td><td><strong>{{ 'PASS' if check.ok else 'FAIL' }}</strong></td><td>{{ check.detail }}</td></tr>
+{% endfor %}</tbody></table>
+</section>
+{% endblock %}
