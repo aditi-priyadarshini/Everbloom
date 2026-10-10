@@ -145,3 +145,9 @@ Live SMTP, Google consent, Supabase REST/Storage and deployment require configur
 6. Execute guest, registered, custom-order and admin production journeys on staging, including receipt upload and actual email delivery; inspect logs and database movements before promoting the release.
 
 Production cookies are Secure/HttpOnly/SameSite=Lax. Local HTTP development omits Secure. Exceptions are logged server-side and never returned as tracebacks. CSRF remains active on state-changing forms. Rate limits protect auth and high-value submission endpoints; shared Redis is necessary for distributed enforcement.
+
+## October 2026 admin/performance patch
+
+The admin save/error handling and Supabase performance patch includes a new **System health** page at `/admin/system-health`, batch settings updates, public-catalogue caching, more reliable upload/CRUD feedback and lower-query inventory costing.
+
+See [docs/ADMIN_PERFORMANCE_FIXES.md](docs/ADMIN_PERFORMANCE_FIXES.md) for exact changes, migration prerequisites, deployment verification, and known limitations. Deploying just the Python code does **not** run the Supabase migrations.

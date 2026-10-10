@@ -57,16 +57,25 @@ def merchandising_counts(kind, entries=None, products=None):
 
 
 def get_public_merchandising():
-    """One request-local snapshot; six batch reads regardless of catalogue size."""
+    """Batched catalogue read, cached briefly between storefront requests."""
     from flask import g
+    from services.cache import cached
     if not hasattr(g, 'public_merchandising'):
-        products = get_products()
-        g.public_products = products
-        g.public_merchandising = {
-            kind: [entry for entry in merchandising_counts(kind, products=products)
-                   if entry['storefront_visible']]
-            for kind in ('categories', 'collections', 'occasions')
-        }
+        def fetch():
+            products = get_products()
+            result = {}
+            for kind in ('categories', 'collections', 'occasions'):
+                try:
+                    result[kind] = [entry for entry in merchandising_counts(kind, products=products)
+                                    if entry['storefront_visible']]
+                except supa.SupabaseError:
+                    # New optional merchandising tables may not exist on legacy
+                    # storefronts. Health diagnostics reports the schema gap.
+                    import logging
+                    logging.getLogger(__name__).warning('Optional public catalogue section unavailable: %s', kind)
+                    result[kind] = []
+            return products, result
+        g.public_products, g.public_merchandising = cached('public_catalogue', fetch)
     return g.public_merchandising
 
 
@@ -312,20 +321,41 @@ def update_custom_request(rid, data):
 # ── Settings ─────────────────────────────────────────────
 
 def get_setting(key):
-    rows = supa.select("settings", {"key": f"eq.{key}"})
-    return rows[0]["value"] if rows else None
+    return get_all_settings().get(key)
+
+
+def save_settings(values):
+    """One atomic upsert replaces dozens of HTTP calls on every settings save."""
+    from services.cache import invalidate
+    data = [{'key': key, 'value': str(value)} for key, value in values.items()]
+    if not data: return True
+    result = supa.upsert('settings', data, on_conflict='key')
+    if not result: return False
+    invalidate('public_settings')
+    try:
+        from flask import g, has_request_context
+        if has_request_context() and hasattr(g, 'store_settings'):
+            delattr(g, 'store_settings')
+    except ImportError:
+        pass
+    return True
 
 
 def set_setting(key, value):
-    rows = supa.select("settings", {"key": f"eq.{key}"})
-    if rows:
-        return supa.update("settings", {"key": f"eq.{key}"}, {"value": value})
-    return supa.insert("settings", {"key": key, "value": value})
+    return save_settings({key: value})
 
 
 def get_all_settings():
-    rows = supa.select("settings") or []
-    return {r["key"]: r["value"] for r in rows}
+    from services.cache import cached
+    from flask import g, has_request_context
+    if has_request_context() and hasattr(g, 'store_settings'):
+        return g.store_settings
+    def fetch():
+        rows = supa.select('settings') or []
+        return {row['key']: row['value'] for row in rows}
+    settings = cached('public_settings', fetch)
+    if has_request_context(): g.store_settings = settings
+    return settings
 
 
 # ── Variants ──────────────────────────────────────────────
@@ -523,9 +553,9 @@ def get_broadcasts():
 
 # ── Dashboard Stats ───────────────────────────────────────
 
-def get_stats():
+def get_stats(all_orders=None):
     from datetime import datetime, timezone, timedelta
-    all_orders = supa.select("orders") or []
+    all_orders = all_orders if all_orders is not None else (supa.select("orders") or [])
     all_users = supa.select("users", {"is_admin": "eq.false"}) or []
     all_products = supa.select("products") or []
     pending = [o for o in all_orders if o["status"] not in ("delivered", "cancelled")]
@@ -611,7 +641,7 @@ def save_email_template(key, subject, body_html):
         return supa.update("email_templates",
                            {"key": f"eq.{key}"},
                            {"subject": subject, "body_html": body_html,
-                            "updated_at": "now()"})
+                            "updated_at": datetime.now(timezone.utc).isoformat()})
     return supa.insert("email_templates",
                        {"key": key, "subject": subject, "body_html": body_html})
 
@@ -752,7 +782,7 @@ def get_product_cost(product_id):
 def save_product_cost(product_id, data):
     existing = get_product_cost(product_id)
     data["product_id"] = str(product_id)
-    data["updated_at"] = "now()"
+    data["updated_at"] = datetime.now(timezone.utc).isoformat()
     if existing:
         return supa.update("product_costs", {"product_id": f"eq.{product_id}"}, data)
     return supa.insert("product_costs", data)
@@ -825,23 +855,41 @@ def get_component_bom(component_id):
     return supa.select("component_bom", {"component_id": f"eq.{component_id}"})
 
 def save_component_bom(component_id, items):
-    supa.delete("component_bom", {"component_id": f"eq.{component_id}"})
+    """Validate and upload the full recipe in one write; restore old recipe on failure."""
+    rows = []
     for item in items:
-        if item.get("material_id") and float(item.get("quantity_used", 0)) > 0:
-            supa.insert("component_bom", {
-                "component_id": int(component_id),
-                "material_id": int(item["material_id"]),
-                "quantity_used": float(item["quantity_used"]),
-            })
+        if not item.get('material_id'): continue
+        qty = float(item.get('quantity_used') or 0)
+        if qty <= 0: continue
+        rows.append({'component_id': int(component_id), 'material_id': int(item['material_id']),
+                     'quantity_used': qty})
+    old = get_component_bom(component_id)
+    if not supa.delete('component_bom', {'component_id': f'eq.{component_id}'}):
+        raise ValueError('Could not update component recipe.')
+    try:
+        if rows and not supa.insert('component_bom', rows):
+            raise ValueError('Could not write component recipe.')
+    except (ValueError, supa.SupabaseError):
+        try:
+            supa.delete('component_bom', {'component_id': f'eq.{component_id}'})
+            if old: supa.insert('component_bom', [{k:v for k,v in row.items() if k != 'id'} for row in old])
+        except supa.SupabaseError:
+            import logging
+            logging.getLogger(__name__).exception('Failed to restore component recipe')
+        raise
+    return True
 
-def calculate_component_cost(component_id):
+
+def calculate_component_cost(component_id, materials_by_id=None):
     bom = get_component_bom(component_id)
-    total = 0
-    for item in bom:
-        mat = get_raw_material(item["material_id"])
-        if mat:
-            total += float(mat.get("cost_per_unit", 0)) * float(item.get("quantity_used", 0))
-    return round(total, 2)
+    if materials_by_id is None:
+        materials_by_id = {str(m['id']): m for m in get_raw_materials()}
+    return round(sum(
+        float(materials_by_id[str(item['material_id'])].get('cost_per_unit') or 0) *
+        float(item.get('quantity_used') or 0)
+        for item in bom if str(item.get('material_id')) in materials_by_id
+    ), 2)
+
 
 def manufacture_component(component_id, quantity, notes="", wastage_percent=0):
     result = supa.rpc('produce_component', {'p_component_id':component_id,'p_quantity':quantity,'p_wastage':wastage_percent,'p_notes':notes})
@@ -895,61 +943,86 @@ def get_product_bom(product_id):
     return supa.select("product_bom", {"product_id": f"eq.{product_id}"})
 
 def save_product_bom(product_id, items):
-    supa.delete("product_bom", {"product_id": f"eq.{product_id}"})
+    """Replace recipe via one bulk insert; attempt restoration on write failure."""
+    rows = []
     for item in items:
-        qty = float(item.get("quantity_used", 0))
-        if qty <= 0:
-            continue
-        row = {"product_id": str(product_id), "item_type": item["item_type"], "quantity_used": qty}
-        if item["item_type"] == "material" and item.get("material_id"):
-            row["material_id"] = int(item["material_id"])
-        elif item["item_type"] == "component" and item.get("component_id"):
-            row["component_id"] = int(item["component_id"])
+        qty = float(item.get('quantity_used') or 0)
+        if qty <= 0: continue
+        row = {'product_id': str(product_id), 'item_type': item['item_type'], 'quantity_used': qty}
+        if item['item_type'] == 'material' and item.get('material_id'):
+            row['material_id'] = int(item['material_id'])
+        elif item['item_type'] == 'component' and item.get('component_id'):
+            row['component_id'] = int(item['component_id'])
         else:
-            continue
-        supa.insert("product_bom", row)
+            raise ValueError('Select a valid item for every recipe line.')
+        rows.append(row)
+    old = get_product_bom(product_id)
+    if not supa.delete('product_bom', {'product_id': f'eq.{product_id}'}):
+        raise ValueError('Could not update product recipe.')
+    try:
+        if rows and not supa.insert('product_bom', rows):
+            raise ValueError('Could not write product recipe.')
+    except (ValueError, supa.SupabaseError):
+        try:
+            supa.delete('product_bom', {'product_id': f'eq.{product_id}'})
+            if old: supa.insert('product_bom', [{k:v for k,v in row.items() if k != 'id'} for row in old])
+        except supa.SupabaseError:
+            import logging
+            logging.getLogger(__name__).exception('Failed to restore product recipe')
+        raise
+    return True
 
-def calculate_product_bom_cost(product_id):
-    bom = get_product_bom(product_id)
-    pc = get_product_cost(product_id) or {}
+
+def calculate_product_bom_cost(product_id, *, bom=None, pc=None, materials=None, components=None):
+    """Batch material/component costs; no per-recipe-line HTTP round trips."""
+    bom = get_product_bom(product_id) if bom is None else bom
+    pc = (get_product_cost(product_id) or {}) if pc is None else pc
+    if materials is None: materials = get_raw_materials()
+    if components is None: components = get_components()
+    materials_by_id = {str(row['id']): row for row in materials}
+    components_by_id = {str(row['id']): row for row in components}
+    component_ids = {str(row['component_id']) for row in bom
+                     if row.get('item_type') == 'component' and row.get('component_id')}
+    component_costs = {}
+    if component_ids:
+        all_bom = supa.select('component_bom')
+        for line in all_bom:
+            cid = str(line.get('component_id'))
+            if cid not in component_ids: continue
+            mat = materials_by_id.get(str(line.get('material_id')))
+            if mat:
+                component_costs[cid] = component_costs.get(cid, 0) + (
+                    float(mat.get('cost_per_unit') or 0) * float(line.get('quantity_used') or 0))
     material_cost = 0
     breakdown = []
     for item in bom:
-        if item["item_type"] == "material" and item.get("material_id"):
-            mat = get_raw_material(item["material_id"])
+        qty = float(item['quantity_used'])
+        if item['item_type'] == 'material' and item.get('material_id'):
+            mat = materials_by_id.get(str(item['material_id']))
             if mat:
-                cost = float(mat.get("cost_per_unit", 0)) * float(item["quantity_used"])
+                cost = float(mat.get('cost_per_unit') or 0) * qty
                 material_cost += cost
-                breakdown.append({
-                    "name": mat["name"], "icon": mat.get("icon", "🧪"),
-                    "type": "material", "qty": item["quantity_used"],
-                    "unit": mat["unit"], "cost": round(cost, 2)
-                })
-        elif item["item_type"] == "component" and item.get("component_id"):
-            comp = get_component(item["component_id"])
+                breakdown.append({'name': mat['name'], 'icon': mat.get('icon', '🧪'),
+                                  'type': 'material', 'qty': item['quantity_used'],
+                                  'unit': mat['unit'], 'cost': round(cost, 2)})
+        elif item['item_type'] == 'component' and item.get('component_id'):
+            comp = components_by_id.get(str(item['component_id']))
             if comp:
-                comp_cost = calculate_component_cost(item["component_id"])
-                cost = comp_cost * float(item["quantity_used"])
+                cost = component_costs.get(str(item['component_id']), 0) * qty
                 material_cost += cost
-                breakdown.append({
-                    "name": comp["name"], "icon": comp.get("icon", "🔧"),
-                    "type": "component", "qty": item["quantity_used"],
-                    "unit": comp["unit"], "cost": round(cost, 2)
-                })
-    labour = float(pc.get("labour_cost", 0))
-    overhead = float(pc.get("overhead_cost", 0))
-    margin = float(pc.get("margin_percent", 30))
+                breakdown.append({'name': comp['name'], 'icon': comp.get('icon', '🔧'),
+                                  'type': 'component', 'qty': item['quantity_used'],
+                                  'unit': comp['unit'], 'cost': round(cost, 2)})
+    labour = float(pc.get('labour_cost') or 0)
+    overhead = float(pc.get('overhead_cost') or 0)
+    margin = float(pc['margin_percent']) if pc.get('margin_percent') is not None else 30.0
     total = material_cost + labour + overhead
     suggested = round(total * (1 + margin / 100), 2) if total > 0 else 0
-    return {
-        "breakdown": breakdown,
-        "material_cost": round(material_cost, 2),
-        "labour_cost": round(labour, 2),
-        "overhead_cost": round(overhead, 2),
-        "total_cost": round(total, 2),
-        "margin_percent": margin,
-        "suggested_price": suggested,
-    }
+    return {'breakdown': breakdown, 'material_cost': round(material_cost, 2),
+            'labour_cost': labour, 'overhead_cost': overhead,
+            'total_cost': round(total, 2), 'margin_percent': margin,
+            'suggested_price': suggested}
+
 
 # ── Order Requirements & Auto-deduction ──────────────────
 
@@ -984,40 +1057,26 @@ def calculate_order_requirements(order_id):
     return list(requirements.values())
 
 def check_requirements_availability(requirements):
-    """Check if we have enough stock for each requirement."""
+    """Two batch reads regardless of how many line items a recipe contains."""
+    if not requirements: return []
+    materials = {str(m['id']): m for m in get_raw_materials()} if any(
+        r['item_type'] == 'material' for r in requirements) else {}
+    components = {str(c['id']): c for c in get_components()} if any(
+        r['item_type'] == 'component' for r in requirements) else {}
     result = []
     for req in requirements:
         r = dict(req)
-        if r["item_type"] == "material":
-            mat = get_raw_material(r["material_id"])
-            if mat:
-                r["name"] = mat["name"]
-                r["icon"] = mat.get("icon", "🧪")
-                r["unit"] = mat["unit"]
-                r["available"] = float(mat.get("current_stock", 0))
-                r["is_available"] = r["available"] >= r["quantity_needed"]
-            else:
-                r["name"] = "Unknown"
-                r["icon"] = "❓"
-                r["unit"] = ""
-                r["available"] = 0
-                r["is_available"] = False
-        elif r["item_type"] == "component":
-            comp = get_component(r["component_id"])
-            if comp:
-                r["name"] = comp["name"]
-                r["icon"] = comp.get("icon", "🔧")
-                r["unit"] = comp["unit"]
-                r["available"] = float(comp.get("current_stock", 0))
-                r["is_available"] = r["available"] >= r["quantity_needed"]
-            else:
-                r["name"] = "Unknown"
-                r["icon"] = "❓"
-                r["unit"] = ""
-                r["available"] = 0
-                r["is_available"] = False
+        material = r['item_type'] == 'material'
+        obj = (materials.get(str(r.get('material_id'))) if material
+               else components.get(str(r.get('component_id'))))
+        r['name'] = obj.get('name', 'Unknown') if obj else 'Unknown'
+        r['icon'] = obj.get('icon', '🧪' if material else '🔧') if obj else '❓'
+        r['unit'] = obj.get('unit', '') if obj else ''
+        r['available'] = float(obj.get('current_stock') or 0) if obj else 0
+        r['is_available'] = bool(obj and r['available'] >= r['quantity_needed'])
         result.append(r)
     return result
+
 
 def deduct_order_materials(order_id):
     result = supa.rpc('consume_order_inventory', {'p_order_id': str(order_id)})
