@@ -15,3 +15,4 @@
 \ir supabase/migrations/013_custom_conversion_repair.sql
 \ir supabase/migrations/014_storage_setup.sql
 \ir supabase/migrations/015_coupon_rls_permissions.sql
+\ir supabase/migrations/016_missing_columns_repair.sql

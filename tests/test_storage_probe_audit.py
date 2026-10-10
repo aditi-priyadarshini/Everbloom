@@ -34,9 +34,9 @@ def test_full_setup_sql_includes_all_migrations():
     from pathlib import Path
     root=Path(__file__).resolve().parents[1]
     setup=(root/'supabase/FRESH_PROJECT_SQL_EDITOR_SETUP.sql').read_text()
-    assert len(list((root/'supabase/migrations').glob('*.sql'))) == 15
+    assert len(list((root/'supabase/migrations').glob('*.sql'))) == 16
     assert 'payment-receipts' in setup
-    for i in range(1,16):
+    for i in range(1,17):
         assert f'/{i:03d}_' not in setup  # setup has SQL, not external file references
         assert f'-- ==================== {i:03d}_' in setup
 
