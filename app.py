@@ -45,6 +45,8 @@ def create_app():
     # service-role key is required for database access.
     service_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_SERVICE_KEY")
     legacy_key = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_ANON_KEY")
+    if production and not os.environ.get('SUPABASE_URL'):
+        raise RuntimeError('SUPABASE_URL must be configured for production')
     if production and not (service_key or legacy_key):
         raise RuntimeError("A Supabase backend credential is required in production")
     if production and not service_key:
@@ -207,9 +209,8 @@ def _build_wsgi_app():
         logging.exception("Everbloom failed during application startup")
 
         fallback_app = Flask(__name__)
-        fallback_app.config["STARTUP_ERROR"] = (
-            f"{type(startup_error).__name__}: {startup_error}"
-        )
+        # Never display internal exception details on a public storefront.
+        fallback_app.config['STARTUP_ERROR'] = 'Configuration or dependency error' 
 
         @fallback_app.route("/", defaults={"path": ""})
         @fallback_app.route("/<path:path>")
@@ -217,8 +218,7 @@ def _build_wsgi_app():
             from flask import Response
             message = (
                 "Everbloom could not start.\n\n"
-                + fallback_app.config["STARTUP_ERROR"]
-                + "\n\nCheck the Vercel environment variables and function logs, then redeploy."
+                + 'Check deployment logs and environment configuration.' 
             )
             return Response(message, status=503, mimetype="text/plain")
 

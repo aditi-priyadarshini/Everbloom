@@ -6,7 +6,7 @@
   <h2>Live database checks</h2>
   <p>These checks are read-only and verify that required tables and columns exist and that your server credential can access them.</p>
   <p><strong>Supabase service role configured:</strong> {{ 'Yes' if configured else 'No — required after enabling RLS' }}</p>
-  <p>Failed checks usually mean unapplied SQL migrations or a missing service-role key. Apply migrations 001–011 in order to a staging backup first; do not paste credentials into this page.</p>
+  <p>A failed product schema check usually indicates a missing column (commonly image_alt_texts), a stale PostgREST schema cache, or bad credentials. For an existing database, review the additive repair migration <code>supabase/migrations/012_product_insert_repair.sql</code> on a staging copy first; do not re-run older migrations blindly or paste credentials here.</p>
 </section>
 <section class="admin-card table-responsive">
 <table class="admin-table"><thead><tr><th>Feature</th><th>Result</th><th>Details</th></tr></thead>

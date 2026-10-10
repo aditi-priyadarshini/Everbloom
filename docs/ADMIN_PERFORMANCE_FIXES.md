@@ -16,7 +16,7 @@
 ## Essential steps for deployment
 
 1. **Back up the production Supabase database first.** Do not blindly run the baseline migration against real customer data.
-2. Restore the backup into a staging Supabase project. Review and apply migrations `supabase/migrations/001_legacy_baseline.sql` through `011_ui_metadata.sql` in ascending order as appropriate to that database. Most optional admin features require these migrations. In particular `003_transactions.sql`, `004_inventory_operations.sql`, `005_merchandising.sql`, `006_custom_conversion.sql`, `007_order_states.sql`, `008_order_validation.sql`, `009_order_updates.sql`, `010_backend_permissions.sql`, and `011_ui_metadata.sql` provide the inventory, merchandising, RPC, RLS and image-alt-text features.
+2. Restore the backup into a staging Supabase project. Review and apply migrations `supabase/migrations/001_legacy_baseline.sql` through `012_product_insert_repair.sql` in ascending order as appropriate to that database. Most optional admin features require these migrations. In particular `003_transactions.sql`, `004_inventory_operations.sql`, `005_merchandising.sql`, `006_custom_conversion.sql`, `007_order_states.sql`, `008_order_validation.sql`, `009_order_updates.sql`, `010_backend_permissions.sql`, , `011_ui_metadata.sql`, and `012_product_insert_repair.sql` provide the inventory, merchandising, RPC, RLS and image-alt-text features.
 3. Ensure Vercel server-side environment contains `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and a random `SECRET_KEY` of at least 32 characters. Do not put the service key in frontend variables, screenshots or git.
 4. Deploy this code, log in as a real administrator, and open **`/admin/system-health`**. Fix failed checks before testing the corresponding admin feature.
 5. Smoke test create/edit/archive product (with image), add category/collection/occasion, save settings twice, gift card/coupon create, inventory purchase/recipe, and update order status. Check in Supabase that data actually persisted.
@@ -38,3 +38,6 @@
 - Jinja syntax parsing across 67 templates, including the new diagnostic page: **passed**.
 - Node JavaScript syntax check on `static/js/main.js`: **passed**.
 - Flask integration tests are included under `tests/` but **not run** in this environment because Flask, Flask-WTF and Authlib could not be installed from the disconnected package index. Run them in CI/staging before deploying.
+
+### Product insert 400 follow-up
+See `docs/PRODUCT_INSERT_400_FIX.md`. The prior `schema.sql` omitted migration 011, but the form always supplied `image_alt_texts`. The schema loader now includes 011 and a targeted 012 repair. Production root cause needs confirmation from actual PostgREST error code.

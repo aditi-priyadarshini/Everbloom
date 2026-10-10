@@ -1103,9 +1103,12 @@ def review_eligible(product_id, user_id):
 
 # ── New Custom Request Workflow ───────────────────────────
 
-CUSTOM_STATUSES = ["new", "discussing", "agreed", "converted", "closed"]
+CUSTOM_STATUSES = ["pending", "new", "discussing", "quoted", "agreed", "converted", "closed", "rejected"]
 CUSTOM_STATUS_LABELS = {
+    "pending":   "Pending",
     "new":       "New Request",
+    "quoted":    "Quote Sent",
+    "rejected":  "Rejected",
     "discussing":"Discussing",
     "agreed":    "Price Agreed",
     "converted": "Order Created",
@@ -1113,15 +1116,28 @@ CUSTOM_STATUS_LABELS = {
 }
 
 def convert_custom_to_order(rid, admin_price, admin_note=""):
-    """Admin manually converts a custom request into a real order."""
+    """Atomically convert a request through the DB RPC (never client-side inserts)."""
+    from decimal import Decimal, InvalidOperation
+    try:
+        amount = Decimal(str(admin_price))
+        if not amount.is_finite() or amount <= 0 or amount > Decimal('9999999999.99') or amount != amount.quantize(Decimal('0.01')):
+            return None, "Enter a positive price with at most two decimal places"
+    except (InvalidOperation, ValueError, TypeError):
+        return None, "Enter a valid agreed price"
+
     req = get_custom_request(rid)
     if not req:
         return None, "Request not found"
     if req.get("converted_order_id"):
-        return get_order(req["converted_order_id"]), None
+        existing = get_order(req["converted_order_id"])
+        return (existing, None) if existing else (None, "Converted order is missing; check database integrity")
 
-    result = supa.rpc('convert_custom_request', {'p_request_id':str(rid),'p_price':float(admin_price),'p_note':admin_note})
-    return (result, None) if result else (None, 'Could not convert request. Check quote, request state and migration setup.')
+    result = supa.rpc('convert_custom_request', {
+        'p_request_id': str(rid), 'p_price': float(amount),
+        'p_note': str(admin_note or '')[:20000],
+    })
+    return (result, None) if isinstance(result, dict) and result.get('id') else (
+        None, 'Custom-order conversion returned no order. Inspect the RPC and migrations.')
 
 
 def add_custom_internal_note(rid, note):
@@ -1133,8 +1149,7 @@ def add_custom_internal_note(rid, note):
     ts = datetime.now(timezone.utc).strftime("%d %b %H:%M")
     new_note = f"[{ts}] {note}"
     combined = f"{existing}\n{new_note}".strip() if existing else new_note
-    update_custom_request(rid, {"admin_note": combined})
-    return True
+    return bool(update_custom_request(rid, {"admin_note": combined}))
 
 
 def manufacturable_quantity(product_id):

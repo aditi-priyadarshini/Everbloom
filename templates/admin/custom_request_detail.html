@@ -163,7 +163,7 @@
   <div class="order-detail-side">
 
     <!-- THE BIG ACTION: Convert to Order -->
-    {% if req.status not in ['converted','closed'] %}
+    {% if not req.converted_order_id and req.status not in ['closed','rejected'] %}
     <div class="admin-card" style="border-color:#c9a96e;background:linear-gradient(135deg,#fffbf0,#fdf6f0);">
       <h3 style="color:#7c4f3a;"> Convert to Order</h3>
       <p style="font-size:.84rem;color:var(--admin-muted);margin-bottom:1rem;line-height:1.7;">
@@ -200,9 +200,9 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
           <select name="status">
-            {% for s in ['new','discussing','agreed','converted','closed'] %}
+            {% for s in ['pending','new','discussing','quoted','agreed','closed','rejected'] + (['converted'] if req.converted_order_id else []) %}
             <option value="{{ s }}" {% if req.status == s %}selected{% endif %}>
-              {{ {'new':'⭕ New','discussing':' Discussing','agreed':' Price Agreed','converted':' Converted','closed':' Closed'}[s] }}
+              {{ status_labels.get(s, s.replace('_',' ')|title) }}
             </option>
             {% endfor %}
           </select>

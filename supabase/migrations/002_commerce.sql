@@ -48,7 +48,7 @@ create index if not exists order_items_order_idx on order_items(order_id);
 create index if not exists product_bom_product_idx on product_bom(product_id);
 -- Server uses a service-role credential. No direct browser access to business tables.
 do $$ declare t text; begin
- foreach t in array array['users','products','categories','variants','orders','order_items','tracking','notifications','reviews','wishlists','settings','custom_requests','raw_materials','components','component_bom','product_bom','product_materials','product_costs','expenditures','manufacture_log','order_requirements','auth_tokens','gift_cards','returns','faqs','broadcasts','back_in_stock_alerts','email_templates','email_log','artisans','newsletter_subscribers','inventory_movements','audit_log'] loop
+ foreach t in array array['users','products','categories','coupons','variants','orders','order_items','tracking','notifications','reviews','wishlists','settings','custom_requests','raw_materials','components','component_bom','product_bom','product_materials','product_costs','expenditures','manufacture_log','order_requirements','auth_tokens','gift_cards','returns','faqs','broadcasts','back_in_stock_alerts','email_templates','email_log','artisans','newsletter_subscribers','inventory_movements','audit_log'] loop
  execute format('alter table public.%I enable row level security',t);
  execute format('revoke all on public.%I from anon, authenticated',t);
  end loop;

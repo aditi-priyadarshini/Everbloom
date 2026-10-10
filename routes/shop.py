@@ -245,8 +245,16 @@ def checkout():
             lines = [{'product_id':str(i['product']['id']),'quantity':i['qty'],'variant_ids':i['variant_ids'], 'personalization':i['personalization']} for i in items]
             order = supa.rpc('place_commerce_order', {'p_order':payload,'p_lines':lines})
             if not order: raise ValueError('We could not place your order. Availability may have changed. Please try again.')
-            session.pop('cart',None); session.pop('checkout_key',None)
-            emails.send_order_placed(email, order)
+            # The RPC has COMMITTED. Mail delivery must not turn an already
+            # placed order into an HTTP 500 or invite a second checkout.
+            session.pop('cart', None); session.pop('checkout_key', None)
+            try:
+                if not emails.send_order_placed(email, order):
+                    from flask import current_app
+                    current_app.logger.warning('Order %s saved, confirmation mail not sent', order['id'])
+            except Exception:
+                from flask import current_app
+                current_app.logger.exception('Order %s saved, confirmation mail crashed', order['id'])
             return redirect(url_for('shop.guest_order', token=order['tracking_token']))
         except (ValueError, TypeError) as exc: error = str(exc)
     return render_template('shop/checkout.html',items=items,subtotal=subtotal,discount=discount,user=user or {},coupon_error=error,min_date=min_date)

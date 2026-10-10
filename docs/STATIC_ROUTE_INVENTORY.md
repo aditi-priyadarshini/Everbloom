@@ -1,0 +1,125 @@
+# Automated static integrity inventory (not a live result)
+
+- Parsed **25 Python files**.
+- Found **108 route declarations** and **109 endpoint names**.
+- Parsed **67 Jinja templates**; syntax failures: **0**.
+- Missing static `url_for` endpoints from templates: **0**; from Python: **0**.
+- POST forms lacking a literal CSRF token: **0** (heuristic).
+- Python invokes **8 RPCs**, with **0** absent in migration DDL.
+
+## Unresolved route names / syntax / CSRF candidates
+
+```text
+No unresolved references or syntax errors.
+```
+
+## Endpoint inventory
+
+- `GET` `/analytics` — `admin.analytics`
+- `POST` `/artisans/<aid>/delete` — `admin.artisan_delete`
+- `GET,POST` `/artisans/<aid>/edit` — `admin.artisan_edit`
+- `GET,POST` `/artisans/new` — `admin.artisan_new`
+- `GET` `/artisans` — `admin.artisans`
+- `GET` `/audit-log` — `admin.audit_log`
+- `GET,POST` `/broadcast` — `admin.broadcast`
+- `POST` `/components/<int:cid>/delete` — `admin.component_delete`
+- `GET,POST` `/components/<int:cid>` — `admin.component_detail`
+- `POST` `/components/new` — `admin.component_new`
+- `GET` `/components` — `admin.components`
+- `POST` `/coupons/<cid>/delete` — `admin.coupon_delete`
+- `POST` `/coupons/new` — `admin.coupon_new`
+- `POST` `/coupons/<cid>/toggle` — `admin.coupon_toggle`
+- `GET` `/coupons` — `admin.coupons`
+- `POST` `/custom-requests/<rid>/note` — `admin.custom_request_add_note`
+- `POST` `/custom-requests/<rid>/convert` — `admin.custom_request_convert`
+- `POST` `/custom-requests/<rid>/create-product` — `admin.custom_request_create_product`
+- `GET` `/custom-requests/<rid>` — `admin.custom_request_detail`
+- `POST` `/custom-requests/<rid>/email` — `admin.custom_request_email`
+- `POST` `/custom-requests/<rid>/link-product` — `admin.custom_request_link_product`
+- `POST` `/custom-requests/<rid>/quote` — `admin.custom_request_quote`
+- `POST` `/custom-requests/<rid>/status` — `admin.custom_request_status`
+- `POST` `/custom-requests/<rid>/unlink` — `admin.custom_request_unlink`
+- `GET` `/custom-requests` — `admin.custom_requests`
+- `GET` `/customers` — `admin.customers`
+- `GET` `/` — `admin.dashboard`
+- `GET,POST` `/email-templates/<key>` — `admin.email_template_edit`
+- `GET` `/email-templates` — `admin.email_templates`
+- `GET` `/analytics/export` — `admin.export_orders`
+- `POST` `/faqs/<fid>/delete` — `admin.faq_delete`
+- `POST` `/faqs/new` — `admin.faq_new`
+- `GET` `/faqs` — `admin.faqs`
+- `POST` `/gift-cards/<gid>/delete` — `admin.gift_card_delete`
+- `POST` `/gift-cards/new` — `admin.gift_card_new`
+- `GET` `/gift-cards` — `admin.gift_cards`
+- `GET` `/inventory` — `admin.inventory`
+- `POST` `/inventory/<int:mid>/delete` — `admin.inventory_delete`
+- `GET` `/inventory/<int:mid>` — `admin.inventory_detail`
+- `POST` `/inventory/<int:mid>/edit` — `admin.inventory_edit`
+- `POST` `/inventory/new` — `admin.inventory_new`
+- `POST` `/inventory/<int:mid>/purchase` — `admin.inventory_purchase`
+- `GET,POST` `/merchandising/<kind>` — `admin.merchandising`
+- `POST` `/orders/<oid>/deduct-stock` — `admin.order_deduct_stock`
+- `POST` `/orders/<oid>/delete` — `admin.order_delete`
+- `GET,POST` `/orders/<oid>` — `admin.order_detail`
+- `GET` `/orders/<oid>/requirements` — `admin.order_requirements`
+- `POST` `/orders/<oid>/email` — `admin.order_send_email`
+- `GET` `/orders` — `admin.orders`
+- `GET,POST` `/product-costs/<pid>` — `admin.product_cost_detail`
+- `GET` `/product-costs` — `admin.product_costs`
+- `POST` `/products/<pid>/delete` — `admin.product_delete`
+- `GET,POST` `/products/<pid>/edit` — `admin.product_edit`
+- `GET,POST` `/products/new` — `admin.product_new`
+- `POST` `/products/<pid>/toggle-listing` — `admin.product_toggle_listing`
+- `GET` `/products` — `admin.products`
+- `GET,POST` `/returns/<rid>` — `admin.return_detail`
+- `GET` `/returns` — `admin.returns`
+- `GET,POST` `/reviews` — `admin.reviews`
+- `GET,POST` `/settings` — `admin.settings`
+- `GET` `/stock-movements` — `admin.stock_movements`
+- `GET` `/system-health` — `admin.system_health`
+- `POST` `/products/<pid>/variants/add` — `admin.variant_add`
+- `POST` `/variants/<vid>/delete` — `admin.variant_delete`
+- `GET,POST` `/forgot-password` — `auth.forgot_password`
+- `GET` `/google/callback` — `auth.google_callback`
+- `GET` `/google/login` — `auth.google_login`
+- `GET,POST` `/login` — `auth.login`
+- `GET` `/logout` — `auth.logout`
+- `GET,POST` `/profile` — `auth.profile`
+- `GET,POST` `/resend-verification` — `auth.resend_verification`
+- `GET,POST` `/reset-password/<token>` — `auth.reset_password`
+- `GET,POST` `/signup` — `auth.signup`
+- `GET` `/verify-email/<token>` — `auth.verify_email`
+- `GET` `/<oid>` — `orders.order_detail`
+- `GET` `/` — `orders.orders_list`
+- `GET,POST` `/<oid>/pay-advance` — `orders.pay_advance`
+- `GET,POST` `/<oid>/return` — `orders.request_return`
+- `GET` `/<oid>/track` — `orders.track`
+- `GET` `/about` — `shop.about`
+- `GET` `/account/notifications` — `shop.account_notifications`
+- `GET` `/artisans/<aid>` — `shop.artisan_detail`
+- `GET` `/artisans` — `shop.artisans`
+- `POST` `/back-in-stock/<pid>` — `shop.back_in_stock`
+- `GET` `/cart` — `shop.cart`
+- `POST` `/cart/add/<pid>` — `shop.cart_add`
+- `POST` `/cart/remove/<pid>` — `shop.cart_remove`
+- `POST` `/cart/update/<pid>` — `shop.cart_update`
+- `GET,POST` `/checkout` — `shop.checkout`
+- `GET,POST` `/custom-order` — `shop.custom_order`
+- `POST` `/custom-order/cancel/<token>` — `shop.custom_order_cancel`
+- `GET,POST` `/custom-order/respond/<token>/<response>` — `shop.custom_order_respond`
+- `GET` `/custom-order/track/<token>` — `shop.custom_order_track`
+- `GET` `/faq` — `shop.faq`
+- `GET` `/order/<token>` — `shop.guest_order`
+- `GET,POST` `/order/<token>/payment` — `shop.guest_payment`
+- `GET` `/` — `shop.index`
+- `POST` `/api/notifications/read` — `shop.mark_read`
+- `POST` `/newsletter` — `shop.newsletter`
+- `GET` `/api/notifications` — `shop.notifications_api`
+- `GET` `/policies/<slug>` — `shop.policy`
+- `GET` `/product/<pid>` — `shop.product`
+- `GET` `/robots.txt` — `shop.robots`
+- `GET` `/shop` — `shop.shop`
+- `GET` `/sitemap.xml` — `shop.sitemap`
+- `POST` `/product/<pid>/review` — `shop.submit_review`
+- `GET` `/wishlist` — `shop.wishlist`
+- `POST` `/wishlist/toggle/<pid>` — `shop.wishlist_toggle`

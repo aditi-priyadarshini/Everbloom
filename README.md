@@ -1,3 +1,4 @@
+
 # Everbloom
 
 Everbloom is a Flask/Jinja handmade-commerce application with a Supabase PostgreSQL and Storage backend. The existing authentication, UPI advance workflow, products, custom requests, customer orders, costing, material recipes and component manufacturing remain in the same application.
@@ -41,7 +42,7 @@ Without database configuration, public catalog pages render an empty state; busi
 
 Back up an existing database first. Test migrations against a staging copy: the original repository did not contain a reliable schema, so local tests cannot establish compatibility with an unknown deployed schema. The baseline expects UUID customer/product/order/request identifiers and bigint category/material/component/variant identifiers. Existing tables are retained; existing schemas with different identifier types require an explicit adaptation before migration.
 
-Run each file **once**, in order, using the Supabase SQL editor or `psql` with `ON_ERROR_STOP=1`:
+For a new project, run `supabase/FRESH_PROJECT_SQL_EDITOR_SETUP.sql` once in the Supabase SQL Editor. For existing projects, inspect `supabase/LIVE_READ_ONLY_VERIFICATION.sql` and apply only missing migrations after a backup. The ordered migrations are:
 
 1. `001_legacy_baseline.sql`: complete baseline for tables already referenced by the application.
 2. `002_commerce.sql`: additive availability, guest order, option snapshots, promotions, ledger and RLS changes; legacy product availability is backfilled.
@@ -53,6 +54,11 @@ Run each file **once**, in order, using the Supabase SQL editor or `psql` with `
 8. `008_order_validation.sql`: status constraints and forward-only fulfilment transitions.
 9. `009_order_updates.sql`: transactional status/amount updates and production allocation.
 10. `010_backend_permissions.sql`: explicit service-role table and sequence permissions.
+11. `011_ui_metadata.sql`: category visibility and product image alt text.
+12. `012_product_insert_repair.sql`: product editor column repair.
+13. `013_custom_conversion_repair.sql`: hardened idempotent conversion RPC.
+14. `014_storage_setup.sql`: public catalogue and private payment Storage buckets.
+15. `015_coupon_rls_permissions.sql`: RLS and service-role permissions for coupons.
 
 From the repository root, `psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f schema.sql` executes the same files using psql include directives. For the Supabase browser SQL editor, paste individual migration contents; `\ir` is a psql command.
 
@@ -71,7 +77,7 @@ Create:
 
 New receipts store a private object reference. Authorized admin order pages obtain five-minute signed URLs. Existing public receipt URLs are preserved for compatibility; migrate historical receipts into private storage and remove their public objects before launch. Custom reference images remain in the public image bucket; customers should not upload sensitive documents.
 
-Uploads accept actual JPEG/PNG/WebP data only, at most 8 MB per image and 12 images per product. Images are orientation-normalized, bounded to 2000 px and converted to WebP under generated filenames. Requests are capped at 32 MB.
+Uploads accept actual JPEG/PNG/WebP data only, at most 8 MB per image and 12 images per product. Images are orientation-normalized, bounded to 1600 px and converted to WebP under generated filenames. Requests are capped at 32 MB.
 
 ## Email and Google OAuth
 
@@ -150,3 +156,20 @@ Production cookies are Secure/HttpOnly/SameSite=Lax. Local HTTP development omit
 The admin save/error handling and Supabase performance patch includes a new **System health** page at `/admin/system-health`, batch settings updates, public-catalogue caching, more reliable upload/CRUD feedback and lower-query inventory costing.
 
 See [docs/ADMIN_PERFORMANCE_FIXES.md](docs/ADMIN_PERFORMANCE_FIXES.md) for exact changes, migration prerequisites, deployment verification, and known limitations. Deploying just the Python code does **not** run the Supabase migrations.
+
+## Product creation HTTP 400 (existing deployments)
+
+See [`docs/PRODUCT_INSERT_400_FIX.md`](docs/PRODUCT_INSERT_400_FIX.md). The recommended additive repair is `supabase/migrations/012_product_insert_repair.sql` after staging verification. Product editor diagnostics now show the PostgREST code for admins only.
+
+
+Custom-order conversion RPC repair: see [docs/CUSTOM_CONVERSION_400_FIX.md](docs/CUSTOM_CONVERSION_400_FIX.md) and migration `supabase/migrations/013_custom_conversion_repair.sql`.
+
+## End-to-end Supabase audit bundle
+
+- `supabase/FRESH_PROJECT_SQL_EDITOR_SETUP.sql` — all ordered SQL migrations for a **new, empty** project. Do **not** run wholesale on existing production data.
+- `supabase/LIVE_READ_ONLY_VERIFICATION.sql` — read-only matrix of tables, columns, service-role grants, RLS, eight RPCs and two Storage buckets for **existing** projects.
+- `docs/SUPABASE_FULL_AUDIT.md` — deployment and safe repair guide.
+- `docs/OPERATION_CHECKLIST.md` — manual staging acceptance tests grouped by each feature.
+- `docs/STATIC_ROUTE_INVENTORY.md` — generated inventory of 108 route declarations, including path and method.
+
+The repository cannot attest to live Supabase functionality without credentials and an actual staging/production verification run.

@@ -42,7 +42,7 @@ def admin_action_error(error):
         from urllib.parse import urlsplit
         referer = request.referrer or ''
         target = referer if urlsplit(referer).netloc == request.host else url_for('admin.dashboard')
-        flash(str(error), 'error')
+        flash(error.admin_detail if isinstance(error, supa.SupabaseError) else str(error), 'error')
         return redirect(target)
     from flask import current_app
     current_app.logger.warning('Admin backend operation failed: %s', error)
@@ -55,12 +55,16 @@ def system_health():
     """Read-only diagnostics to expose missing migrations/permissions in production."""
     checks = [
         ('Store settings', 'settings', 'key,value'),
-        ('Products', 'products', 'id,availability_mode,image_alt_texts'),
+        ('Product creation schema', 'products', 'id,title,description,price,discount_percent,stock,category_id,featured,is_flash_sale,flash_sale_ends_at,allow_preorder,is_listed,crafting_days,images,availability_mode,accepting_orders,lead_time_min,lead_time_max,max_order_quantity,sale_price,personalization_fields,slug,image_alt_texts'),
+        ('Product collections linkage', 'collection_products', 'collection_id,product_id'),
+        ('Product occasions linkage', 'product_occasions', 'occasion_id,product_id'),
         ('Categories', 'categories', 'id,active'),
         ('Collections', 'collections', 'id,slug,active'),
         ('Occasions', 'occasions', 'id,slug,active'),
-        ('Orders', 'orders', 'id,payment_status,fulfilment_status'),
-        ('Custom orders', 'custom_requests', 'id,quoted_price,converted_order_id'),
+        ('Orders', 'orders', 'id,email,tracking_token,internal_notes,payment_status,fulfilment_status'),
+        ('Custom order items', 'order_items', 'id,order_id,product_id,availability_mode,personalization'),
+        ('Custom order tracking', 'tracking', 'id,order_id,status,note'),
+        ('Custom orders', 'custom_requests', 'id,status,linked_product_id,quoted_price,converted_order_id'),
         ('Gift cards', 'gift_cards', 'id,issued_to,balance'),
         ('Inventory', 'raw_materials', 'id,active'),
         ('Components', 'components', 'id,active'),
@@ -77,9 +81,17 @@ def system_health():
             supa.probe_table(table, fields)
             results.append({'name':label, 'ok':True, 'detail':'Table and required columns reachable'})
         except (supa.SupabaseError, ValueError) as error:
-            results.append({'name':label, 'ok':False, 'detail':str(error)})
+            results.append({'name':label, 'ok':False, 'detail':error.admin_detail if isinstance(error, supa.SupabaseError) else str(error)})
+    for bucket, visibility in [('everbloom', True), ('payment-receipts', False)]:
+        try:
+            supa.probe_bucket(bucket, expected_public=visibility)
+            results.append({'name': f'Storage: {bucket}', 'ok': True,
+                            'detail': 'Bucket exists with correct privacy'})
+        except supa.SupabaseError as error:
+            results.append({'name': f'Storage: {bucket}', 'ok': False,
+                            'detail': error.admin_detail})
     return render_template('admin/system_health.html', checks=results,
-                           configured=bool(os.environ.get('SUPABASE_SERVICE_ROLE_KEY')))
+                           configured=bool(os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or os.environ.get('SUPABASE_SERVICE_KEY')))
 
 
 # ── Dashboard ─────────────────────────────────────────────
@@ -287,12 +299,19 @@ def product_new():
                 raise ValueError('A title and a positive price are required.')
             product = models.create_product(data)
             if not product: raise ValueError('Supabase did not create this product.')
-            _save_memberships(product['id'])
             _refresh_catalogue()
+            try:
+                _save_memberships(product['id'])
+            except (ValueError, supa.SupabaseError) as exc:
+                # Product INSERT has committed; don't invite a duplicate retry.
+                flash('Product created, but collection/occasion linking failed: ' +
+                      (exc.admin_detail if isinstance(exc, supa.SupabaseError) else str(exc)) +
+                      '. Open this product and retry saving its links.', 'error')
+                return redirect(url_for('admin.product_edit', pid=product['id']))
             flash('Product created!', 'success')
             return redirect(url_for('admin.products'))
         except (ValueError, supa.SupabaseError) as exc:
-            flash(str(exc), 'error')
+            flash(exc.admin_detail if isinstance(exc, supa.SupabaseError) else str(exc), 'error')
     return render_template('admin/product_form.html', product=None,
                            categories=categories, action='new', **_catalog_editor_context())
 
@@ -317,7 +336,7 @@ def product_edit(pid):
             flash('Product updated!', 'success')
             return redirect(url_for('admin.products'))
         except (ValueError, supa.SupabaseError) as exc:
-            flash(str(exc), 'error')
+            flash(exc.admin_detail if isinstance(exc, supa.SupabaseError) else str(exc), 'error')
     return render_template('admin/product_form.html', product=product,
                            categories=categories, action='edit', variants=models.get_variants(pid),
                            **_catalog_editor_context(pid))
@@ -534,29 +553,41 @@ def custom_request_convert(rid):
     """Admin manually converts request to real order."""
     price = request.form.get("agreed_price", "0")
     note  = request.form.get("note", "").strip()
-    try:
-        price = float(price)
-    except Exception:
-        price = 0
-    if price <= 0:
-        flash("Please enter a valid agreed price.", "error")
-        return redirect(url_for("admin.custom_request_detail", rid=rid))
+    # Keep the submitted decimal string intact, rather than floating-point
+    # rounding money before models.convert_custom_to_order validates it.
     order, err = models.convert_custom_to_order(rid, price, note)
     if err:
         flash(f"Error: {err}", "error")
     else:
-        req = models.get_custom_request(rid)
-        user_id = req.get("user_id") if req else None
-        if user_id:
-            models.create_notification(user_id,
-                f"Your custom order has been confirmed! Total: ₹{price:.0f}",
-                url_for("orders.order_detail", oid=order["id"]))
-        import emails, os
-        site_url = os.environ.get("SITE_URL","http://localhost:5000")
-        if req and req.get("email"):
-            emails.send_custom_accepted(req["email"], req.get("name",""),
-                                        order["id"], site_url)
+        # The RPC transaction has committed. Optional notifications must never
+        # make a completed order appear to have failed (inviting duplicate retries).
         flash(f"Order created successfully! Order #{str(order['id'])[:7].upper()}", "success")
+        try:
+            req = models.get_custom_request(rid)
+        except (supa.SupabaseError, ValueError):
+            from flask import current_app
+            current_app.logger.warning('Order conversion succeeded; custom request notification lookup failed')
+            req = None
+        if req and req.get('user_id'):
+            try:
+                models.create_notification(req['user_id'],
+                    f"Your custom order has been confirmed! Total: ₹{float(order['total']):.2f}",
+                    url_for('orders.order_detail', oid=order['id']))
+            except (supa.SupabaseError, ValueError):
+                from flask import current_app
+                current_app.logger.warning('Order conversion succeeded; in-app notification failed')
+                flash('Order saved, but the in-app notification could not be delivered.', 'error')
+        if req and req.get('email'):
+            import emails
+            try:
+                sent = emails.send_custom_accepted(req['email'], req.get('name',''),
+                                                   order['id'], os.environ.get('SITE_URL', 'http://localhost:5000'))
+                if not sent:
+                    flash('Order saved, but confirmation email was not sent.', 'error')
+            except Exception:
+                from flask import current_app
+                current_app.logger.exception('Order conversion succeeded; confirmation email failed')
+                flash('Order saved, but confirmation email failed. You can contact the customer manually.', 'error')
     return redirect(url_for("admin.custom_request_detail", rid=rid))
 
 
@@ -565,8 +596,7 @@ def custom_request_convert(rid):
 def custom_request_add_note(rid):
     note = request.form.get("note","").strip()
     if note:
-        models.add_custom_internal_note(rid, note)
-        flash("Note added.", "success")
+        _saved(models.add_custom_internal_note(rid, note), 'Internal note')
     return redirect(url_for("admin.custom_request_detail", rid=rid))
 
 
@@ -574,8 +604,18 @@ def custom_request_add_note(rid):
 @admin_only
 def custom_request_status(rid):
     status = request.form.get("status")
-    if status in models.CUSTOM_STATUSES:
-        models.update_custom_request(rid, {"status": status})
+    req = models.get_custom_request(rid)
+    if not req:
+        flash("Custom request not found.", "error")
+    elif status not in models.CUSTOM_STATUSES:
+        flash("Invalid custom request status.", "error")
+    elif status == "converted" and not req.get("converted_order_id"):
+        flash("Use Create Order to convert this request; changing the status alone does not create an order.", "error")
+    elif req.get("converted_order_id") and status not in ("converted", "closed"):
+        flash("This request already has an order and cannot be reverted to a pre-order status.", "error")
+    elif not models.update_custom_request(rid, {"status": status}):
+        flash("Could not update request status.", "error")
+    else:
         flash("Status updated.", "success")
     return redirect(url_for("admin.custom_request_detail", rid=rid))
 
@@ -590,11 +630,20 @@ def custom_request_email(rid):
         return redirect(url_for("admin.custom_requests"))
     subject = request.form.get("subject","").strip()
     message = request.form.get("message","").strip()
-    if subject and message:
-        emails.send_manual_email(req["email"], subject, message)
-        models.log_email(req["email"], subject, message,
-                         session["user_id"], "custom_request", rid)
-        flash("Email sent!", "success")
+    if subject and message and req.get('email'):
+        sent = emails.send_manual_email(req['email'], subject, message)
+        if sent:
+            try:
+                models.log_email(req['email'], subject, message,
+                                 session['user_id'], 'custom_request', rid)
+            except supa.SupabaseError:
+                from flask import current_app
+                current_app.logger.exception('Custom request email sent, audit log failed')
+            flash('Email sent.', 'success')
+        else:
+            flash('Email not sent. Verify the SMTP configuration and logs.', 'error')
+    else:
+        flash('Recipient email, subject and message are required.', 'error')
     return redirect(url_for("admin.custom_request_detail", rid=rid))
 
 
@@ -606,11 +655,18 @@ def custom_request_create_product(rid):
         flash("Request not found.", "error")
         return redirect(url_for("admin.custom_requests"))
     title       = request.form.get("title","").strip()
-    price       = float(request.form.get("price",0) or 0)
-    category_id = request.form.get("category_id") or None
-    stock       = int(request.form.get("stock",0) or 0)
+    price = _number('price', minimum=0.01)
+    stock_number = _number('stock', minimum=0)
+    if stock_number != int(stock_number):
+        raise ValueError('Stock must be a whole number.')
+    stock = int(stock_number)
+    if not title:
+        raise ValueError('A product title is required.')
+    category_id = request.form.get('category_id') or None
+    if category_id and not models.get_category(category_id):
+        raise ValueError('The selected category no longer exists.')
     description = request.form.get("description","").strip()
-    is_listed   = request.form.get("is_listed") == "on"
+    is_listed = request.form.get('is_listed') == 'on'
     images = [req["reference_image_url"]] if req.get("reference_image_url") else []
     product = models.create_product({
         "title": title, "price": price, "category_id": category_id,
@@ -619,11 +675,18 @@ def custom_request_create_product(rid):
         "images": images, "crafting_days": int(req.get("quoted_days") or 14),
     })
     if product:
-        # Link product to custom request
-        models.update_custom_request(str(req["id"]),{
-            "linked_product_id": str(product["id"]),
-            "listed_in_shop": is_listed,
-        })
+        # The product already exists. Do not suggest retrying its creation if
+        # a later link write fails (that would create duplicates).
+        try:
+            linked = models.update_custom_request(str(req['id']), {
+                'linked_product_id': str(product['id']),
+                'listed_in_shop': is_listed,
+            })
+            if not linked:
+                raise ValueError('The custom request did not accept the new product link.')
+        except (ValueError, supa.SupabaseError) as error:
+            flash(f'Product created, but linking failed: {error}. Find it in Products and retry linking.', 'error')
+            return redirect(url_for('admin.custom_request_detail', rid=rid))
         # If order already exists, update its order item to link to this product
         if req.get("converted_order_id"):
             oid = str(req["converted_order_id"])
@@ -631,12 +694,17 @@ def custom_request_create_product(rid):
             if items:
                 # Update first item to link to the product
                 import supa as supa_mod
-                supa_mod.update("order_items",
-                    {"order_id": f"eq.{oid}"},
-                    {"product_id": str(product["id"]),
-                     "title": title,
-                     "image_url": images[0] if images else ""})
-        flash(f"Product '{title}' created, linked to this request and the order!", "success")
+                try:
+                    changed = supa_mod.update('order_items',
+                        {'order_id': f'eq.{oid}', 'is_custom': 'eq.true'},
+                        {'product_id': str(product['id']), 'title': title,
+                         'image_url': images[0] if images else ''})
+                    if not changed:
+                        flash('Product created and linked; the converted order item could not be updated.', 'error')
+                except supa.SupabaseError as error:
+                    flash(f'Product created and linked; updating the converted order item failed: {error.admin_detail}', 'error')
+        _refresh_catalogue()
+        flash(f"Product '{title}' created and linked to this request.", 'success')
     else:
         flash("Could not create product.", "error")
     return redirect(url_for("admin.custom_request_detail", rid=rid))
@@ -650,26 +718,28 @@ def custom_request_link_product(rid):
         flash("Please select a product.", "error")
         return redirect(url_for("admin.custom_request_detail", rid=rid))
 
-    # Link product to custom request
-    models.update_custom_request(rid, {"linked_product_id": product_id})
-
-    # Update the order item with product image + title if order exists
     req = models.get_custom_request(rid)
+    if not req:
+        raise ValueError('Custom request not found.')
     product = models.get_product(product_id)
+    if not product:
+        raise ValueError('Selected product does not exist. Refresh and try again.')
+    if not models.update_custom_request(rid, {'linked_product_id': product_id}):
+        raise ValueError('Could not link the selected product.')
+    # Preserve unrelated order lines: only touch the custom item associated
+    # with this converted request.
     if req and product and req.get("converted_order_id"):
         oid = str(req["converted_order_id"])
         items = models.get_order_items(oid)
-        img = (product.get("images") or [""])[0]
+        img = (product.get('images') or [''])[0]
         if items:
             # Update existing item
             import supa as supa_mod
-            supa_mod.update("order_items",
-                {"order_id": f"eq.{oid}"},
-                {
-                    "product_id": product_id,
-                    "title":      product["title"],
-                    "image_url":  img,
-                })
+            updated = supa_mod.update('order_items',
+                {'order_id': f'eq.{oid}', 'is_custom': 'eq.true'},
+                {'product_id': product_id, 'title': product['title'], 'image_url': img})
+            if not updated:
+                flash('Request linked, but no converted custom order line could be updated.', 'error')
         else:
             # No items yet — create one
             models.create_order_item({
@@ -688,8 +758,7 @@ def custom_request_link_product(rid):
 @admin_bp.route("/custom-requests/<rid>/unlink", methods=["POST"])
 @admin_only
 def custom_request_unlink(rid):
-    models.update_custom_request(rid, {"linked_product_id": None})
-    flash("Product unlinked.", "success")
+    _saved(models.update_custom_request(rid, {'linked_product_id': None}), 'Product unlink')
     return redirect(url_for("admin.custom_request_detail", rid=rid))
 
 
@@ -1074,9 +1143,14 @@ def order_send_email(oid):
     message = request.form.get("message", "").strip()
 
     sent = emails.send_manual_email(user["email"], subject, message)
-    models.log_email(user["email"], subject, message,
-                     session["user_id"], "order", oid)
-    flash("Email sent to customer." if sent else "Email could not be delivered. Check SMTP configuration.", "success" if sent else "error")
+    if sent:
+        try:
+            models.log_email(user['email'], subject, message,
+                             session['user_id'], 'order', oid)
+        except supa.SupabaseError:
+            from flask import current_app
+            current_app.logger.exception('Order email sent but email log write failed')
+    flash('Email sent to customer.' if sent else 'Email could not be delivered. Check SMTP configuration.', 'success' if sent else 'error')
     return redirect(url_for("admin.order_detail", oid=oid))
 
 

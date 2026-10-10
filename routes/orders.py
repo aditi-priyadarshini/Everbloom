@@ -75,21 +75,32 @@ def pay_advance(oid):
                 flash(f'Payment proof upload failed: {error}', 'error')
                 return redirect(url_for('orders.pay_advance', oid=oid))
             if url:
-                models.update_order(oid, {
-                    "payment_screenshot_url": url,
-                    "status": "advance_paid", "payment_status":"advance_submitted"
-                })
-                models.add_tracking(oid, "advance_paid",
-                                    "Customer uploaded payment screenshot.")
-                models.create_notification(
-                    session["user_id"],
-                    "Payment screenshot uploaded. Awaiting confirmation.",
-                    url_for("orders.order_detail", oid=oid)
-                )
-                flash("Screenshot uploaded! We'll confirm your payment shortly.", "success")
-                return redirect(url_for("orders.order_detail", oid=oid))
+                try:
+                    updated = models.update_order(oid, {
+                        'payment_screenshot_url': url,
+                        'status': 'advance_paid', 'payment_status': 'advance_submitted',
+                    })
+                    if not updated:
+                        raise ValueError('The order could not be updated after upload')
+                except (ValueError, supa.SupabaseError):
+                    from flask import current_app
+                    current_app.logger.exception('Payment proof stored but order %s update failed', oid)
+                    flash('Screenshot uploaded privately, but the order was not updated. Contact support; do not pay twice.', 'error')
+                    return redirect(url_for('orders.order_detail', oid=oid))
+                # These are secondary effects. A notification failure must not
+                # undo a successfully recorded proof or invite another upload.
+                try:
+                    models.add_tracking(oid, 'advance_paid', 'Customer uploaded payment screenshot.')
+                    models.create_notification(session['user_id'],
+                        'Payment screenshot uploaded. Awaiting confirmation.',
+                        url_for('orders.order_detail', oid=oid))
+                except (ValueError, supa.SupabaseError):
+                    from flask import current_app
+                    current_app.logger.exception('Payment proof saved but notification/tracking failed for %s', oid)
+                flash('Screenshot uploaded! We will confirm your payment shortly.', 'success')
+                return redirect(url_for('orders.order_detail', oid=oid))
             else:
-                flash("Upload failed — check Supabase Storage bucket 'everbloom' exists and is Public.", "error")
+                flash('Upload failed — verify the private payment-receipts bucket and service-role credential.', 'error')
         else:
             flash("Please select a screenshot to upload.", "error")
 

@@ -10,3 +10,8 @@
 \ir supabase/migrations/008_order_validation.sql
 \ir supabase/migrations/009_order_updates.sql
 \ir supabase/migrations/010_backend_permissions.sql
+\ir supabase/migrations/011_ui_metadata.sql
+\ir supabase/migrations/012_product_insert_repair.sql
+\ir supabase/migrations/013_custom_conversion_repair.sql
+\ir supabase/migrations/014_storage_setup.sql
+\ir supabase/migrations/015_coupon_rls_permissions.sql
