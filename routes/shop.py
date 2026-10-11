@@ -26,7 +26,11 @@ def inject_cart():
     from datetime import date
     # Admin templates don't render storefront navigation/cart/settings.
     if request.blueprint == 'admin' or request.path == '/healthz':
-        return {'current_year': date.today().year}
+        # Safe empty defaults: errors/error.html extends base.html and must still
+        # render (403 for non-admins, 503 for failed admin GETs) without a
+        # storefront settings/navigation lookup.
+        return {'current_year': date.today().year, 'store': {}, 'cart_count': 0,
+                'nav_categories': [], 'nav_occasions': []}
     try:
         g.store_settings = models.get_all_settings()
         g.nav_categories = models.get_public_merchandising()['categories']
@@ -356,7 +360,14 @@ def custom_order_respond(token, response):
         flash("This link is no longer valid.", "error")
         return redirect(url_for("shop.index"))
     if response == 'accepted':
-        order,error=models.convert_custom_to_order(req['id'],req['quoted_price'])
+        try:
+            order,error=models.convert_custom_to_order(req['id'],req['quoted_price'])
+        except supa.SupabaseError:
+            # A backend failure must never show the customer a raw 500 page.
+            from flask import current_app
+            current_app.logger.exception('Customer quote acceptance failed for custom request %s', req.get('id'))
+            flash('We could not confirm your order just now. Nothing has been charged. Please try again in a moment or contact us.','error')
+            return redirect(url_for('shop.custom_order_track',token=token))
         if error: flash(error,'error')
         else:
             flash('Your custom order is confirmed.','success')

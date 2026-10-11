@@ -948,7 +948,11 @@ def save_product_bom(product_id, items):
     for item in items:
         qty = float(item.get('quantity_used') or 0)
         if qty <= 0: continue
-        row = {'product_id': str(product_id), 'item_type': item['item_type'], 'quantity_used': qty}
+        # PostgREST bulk inserts require every row to carry the SAME keys, so both
+        # reference columns are always present (None for the unused one). Rows with
+        # different key sets made any mixed material+component recipe fail (PGRST102).
+        row = {'product_id': str(product_id), 'item_type': item['item_type'], 'quantity_used': qty,
+               'material_id': None, 'component_id': None}
         if item['item_type'] == 'material' and item.get('material_id'):
             row['material_id'] = int(item['material_id'])
         elif item['item_type'] == 'component' and item.get('component_id'):

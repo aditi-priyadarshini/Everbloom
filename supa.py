@@ -44,10 +44,6 @@ def _one_line(value, limit=240):
 
 
 def _backend_hint(status, code, scope=""):
-    if code in ("42703", "PGRST204") and scope in ("probe categories", "probe custom_requests"):
-        return ("Missing column in the deployed Supabase project. Run migration "
-                "016_missing_columns_repair.sql against the database targeted by "
-                "Vercel SUPABASE_URL, then NOTIFY pgrst to reload schema.")
     if scope == "RPC convert_custom_request":
         if code in ("42883", "PGRST202"):
             return ("Custom-order RPC or its dependencies are missing. Review migration "
@@ -55,6 +51,13 @@ def _backend_hint(status, code, scope=""):
         if code in ("42703", "42P01", "PGRST204", "PGRST205"):
             return ("Custom-order conversion needs database columns from commerce migrations. "
                     "Review migration 013_custom_conversion_repair.sql and reload schema cache.")
+        if code == "22P02":
+            return ("The request ID type sent by the app does not match the database function "
+                    "(for example an integer id sent to a uuid parameter). Run migration "
+                    "016_custom_request_id_type_agnostic.sql, then reload the PostgREST schema cache.")
+        if code == "PGRST203":
+            return ("Two versions of convert_custom_request exist. Run migration "
+                    "016_custom_request_id_type_agnostic.sql, which drops the old uuid version.")
         if code in ("22023", "P0001", "55000"):
             return "The conversion RPC rejected this request or quote. Read its reason above; verify the request state."
         if code in ("23502", "23503", "23505", "23514"):

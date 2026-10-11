@@ -1,5 +1,5 @@
 import os
-from flask import Blueprint, render_template, request, redirect, url_for, session, flash
+from flask import Blueprint, render_template, request, redirect, url_for, session, flash, current_app
 from werkzeug.security import generate_password_hash, check_password_hash
 import models
 import emails
@@ -166,8 +166,16 @@ def reset_password(token):
 @auth_bp.route("/google/login")
 def google_login():
     from app import oauth
+    if not os.environ.get("GOOGLE_CLIENT_ID") or not os.environ.get("GOOGLE_CLIENT_SECRET"):
+        flash("Google sign-in is not available right now. Please use email and password.", "error")
+        return redirect(url_for("auth.login"))
     redirect_uri = url_for("auth.google_callback", _external=True)
-    return oauth.google.authorize_redirect(redirect_uri)
+    try:
+        return oauth.google.authorize_redirect(redirect_uri)
+    except Exception:
+        current_app.logger.exception("Google sign-in could not start")
+        flash("Google sign-in is temporarily unavailable. Please try again.", "error")
+        return redirect(url_for("auth.login"))
 
 
 @auth_bp.route("/google/callback")

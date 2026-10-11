@@ -2,6 +2,9 @@
 -- Back up first. Run in Supabase SQL Editor as project owner/postgres.
 -- Does not touch existing orders, change RLS, or create customer orders.
 -- Requires migrations 001 (tables) and, for full commerce features, 002–012.
+-- NOTE: migration 016 supersedes this function (id passed as text). Do NOT re-run
+-- 013 after 016 on its own: it would re-create the uuid overload and PostgREST
+-- would then report PGRST203 (ambiguous function). If you do, re-run 016.
 BEGIN;
 
 -- Only the columns the conversion RPC actually needs. On partially migrated

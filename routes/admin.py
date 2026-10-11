@@ -17,16 +17,33 @@ def _saved(result, label):
     return ok
 
 
-def _number(name, default=0, minimum=0):
-    """Validate untrusted admin numeric forms; avoid unhandled ValueError/500s."""
+def _flt(raw, label='number', limit=1e12):
+    """Strict float for admin forms: rejects blank/garbage, NaN, +/-Infinity and
+    absurd magnitudes (float(Decimal('1e999')) is inf, which later breaks JSON/DB)."""
     from decimal import Decimal, InvalidOperation
     try:
-        value = Decimal(request.form.get(name) or str(default))
-        if not value.is_finite() or value < minimum:
-            raise ValueError
-    except (InvalidOperation, ValueError):
+        value = float(Decimal(str(raw).strip()))
+    except (InvalidOperation, ValueError, TypeError, OverflowError):
+        raise ValueError(f'Enter a valid {label.replace("_", " ")}.')
+    if value != value or value in (float('inf'), float('-inf')) or abs(value) > limit:
+        raise ValueError(f'Enter a valid {label.replace("_", " ")}.')
+    return value
+
+
+def _int(raw, label='whole number', limit=2147483647):
+    """Strict integer for admin forms (see _flt)."""
+    value = _flt(raw, label, limit)
+    if value != int(value):
+        raise ValueError(f'{label.replace("_", " ").capitalize()} must be a whole number.')
+    return int(value)
+
+
+def _number(name, default=0, minimum=0, maximum=1e12):
+    """Validate untrusted admin numeric forms; avoid unhandled ValueError/500s."""
+    value = _flt(request.form.get(name) or str(default), name, maximum)
+    if value < minimum:
         raise ValueError(f'Enter a valid {name.replace("_", " ")}.')
-    return float(value)
+    return value
 
 
 def _refresh_catalogue():
@@ -90,10 +107,7 @@ def system_health():
         except supa.SupabaseError as error:
             results.append({'name': f'Storage: {bucket}', 'ok': False,
                             'detail': error.admin_detail})
-    from urllib.parse import urlsplit
-    supabase_host = urlsplit(os.environ.get('SUPABASE_URL', '')).hostname or '(not configured)'
     return render_template('admin/system_health.html', checks=results,
-                           supabase_host=supabase_host,
                            configured=bool(os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or os.environ.get('SUPABASE_SERVICE_KEY')))
 
 
@@ -377,23 +391,23 @@ def _parse_product_form(req, existing=None):
     data = {
         'availability_mode':mode,
         'accepting_orders':req.form.get('accepting_orders') == 'on',
-        'lead_time_min':max(0,int(req.form.get('lead_time_min') or 0)),
-        'lead_time_max':max(0,int(req.form.get('lead_time_max') or req.form.get('crafting_days') or 7)),
-        'max_order_quantity':max(1,min(99,int(req.form.get('max_order_quantity') or 99))),
+        'lead_time_min':max(0,_int(req.form.get('lead_time_min') or 0, 'lead_time_min')),
+        'lead_time_max':max(0,_int(req.form.get('lead_time_max') or req.form.get('crafting_days') or 7, 'lead_time_max')),
+        'max_order_quantity':max(1,min(99,_int(req.form.get('max_order_quantity') or 99, 'max_order_quantity'))),
         'sale_price':float(money(req.form['sale_price'])) if req.form.get('sale_price') else None,
         'personalization_fields':fields,
         'slug':req.form.get('slug','').strip() or re.sub(r'[^a-z0-9]+','-',req.form.get('title','').lower()).strip('-'),
         "title": req.form.get("title", "").strip(),
         "description": req.form.get("description", "").strip(),
-        "price": float(req.form.get("price", 0)),
-        "discount_percent": int(req.form.get("discount_percent", 0)),
-        "stock": int(req.form.get("stock", 0)),
+        "price": _flt(req.form.get("price", 0), 'price'),
+        "discount_percent": _int(req.form.get("discount_percent", 0), 'discount_percent'),
+        "stock": _int(req.form.get("stock", 0), 'stock'),
         "category_id": req.form.get("category_id") or None,
         "featured": req.form.get("featured") == "on",
         "is_flash_sale": req.form.get("is_flash_sale") == "on",
         "allow_preorder": req.form.get("allow_preorder") == "on",
         "is_listed": req.form.get("is_listed") == "on",
-        "crafting_days": int(req.form.get("crafting_days", 7)),
+        "crafting_days": _int(req.form.get("crafting_days", 7), 'crafting_days'),
     }
     flash_ends = req.form.get("flash_sale_ends_at", "")
     data["flash_sale_ends_at"] = flash_ends if flash_ends else None
@@ -975,7 +989,7 @@ def faq_new():
         "question": request.form.get("question", ""),
         "answer": request.form.get("answer", ""),
         "category": request.form.get("category", "general"),
-        "sort_order": int(request.form.get("sort_order", 0)),
+        "sort_order": _int(request.form.get("sort_order", 0), 'sort_order'),
         "active": True,
     })
     _saved(result, "FAQ")
@@ -1027,8 +1041,8 @@ def variant_add(pid):
         "product_id": pid,
         "name": request.form.get("name", ""),
         "value": request.form.get("value", ""),
-        "price_modifier": float(request.form.get("price_modifier", 0)),
-        "stock": int(request.form.get("stock", 0)),
+        "price_modifier": _flt(request.form.get("price_modifier", 0), 'price_modifier'),
+        "stock": _int(request.form.get("stock", 0), 'stock'),
     })
     if _saved(result, "Variant"): _refresh_catalogue()
     return redirect(url_for("admin.product_edit", pid=pid))
@@ -1037,9 +1051,10 @@ def variant_add(pid):
 @admin_bp.route("/variants/<vid>/delete", methods=["POST"])
 @admin_only
 def variant_delete(vid):
-    pid = request.form.get("product_id")
+    pid = (request.form.get("product_id") or "").strip()
     if _saved(models.delete_variant(vid), "Variant deletion"): _refresh_catalogue()
-    return redirect(url_for("admin.product_edit", pid=pid))
+    # product_id may be missing from the form: never crash AFTER the delete succeeded.
+    return redirect(url_for("admin.product_edit", pid=pid) if pid else url_for("admin.products"))
 
 
 # ── Settings ─────────────────────────────────────────────
@@ -1176,9 +1191,9 @@ def inventory_new():
     data = {
         "name":          request.form.get("name", "").strip(),
         "unit":          request.form.get("unit", "units").strip(),
-        "current_stock": float(request.form.get("current_stock", 0)),
-        "reorder_level": float(request.form.get("reorder_level", 0)),
-        "cost_per_unit": float(request.form.get("cost_per_unit", 0)),
+        "current_stock": _flt(request.form.get("current_stock", 0), 'current_stock'),
+        "reorder_level": _flt(request.form.get("reorder_level", 0), 'reorder_level'),
+        "cost_per_unit": _flt(request.form.get("cost_per_unit", 0), 'cost_per_unit'),
         "supplier":      request.form.get("supplier", "").strip(),
         "notes":         request.form.get("notes", "").strip(),
     }
@@ -1192,8 +1207,8 @@ def inventory_edit(mid):
     data = {
         "name":          request.form.get("name", "").strip(),
         "unit":          request.form.get("unit", "units").strip(),
-        "reorder_level": float(request.form.get("reorder_level", 0)),
-        "cost_per_unit": float(request.form.get("cost_per_unit", 0)),
+        "reorder_level": _flt(request.form.get("reorder_level", 0), 'reorder_level'),
+        "cost_per_unit": _flt(request.form.get("cost_per_unit", 0), 'cost_per_unit'),
         "supplier":      request.form.get("supplier", "").strip(),
         "notes":         request.form.get("notes", "").strip(),
     }
@@ -1211,11 +1226,13 @@ def inventory_delete(mid):
 @admin_bp.route("/inventory/<int:mid>/purchase", methods=["POST"])
 @admin_only
 def inventory_purchase(mid):
-    qty      = float(request.form.get("quantity", 0))
-    cpu      = float(request.form.get("cost_per_unit", 0))
+    qty      = _flt(request.form.get("quantity", 0), 'quantity')
+    cpu      = _flt(request.form.get("cost_per_unit", 0), 'cost_per_unit')
     supplier = request.form.get("supplier", "").strip()
     note     = request.form.get("note", "").strip()
-    if qty > 0:
+    if qty <= 0 or cpu < 0:
+        flash("Enter a quantity above zero and a cost of zero or more. Stock was not changed.", "error")
+    else:
         received = models.add_expenditure({
             "material_id":   mid,
             "quantity":      qty,
@@ -1275,8 +1292,8 @@ def component_new():
     data = {
         "name":          request.form.get("name", "").strip(),
         "unit":          request.form.get("unit", "pieces"),
-        "current_stock": float(request.form.get("current_stock", 0)),
-        "reorder_level": float(request.form.get("reorder_level", 0)),
+        "current_stock": _flt(request.form.get("current_stock", 0), 'current_stock'),
+        "reorder_level": _flt(request.form.get("reorder_level", 0), 'reorder_level'),
         "icon":          request.form.get("icon", "🔧"),
         "notes":         request.form.get("notes", "").strip(),
     }
@@ -1306,13 +1323,13 @@ def component_detail(cid):
             result = models.update_component(cid, {
                 "icon":  request.form.get("icon", comp.get("icon","🔧")),
                 "notes": request.form.get("notes", "").strip(),
-                "reorder_level": float(request.form.get("reorder_level", 0)),
+                "reorder_level": _flt(request.form.get("reorder_level", 0), 'reorder_level'),
             })
             _saved(result, 'Component recipe')
         elif action == "manufacture":
-            qty   = float(request.form.get("quantity", 1))
+            qty   = _flt(request.form.get("quantity", 1), 'quantity')
             notes = request.form.get("notes", "").strip()
-            wastage_pct = float(request.form.get("wastage_percent", 0) or 0)
+            wastage_pct = _flt(request.form.get("wastage_percent", 0) or 0, "wastage_percent")
             ok, errors = models.manufacture_component(cid, qty, notes, wastage_percent=wastage_pct)
             if ok:
                 waste_msg = f" ({wastage_pct}% wastage applied)" if wastage_pct > 0 else ""
@@ -1325,7 +1342,7 @@ def component_detail(cid):
                 "name":  request.form.get("name", comp["name"]).strip(),
                 "unit":  request.form.get("unit", comp["unit"]),
                 "icon":  request.form.get("icon", comp.get("icon","🔧")),
-                "reorder_level": float(request.form.get("reorder_level", 0)),
+                "reorder_level": _flt(request.form.get("reorder_level", 0), 'reorder_level'),
                 "notes": request.form.get("notes", "").strip(),
             })
             _saved(result, 'Component')
@@ -1359,9 +1376,9 @@ def product_cost_detail(pid):
 
     if request.method == "POST":
         if not models.save_product_cost(pid, {
-            "labour_cost":    float(request.form.get("labour_cost", 0)),
-            "overhead_cost":  float(request.form.get("overhead_cost", 0)),
-            "margin_percent": float(request.form.get("margin_percent", 30)),
+            "labour_cost":    _flt(request.form.get("labour_cost", 0), 'labour_cost'),
+            "overhead_cost":  _flt(request.form.get("overhead_cost", 0), 'overhead_cost'),
+            "margin_percent": _flt(request.form.get("margin_percent", 30), 'margin_percent'),
             "notes":          request.form.get("notes", "").strip(),
         }):
             raise ValueError('Could not save the product cost fields.')
@@ -1371,7 +1388,7 @@ def product_cost_detail(pid):
         qtys        = request.form.getlist("quantity_used[]")
         bom_items = []
         for i, itype in enumerate(item_types):
-            qty = float(qtys[i]) if i < len(qtys) else 0
+            qty = _flt(qtys[i], 'quantity_used') if i < len(qtys) and qtys[i] != '' else 0
             if itype == "material":
                 mid = mat_ids[i] if i < len(mat_ids) else ""
                 bom_items.append({"item_type": "material", "material_id": mid, "component_id": None, "quantity_used": qty})
@@ -1442,7 +1459,7 @@ def custom_request_quote(rid):
         if amount<=0: raise ValueError('Enter a positive quote.')
         from datetime import datetime,timezone
         import emails
-        payload={'quoted_price':float(amount),'quoted_days':max(1,int(request.form.get('quoted_days') or 7)),'quote_message':request.form.get('quote_message','').strip()[:2000],'quote_sent_at':datetime.now(timezone.utc).isoformat(),'status':'quoted'}
+        payload={'quoted_price':float(amount),'quoted_days':max(1,_int(request.form.get('quoted_days') or 7, 'quoted_days')),'quote_message':request.form.get('quote_message','').strip()[:2000],'quote_sent_at':datetime.now(timezone.utc).isoformat(),'status':'quoted'}
         if not models.update_custom_request(rid,payload): raise ValueError('Could not save the quote.')
         track_url=url_for('shop.custom_order_track',token=req['tracking_token'],_external=True)
         sent=emails.send_custom_quote(req['email'],req['name'],{**req,**payload},track_url,track_url)

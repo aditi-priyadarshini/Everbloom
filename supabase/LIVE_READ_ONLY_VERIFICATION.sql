@@ -176,3 +176,22 @@ findings AS (
  FROM (VALUES ('everbloom',true),('payment-receipts',false)) AS b(bucket_id,expected_public)
 )
 SELECT kind, object, status, advice FROM findings ORDER BY CASE status WHEN 'FAIL' THEN 0 ELSE 1 END, kind, object;
+
+
+-- ===== ID TYPE CHECK (read-only) =====================================
+-- Shows the real type of every id/foreign-key column the app and RPCs rely on.
+-- Expected: custom_requests.id, orders.id, products.id, users.id = uuid.
+-- If custom_requests.id is bigint/integer, run migration 016 (the RPC then works
+-- with either type). Any other unexpected integer/uuid mix is listed here.
+SELECT table_name, column_name, data_type
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND (table_name, column_name) IN (
+    ('custom_requests','id'), ('custom_requests','converted_order_id'),
+    ('custom_requests','linked_product_id'), ('custom_requests','user_id'),
+    ('orders','id'), ('orders','custom_request_id'), ('orders','user_id'),
+    ('order_items','order_id'), ('order_items','product_id'),
+    ('products','id'), ('users','id'), ('tracking','order_id'))
+ORDER BY table_name, column_name;
+SELECT oid::regprocedure AS convert_custom_request_versions
+FROM pg_proc WHERE proname = 'convert_custom_request';  -- must be exactly ONE row: (text,numeric,text)

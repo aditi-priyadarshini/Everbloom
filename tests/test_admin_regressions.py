@@ -42,7 +42,7 @@ def test_invalid_product_price_is_handled_without_500(admin_client):
         'title': 'Test Gift', 'price': 'not a price', 'availability_mode': 'READY_TO_SHIP',
     })
     assert response.status_code == 200
-    assert b'not a price' in response.data
+    assert b'Enter a valid price' in response.data  # clear message, not a raw Python error
 
 
 def test_failed_coupon_creation_shows_error(admin_client, monkeypatch):

@@ -39,7 +39,7 @@ rollback;
 
 begin;
 do $$
-declare pid uuid; oid uuid; rid uuid; mat bigint; v1 bigint; result jsonb; repeat_result jsonb;
+declare pid uuid; oid uuid; rid text; mat bigint; v1 bigint; result jsonb; repeat_result jsonb;
 begin
  insert into products(title,price,stock,availability_mode,is_listed,crafting_days) values('Options test',100,10,'READY_TO_SHIP',true,0) returning id into pid;
  insert into variants(product_id,name,value,price_modifier) values(pid,'Size','Grand',25) returning id into v1;
@@ -56,7 +56,7 @@ begin
   raise exception 'Coupon reuse incorrectly succeeded';
  exception when others then if sqlerrm='Coupon reuse incorrectly succeeded' then raise;end if;end;
  assert (select stock from products where id=pid)=8,'Failed coupon must roll back stock';
- insert into custom_requests(name,email,description,status,tracking_token) values('Test','test@example.com','Custom bouquet request','quoted','request-token') returning id into rid;
+ insert into custom_requests(name,email,description,status,tracking_token) values('Test','test@example.com','Custom bouquet request','quoted','request-token') returning id::text into rid;
  result=convert_custom_request(rid,500,'Private note');repeat_result=convert_custom_request(rid,500,'Repeat');
  assert result->>'id'=repeat_result->>'id','Custom conversion must be repeat safe';
  assert (select count(*) from order_items where order_id=(result->>'id')::uuid)=1,'Custom order item must exist once';
